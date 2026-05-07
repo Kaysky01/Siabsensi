@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIABSEN — Sistem Absensi Cerdas</title>
+  <link rel="stylesheet" href="static/css/style.css">
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap"
+    rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700" rel="stylesheet">
+  <!-- jsQR Library for QR Code Detection in Browser -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+</head>
+
+<body>
+
+  <div class="app">
+
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-mark">
+          <img src="static/img/logo.png" alt="Logo" class="logo-icon">
+          <div>
+            <div class="logo-text">SIABSEN</div>
+            <div class="logo-sub">v2.4</div>
+          </div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <div class="nav-section">Utama</div>
+        <div class="nav-item active" onclick="showPage('dashboard')">
+          <span class="material-symbols-outlined icon">dashboard</span> Dashboard
+        </div>
+        <div class="nav-item" onclick="showPage('attendance')">
+          <span class="material-symbols-outlined icon">check_circle</span> Absensi Hari Ini
+          <span class="badge" id="sidebar-present">0</span>
+        </div>
+        <div class="nav-section">Data</div>
+        <div class="nav-item" onclick="showPage('mahasiswa')">
+          <span class="material-symbols-outlined icon">badge</span> Mahasiswa
+        </div>
+        <div class="nav-item" onclick="showPage('history')">
+          <span class="material-symbols-outlined icon">history</span> Riwayat
+        </div>
+        <div class="nav-section">Analisis</div>
+        <div class="nav-item" onclick="showPage('video-upload')">
+          <span class="material-symbols-outlined icon">video_file</span> Upload Video MP4
+        </div>
+        <div class="nav-section">Verifikasi Pengajuan</div>
+        <div class="nav-item" onclick="showPage('izin-timdis')">
+          <span class="material-symbols-outlined icon">fact_check</span> Verifikasi Izin/Sakit
+          <span class="badge badge-warning" id="sidebar-pending-izin">0</span>
+        </div>
+        <div class="nav-item" onclick="showPage('kehadiran-timdis')">
+          <span class="material-symbols-outlined icon">how_to_reg</span> Verifikasi Kehadiran
+          <span class="badge badge-warning" id="sidebar-pending-kehadiran">0</span>
+        </div>
+        <div class="nav-section">Sistem</div>
+        <div class="nav-item" onclick="showPage('users')">
+          <span class="material-symbols-outlined icon">manage_accounts</span> User Management
+        </div>
+        <div class="nav-item" onclick="showPage('settings')">
+          <span class="material-symbols-outlined icon">settings</span> Pengaturan
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span class="status-dot"></span>
+        Sistem Aktif<br>
+        <span id="current-time" style="font-family:var(--mono);font-size:10px;opacity:.6"></span>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <section id="page-dashboard">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Dashboard Absensi</div>
+            <div class="page-sub" id="today-label">Loading...</div>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-ghost btn-sm" onclick="refreshData()"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span> Refresh</button>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <!-- Hero Stat - Primary Focus -->
+          <div class="stat-card">
+            <span class="material-symbols-outlined stat-icon">group</span>
+            <div class="stat-label">Total Mahasiswa</div>
+            <div class="stat-value" id="s-total">—</div>
+            <div class="stat-delta">Aktif terdaftar dalam sistem</div>
+          </div>
+          
+          <!-- Secondary Stats -->
+          <div class="stat-card">
+            <span class="material-symbols-outlined stat-icon">task_alt</span>
+            <div class="stat-label">Hadir Hari Ini</div>
+            <div class="stat-value" id="s-present">—</div>
+            <div class="stat-delta"><span class="up" id="s-pct">—</span>% kehadiran</div>
+          </div>
+          <div class="stat-card">
+            <span class="material-symbols-outlined stat-icon">person_off</span>
+            <div class="stat-label">Tidak Hadir</div>
+            <div class="stat-value" id="s-absent">—</div>
+            <div class="stat-delta">Belum absen masuk</div>
+          </div>
+          <div class="stat-card">
+            <span class="material-symbols-outlined stat-icon">schedule</span>
+            <div class="stat-label">Masih di Kantor</div>
+            <div class="stat-value" id="s-inoffice">—</div>
+            <div class="stat-delta">Belum absen keluar</div>
+          </div>
+        </div>
+
+        <div class="three-col">
+          <div class="panel">
+            <div class="section-header">
+              <div>
+                <div class="section-title">Absensi Terkini</div>  
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="showPage('attendance')">Lihat Semua <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">arrow_forward</span></button>
+            </div>
+            <table class="att-table">
+              <thead>
+                <tr>
+                  <th>Mahasiswa</th>
+                  <th>Masuk</th>
+                  <th>Keluar</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="recent-tbody">
+                <tr>
+                  <td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Memuat data...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:16px">
+
+            <div class="panel">
+              <div class="section-header">
+                <div class="section-title">Tren 7 Hari</div>
+              </div>
+              <div class="trend-chart">
+                <div class="bar-chart" id="trend-chart"></div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="section-header">
+                <div class="section-title">Per Kelompok</div>
+              </div>
+              <div id="dept-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-attendance" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Absensi Hari Ini</div>
+            <div class="page-sub" id="att-date-label">—</div>
+          </div>
+          <div class="header-actions">
+            <input type="date" id="att-date-filter" class="form-input" style="width:160px;padding:7px 10px"
+              onchange="filterAttendance(this.value)">
+            <button class="btn btn-ghost btn-sm" onclick="exportCSV()"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Export CSV</button>
+          </div>
+        </div>
+        <div class="panel">
+          <table class="att-table" id="full-att-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Mahasiswa</th>
+                <th>Kelompok</th>
+                <th>Jam Masuk</th>
+                <th>Jam Keluar</th>
+                <th>Durasi</th>
+                <th>Kamera</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="full-att-tbody">
+              <tr>
+                <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="page-mahasiswa" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Data Mahasiswa</div>
+            <div class="page-sub">Manajemen mahasiswa dan QR Code</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openAddMahasiswa()"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">add</span> Tambah Mahasiswa</button>
+        </div>
+        
+        <!-- Filter dan Pencarian -->
+        <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div style="flex:1;min-width:200px">
+              <label class="form-label">Cari Nama Mahasiswa</label>
+              <input type="text" id="mhs-search" class="form-input" placeholder="Ketik nama mahasiswa..." style="padding:7px 10px" oninput="filterMahasiswa()">
+            </div>
+            <div>
+              <label class="form-label">Kelompok</label>
+              <select id="mhs-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterMahasiswa()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Jurusan</label>
+              <select id="mhs-filter-jurusan" class="form-input" style="width:180px;padding:7px 10px" onchange="filterMahasiswa()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+            <div style="align-self:flex-end">
+              <button class="btn btn-secondary btn-sm" onclick="resetMahasiswaFilter()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span>
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="panel">
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>Mahasiswa</th>
+                <th>Kelompok</th>
+                <th>Jurusan</th>
+                <th>Email</th>
+                <th>No Telp Mahasiswa</th>
+                <th>No Telp Orang Tua</th>
+                <th>QR Code ID</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="mhs-tbody">
+              <tr>
+                <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="page-history" style="display:none">
+        <div class="page-header">
+          <div class="page-title">Riwayat Absensi</div>
+        </div>
+        <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div>
+              <label class="form-label">Dari Tanggal</label>
+              <input type="date" id="hist-start" class="form-input" style="width:150px;padding:7px 10px">
+            </div>
+            <div>
+              <label class="form-label">Sampai Tanggal</label>
+              <input type="date" id="hist-end" class="form-input" style="width:150px;padding:7px 10px">
+            </div>
+            <div style="align-self:flex-end">
+              <button class="btn btn-primary btn-sm" onclick="loadHistory()">Cari</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Mahasiswa</th>
+                <th>Kelompok</th>
+                <th>Masuk</th>
+                <th>Keluar</th>
+                <th>Durasi</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="hist-tbody">
+              <tr>
+                <td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Pilih rentang tanggal dan
+                  tekan Cari</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="page-video-upload" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Upload dan Deteksi Video MP4</div>
+            <div class="page-sub">Unggah video rekaman untuk deteksi QR Code otomatis</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-title" style="margin-bottom:16px">Upload Video</div>
+          <div class="form-row">
+            <label class="form-label">Pilih Action *</label>
+            <select id="video-action-select" class="form-input" style="width:200px">
+              <option value="check_in">Check-in (Masuk)</option>
+              <option value="check_out">Check-out (Keluar)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="form-label">Pilih File Video (MP4)</label>
+            <input type="file" id="video-file-input" class="form-input" accept=".mp4,video/mp4" 
+                   onchange="handleVideoFileSelect(event)">
+          </div>
+          <div id="video-preview-section" style="display:none;margin-top:20px">
+            <div class="form-row">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <label class="form-label" style="margin:0">Preview</label>
+                <span id="preview-video-info" style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted)"></span>
+              </div>
+              <div class="video-preview-container">
+                <video id="preview-video-player" controls></video>
+                <canvas id="preview-canvas-overlay"></canvas>
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:6px">
+                <span style="color:#FFD700;font-weight:600">Bounding box kuning</span> = QR Code terdeteksi secara real-time &nbsp;·&nbsp; Deteksi menggunakan jsQR (sama seperti attendance_engine.py)
+              </div>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:12px">
+              <button class="btn btn-primary" onclick="uploadAndProcessVideo()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">upload</span>
+                Upload & Proses Video
+              </button>
+              <button class="btn btn-ghost" onclick="cancelVideoUpload()">Batal</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="video-processing-panel" class="panel" style="display:none">
+          <div class="section-title" style="margin-bottom:16px">Status Pemrosesan</div>
+          <div id="processing-status" style="padding:20px;text-align:center">
+            <div class="spinner" style="margin:0 auto 16px"></div>
+            <div style="font-size:16px;font-weight:600;color:var(--text)">Memproses video...</div>
+            <div id="processing-progress" style="font-size:14px;color:var(--text-muted);margin-top:8px">0%</div>
+            
+            <!-- Preview dengan bounding box -->
+            <div style="margin-top:20px">
+              <canvas id="video-preview-canvas" style="max-width:100%;border:2px solid var(--border);border-radius:var(--radius-md);display:none"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div id="video-success-panel" class="panel" style="display:none">
+          <div class="section-header">
+            <div>
+              <div class="section-title"><span class="material-symbols-outlined" style="font-size:20px;vertical-align:middle;color:var(--success)">check_circle</span> Video Berhasil Diproses</div>
+              <div class="section-sub" id="success-summary">—</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="showPage('attendance')">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">list_alt</span>
+                Lihat Absensi Hari Ini
+              </button>
+            </div>
+          </div>
+          <div style="padding:20px;text-align:center">
+            <span class="material-symbols-outlined" style="font-size:80px;color:var(--success)">check_circle</span>
+            <p style="margin-top:16px;font-size:16px;color:var(--text)">
+              Semua data absensi telah tercatat ke database.<br>
+              Silakan cek di halaman <strong>"Absensi Hari Ini"</strong>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VERIFIKASI IZIN/SAKIT (TIMDIS) ===== -->
+      <section id="page-izin-timdis" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Verifikasi Pengajuan Izin/Sakit</div>
+            <div class="page-sub">Kelola dan verifikasi pengajuan izin/sakit dari mahasiswa</div>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-ghost btn-sm" onclick="loadIzinSubmissions()">
+              <span class="material-symbols-outlined" style="font-size:16px">refresh</span> Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px">
+          <div class="stat-card">
+            <div class="stat-label">Pending</div>
+            <div class="stat-value" id="stat-pending-izin">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Disetujui</div>
+            <div class="stat-value" id="stat-approved-izin">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Ditolak</div>
+            <div class="stat-value" id="stat-rejected-izin">0</div>
+          </div>
+        </div>
+
+        <!-- Filter dan Pencarian -->
+        <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div style="flex:1;min-width:200px">
+              <label class="form-label">Cari Nama Mahasiswa</label>
+              <input type="text" id="izin-search" class="form-input" placeholder="Ketik nama mahasiswa..." style="padding:7px 10px" oninput="filterIzinSubmissions()">
+            </div>
+            <div>
+              <label class="form-label">Kelompok</label>
+              <select id="izin-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterIzinSubmissions()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Status</label>
+              <select id="izin-filter-status" class="form-input" style="width:150px;padding:7px 10px" onchange="filterIzinSubmissions()">
+                <option value="">Semua</option>
+                <option value="pending" selected>Pending</option>
+                <option value="approved">Disetujui</option>
+                <option value="rejected">Ditolak</option>
+              </select>
+            </div>
+            <div style="align-self:flex-end">
+              <button class="btn btn-secondary btn-sm" onclick="resetIzinFilter()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span>
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabel Pengajuan -->
+        <div class="panel">
+          <div style="overflow-x:auto">
+            <table class="att-table">
+              <thead>
+                <tr>
+                  <th>Mahasiswa</th>
+                  <th>Kelompok</th>
+                  <th>Jenis</th>
+                  <th>Tanggal</th>
+                  <th>Keterangan</th>
+                  <th>Bukti</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="izin-submissions-table-body">
+                <tr>
+                  <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
+                    Loading...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== VERIFIKASI PENGAJUAN KEHADIRAN (TIMDIS) ===== -->
+      <section id="page-kehadiran-timdis" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Verifikasi Pengajuan Kehadiran</div>
+            <div class="page-sub">Kelola dan verifikasi pengajuan kehadiran dari mahasiswa</div>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-ghost btn-sm" onclick="loadKehadiranSubmissions()">
+              <span class="material-symbols-outlined" style="font-size:16px">refresh</span> Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px">
+          <div class="stat-card">
+            <div class="stat-label">Pending</div>
+            <div class="stat-value" id="stat-pending-kehadiran">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Disetujui</div>
+            <div class="stat-value" id="stat-approved-kehadiran">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Ditolak</div>
+            <div class="stat-value" id="stat-rejected-kehadiran">0</div>
+          </div>
+        </div>
+
+        <!-- Filter dan Pencarian -->
+        <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div style="flex:1;min-width:200px">
+              <label class="form-label">Cari Nama Mahasiswa</label>
+              <input type="text" id="kehadiran-search" class="form-input" placeholder="Ketik nama mahasiswa..." style="padding:7px 10px" oninput="filterKehadiranSubmissions()">
+            </div>
+            <div>
+              <label class="form-label">Kelompok</label>
+              <select id="kehadiran-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterKehadiranSubmissions()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Status</label>
+              <select id="kehadiran-filter-status" class="form-input" style="width:150px;padding:7px 10px" onchange="filterKehadiranSubmissions()">
+                <option value="">Semua</option>
+                <option value="pending" selected>Pending</option>
+                <option value="approved">Disetujui</option>
+                <option value="rejected">Ditolak</option>
+              </select>
+            </div>
+            <div style="align-self:flex-end">
+              <button class="btn btn-secondary btn-sm" onclick="resetKehadiranFilter()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span>
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabel Pengajuan Kehadiran -->
+        <div class="panel">
+          <div style="overflow-x:auto">
+            <table class="att-table">
+              <thead>
+                <tr>
+                  <th>Mahasiswa</th>
+                  <th>Kelompok</th>
+                  <th>Tanggal</th>
+                  <th>Jam Masuk</th>
+                  <th>Jam Keluar</th>
+                  <th>Keterangan</th>
+                  <th>Bukti</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="kehadiran-submissions-table-body">
+                <tr>
+                  <td colspan="9" style="text-align:center;color:var(--muted);padding:30px">
+                    Loading...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-settings" style="display:none">
+        <div class="page-title" style="margin-bottom:20px">Pengaturan Sistem</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="panel">
+            <div class="section-title" style="margin-bottom:16px">Konfigurasi YOLO</div>
+            <div class="form-row">
+              <label class="form-label">Model Path</label>
+              <div style="display:flex;gap:8px">
+                <input id="setting-model-path" class="form-input" value="models/yolov8n.pt" placeholder="models/yolov8n.pt" style="flex:1">
+                <button class="btn btn-secondary btn-sm" onclick="browseModels()" style="white-space:nowrap">
+                  <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">folder_open</span>
+                  Browse
+                </button>
+              </div>
+              <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">Contoh: models/yolov8n.pt, models/custom_qr.pt</small>
+            </div>
+            <div class="form-row">
+              <label class="form-label">Confidence Threshold</label>
+              <input id="setting-yolo-conf" class="form-input" type="number" value="0.45" min="0.1" max="1" step="0.05">
+            </div>
+            <div class="form-row">
+              <label class="form-label">QR Cooldown (detik)</label>
+              <input id="setting-qr-cooldown" class="form-input" type="number" value="30" min="5" max="300">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveYoloSettings()">Simpan Perubahan</button>
+          </div>
+          <div class="panel">
+            <div class="section-title" style="margin-bottom:16px">Konfigurasi RTSP</div>
+            <div class="form-row">
+              <label class="form-label">Frame Width</label>
+              <input id="setting-frame-width" class="form-input" type="number" value="1280" min="320" max="3840">
+            </div>
+            <div class="form-row">
+              <label class="form-label">Frame Height</label>
+              <input id="setting-frame-height" class="form-input" type="number" value="720" min="240" max="2160">
+            </div>
+            <div class="form-row">
+              <label class="form-label">Frame FPS</label>
+              <input id="setting-frame-fps" class="form-input" type="number" value="30" min="1" max="60">
+            </div>
+            <div class="form-row">
+              <label class="form-label">Reconnect Delay (detik)</label>
+              <input id="setting-reconnect-delay" class="form-input" type="number" value="5" min="1" max="30">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveRtspSettings()">Simpan Perubahan</button>
+          </div>
+          <div class="panel" style="grid-column:1/-1">
+            <div class="section-title" style="margin-bottom:16px">Tentang Sistem</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:12px;color:var(--muted)">
+              <div><strong style="color:var(--text)">Engine Deteksi</strong><br>YOLOv8 (Ultralytics)<br>Kelas: Person
+                (cls 0)</div>
+              <div><strong style="color:var(--text)">QR Code</strong><br>Generator: qrcode[pil]<br>Decoder: pyzbar
+                (libzbar)</div>
+              <div><strong style="color:var(--text)">Stream Video</strong><br>Protokol: RTSP/FFMPEG<br>OpenCV CAP_FFMPEG
+              </div>
+              <div><strong style="color:var(--text)">Database</strong><br>MySQL<br>Thread-safe dengan lock
+              </div>
+              <div><strong style="color:var(--text)">API Server</strong><br>Flask 3.x + flask-cors<br>REST JSON API
+              </div>
+              <div><strong style="color:var(--text)">Versi</strong><br>SIABSEN v2.4<br>Python 3.11+</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== USER MANAGEMENT PAGE ===== -->
+      <section id="page-users" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">User Management</div>
+            <div class="page-sub">Kelola akun pengguna sistem</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">person_add</span>
+            Tambah User
+          </button>
+        </div>
+
+        <!-- Stats Cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px">
+          <div class="stat-card">
+            <span class="material-symbols-outlined stat-icon">admin_panel_settings</span>
+            <div class="stat-label">Admin</div>
+            <div class="stat-value" id="stat-admin-count">0</div>
+          </div>
+          <div class="stat-card">
+            <span class="material-symbols-outlined stat-icon">shield_person</span>
+            <div class="stat-label">Tim Disiplin</div>
+            <div class="stat-value" id="stat-timdis-count">0</div>
+          </div>
+          <div class="stat-card">
+            <span class="material-symbols-outlined stat-icon">school</span>
+            <div class="stat-label">Mahasiswa</div>
+            <div class="stat-value" id="stat-mahasiswa-count">0</div>
+          </div>
+          <div class="stat-card">
+            <span class="material-symbols-outlined stat-icon">group</span>
+            <div class="stat-label">Total Users</div>
+            <div class="stat-value" id="stat-total-users">0</div>
+          </div>
+        </div>
+
+        <!-- Filter dan Pencarian -->
+        <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div style="flex:1;min-width:200px">
+              <label class="form-label">Cari Username/Nama</label>
+              <input type="text" id="user-search" class="form-input" placeholder="Ketik username atau nama..." style="padding:7px 10px" oninput="filterUsers()">
+            </div>
+            <div>
+              <label class="form-label">Role</label>
+              <select id="user-filter-role" class="form-input" style="width:150px;padding:7px 10px" onchange="filterUsers()">
+                <option value="">Semua</option>
+                <option value="admin">Admin</option>
+                <option value="timdis">Tim Disiplin</option>
+                <option value="mahasiswa">Mahasiswa</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Status</label>
+              <select id="user-filter-status" class="form-input" style="width:120px;padding:7px 10px" onchange="filterUsers()">
+                <option value="">Semua</option>
+                <option value="1">Aktif</option>
+                <option value="0">Nonaktif</option>
+              </select>
+            </div>
+            <div style="align-self:flex-end">
+              <button class="btn btn-secondary btn-sm" onclick="resetUserFilter()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span>
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabel Users -->
+        <div class="panel">
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Mahasiswa ID</th>
+                <th>Status</th>
+                <th>Last Login</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody">
+              <tr>
+                <td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Modal Add/Edit User -->
+  <div class="modal-backdrop" id="modal-user">
+    <div class="modal">
+      <div class="modal-title" id="modal-user-title">Tambah User</div>
+      
+      <form id="user-form" onsubmit="submitUser(event)">
+        <input type="hidden" id="user-id" value="">
+        
+        <div class="form-row">
+          <label class="form-label">Username *</label>
+          <input type="text" id="user-username" class="form-input" placeholder="Username" required>
+          <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
+            Username harus unik, tanpa spasi
+          </small>
+        </div>
+
+        <div class="form-row" id="password-row">
+          <label class="form-label">Password *</label>
+          <input type="password" id="user-password" class="form-input" placeholder="Password" required>
+          <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
+            Minimal 6 karakter
+          </small>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Nama Lengkap *</label>
+          <input type="text" id="user-fullname" class="form-input" placeholder="Nama Lengkap" required>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Email</label>
+          <input type="email" id="user-email" class="form-input" placeholder="email@example.com">
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Role *</label>
+          <select id="user-role" class="form-input" onchange="toggleMahasiswaField()" required>
+            <option value="">-- Pilih Role --</option>
+            <option value="admin">Admin</option>
+            <option value="timdis">Tim Disiplin</option>
+            <option value="mahasiswa">Mahasiswa</option>
+          </select>
+        </div>
+
+        <div class="form-row" id="mahasiswa-id-row" style="display:none">
+          <label class="form-label">Mahasiswa ID *</label>
+          <select id="user-mahasiswa-id" class="form-input">
+            <option value="">-- Pilih Mahasiswa --</option>
+          </select>
+          <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
+            Hanya mahasiswa yang belum punya akun
+          </small>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-user')">Batal</button>
+          <button type="submit" class="btn btn-primary">
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">save</span>
+            Simpan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Reset Password -->
+  <div class="modal-backdrop" id="modal-reset-password">
+    <div class="modal">
+      <div class="modal-title">Reset Password</div>
+      
+      <form id="reset-password-form" onsubmit="submitResetPassword(event)">
+        <input type="hidden" id="reset-user-id" value="">
+        
+        <p style="margin-bottom:20px;color:var(--text-muted)">
+          Reset password untuk user: <strong id="reset-username"></strong>
+        </p>
+
+        <div class="form-row">
+          <label class="form-label">Password Baru *</label>
+          <input type="password" id="reset-new-password" class="form-input" placeholder="Password baru" required>
+          <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
+            Minimal 6 karakter
+          </small>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Konfirmasi Password *</label>
+          <input type="password" id="reset-confirm-password" class="form-input" placeholder="Ketik ulang password" required>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-reset-password')">Batal</button>
+          <button type="submit" class="btn btn-primary">
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">lock_reset</span>
+            Reset Password
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal-mahasiswa">
+    <div class="modal">
+      <div class="modal-title">QR-CODE</div>
+      
+      <!-- Method Selection -->
+      <div class="form-row" style="margin-bottom:20px">
+        <label class="form-label">Metode Penambahan *</label>
+        <select id="add-method-select" class="form-input" onchange="toggleAddMethod()">
+          <option value="manual">Manual - Input Satu per Satu</option>
+          <option value="excel">Otomatis - Upload File Excel</option>
+        </select>
+      </div>
+
+      <!-- Manual Method -->
+      <div id="manual-method">
+        <div class="qr-result" id="qr-result-box">
+          <img id="qr-img-display" class="qr-img" width="200" alt="QR Code">
+          <div class="qr-code-label" id="qr-id-label">—</div>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px">Cetak dan berikan kartu ini ke mahasiswa</p>
+          <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="downloadQR()"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Download QR</button>
+        </div>
+        <div id="mhs-form">
+          <div class="form-row-2">
+            <div class="form-row" style="margin:0">
+              <label class="form-label">ID Mahasiswa *</label>
+              <input class="form-input" id="f-id" placeholder="MHS001">
+            </div>
+            <div class="form-row" style="margin:0">
+              <label class="form-label">Nama Lengkap *</label>
+              <input class="form-input" id="f-name" placeholder="Nama Mahasiswa">
+            </div>
+          </div>
+          <div style="height:12px"></div>
+          <div class="form-row-2">
+            <div class="form-row" style="margin:0">
+              <label class="form-label">Kelompok *</label>
+              <input class="form-input" id="f-dept" placeholder="A">
+            </div>
+            <div class="form-row" style="margin:0">
+              <label class="form-label">Jurusan *</label>
+              <input class="form-input" id="f-pos" placeholder="Teknik Informatika">
+            </div>
+          </div>
+          <div style="height:12px"></div>
+          <div class="form-row">
+            <label class="form-label">Email</label>
+            <input class="form-input" id="f-email" type="email" placeholder="mahasiswa@student.ac.id">
+          </div>
+          <div style="height:12px"></div>
+          <div class="form-row-2">
+            <div class="form-row" style="margin:0">
+              <label class="form-label">No Telp Mahasiswa</label>
+              <input class="form-input" id="f-telp-mhs" type="tel" placeholder="08123456789">
+            </div>
+            <div class="form-row" style="margin:0">
+              <label class="form-label">No Telp Orang Tua</label>
+              <input class="form-input" id="f-telp-ortu" type="tel" placeholder="08123456789">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Excel Method -->
+      <div id="excel-method" style="display:none">
+        <div class="form-section" style="background:var(--primary-light);border:1px solid var(--primary);margin:16px 0">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <span class="material-symbols-outlined" style="color:var(--primary);font-size:24px">info</span>
+            <div>
+              <div style="font-weight:600;color:var(--primary)">Format File Excel</div>
+              <div style="font-size:13px;color:var(--text-muted)">Pastikan file Excel memiliki kolom yang sesuai</div>
+            </div>
+          </div>
+          <div style="font-size:13px;color:var(--text-secondary)">
+            <strong>Kolom yang diperlukan:</strong><br>
+            • <code>mahasiswa_id</code> - ID Mahasiswa (contoh: MHS001)<br>
+            • <code>name</code> - Nama Lengkap<br>
+            • <code>kelompok</code> - Kelompok (contoh: A, B, C)<br>
+            • <code>jurusan</code> - Jurusan<br>
+            • <code>email</code> - Email (opsional)<br>
+            • <code>no_telp_mahasiswa</code> - No Telp Mahasiswa (opsional)<br>
+            • <code>no_telp_ortu</code> - No Telp Orang Tua (opsional)
+          </div>
+          <div style="margin-top:12px">
+            <button class="btn btn-ghost btn-sm" onclick="downloadExcelTemplate()">
+              <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span>
+              Download Template Excel
+            </button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Upload File Excel *</label>
+          <input type="file" id="excel-file-input" class="form-input" 
+                 accept=".xlsx,.xls" onchange="handleExcelFileSelect(event)">
+          <div class="form-hint">
+            Format: XLSX, XLS · Maksimal 5MB · Pastikan menggunakan template yang benar
+          </div>
+        </div>
+
+        <div id="excel-preview" style="display:none;margin-top:20px">
+          <div class="form-section">
+            <div style="font-weight:600;margin-bottom:12px">Preview Data Excel</div>
+            <div style="max-height:300px;overflow:auto">
+              <table class="att-table" id="excel-preview-table">
+                <thead>
+                  <tr>
+                    <th>ID Mahasiswa</th>
+                    <th>Nama</th>
+                    <th>Kelompok</th>
+                    <th>Jurusan</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="excel-preview-tbody">
+                </tbody>
+              </table>
+            </div>
+            <div id="excel-summary" style="margin-top:12px;font-size:13px;color:var(--text-muted)">
+            </div>
+          </div>
+        </div>
+
+        <div id="excel-upload-progress" style="display:none;margin-top:20px">
+          <div class="form-section">
+            <div style="font-weight:600;margin-bottom:12px">Progress Upload</div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="upload-progress-fill" style="width:0%"></div>
+            </div>
+            <div id="upload-status" style="margin-top:8px;font-size:13px;color:var(--text-muted)">
+              Memproses...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-mahasiswa')">Tutup</button>
+        <button class="btn btn-primary" id="mhs-submit-btn" onclick="submitMahasiswa()">Simpan & Generate QR</button>
+        <button class="btn btn-primary" id="excel-submit-btn" onclick="submitExcelMahasiswa()" style="display:none">
+          <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">upload</span>
+          Upload Data Excel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Reject Izin -->
+  <div class="modal-backdrop" id="modal-reject-izin">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-title">Tolak Pengajuan</div>
+      <input type="hidden" id="reject-submission-id">
+      <div class="form-row" style="margin-top:16px">
+        <label class="form-label">Alasan Penolakan *</label>
+        <textarea id="reject-reason-input" class="form-input" rows="4"
+                  placeholder="Jelaskan alasan penolakan..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-reject-izin')">Batal</button>
+        <button class="btn btn-danger" onclick="confirmRejectIzin()">
+          <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">close</span>
+          Tolak Pengajuan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Detail Bukti -->
+  <div class="modal-backdrop" id="modal-bukti">
+    <div class="modal" style="max-width:700px">
+      <div class="modal-title">Bukti Pengajuan</div>
+      <div id="bukti-content" style="margin-top:16px;text-align:center;min-height:200px">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-bukti')">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Browse Models -->
+  <div class="modal-backdrop" id="modal-browse-models">
+    <div class="modal" style="max-width:600px">
+      <div class="modal-title">Pilih Model YOLO</div>
+      <div style="margin-top:16px">
+        <div id="models-list" style="max-height:400px;overflow-y:auto">
+          <div style="text-align:center;padding:40px;color:var(--muted)">
+            <div class="spinner"></div>
+            <p style="margin-top:12px">Memuat daftar model...</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-browse-models')">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast">
+    <div class="toast-title" id="toast-title"></div>
+    <div class="toast-msg" id="toast-msg"></div>
+  </div>
+
+  <!-- Main Dashboard Script -->
+  <script src="static/js/script.js?v=2.5"></script>
+</body>
+
+</html>

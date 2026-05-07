@@ -2,48 +2,61 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
-     * The attributes that are mass assignable.
+     * Kolom-kolom yang diizinkan untuk diisi secara massal (Mass Assignment).
      *
-     * @var list<string>
+     * @var array<int, string>
      */
     protected $fillable = [
-        'name',
+        'username',
+        'password_hash',
+        'full_name',
         'email',
-        'password',
+        'role',
+        'mahasiswa_id',
+        'is_active',
+        'last_login',
     ];
 
     /**
-     * The attributes that should be hidden for serialization.
+     * Kolom-kolom yang disembunyikan saat model diubah menjadi Array atau JSON.
+     * (Berguna agar password tidak bocor saat mengambil data dari API).
      *
-     * @var list<string>
+     * @var array<int, string>
      */
     protected $hidden = [
-        'password',
-        'remember_token',
+        'password_hash',
     ];
 
     /**
-     * Get the attributes that should be cast.
+     * Konversi (casting) tipe data saat data diambil atau disimpan.
      *
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password_hash' => 'hashed', // Laravel akan otomatis menggunakan Bcrypt untuk kolom ini
+            'is_active' => 'boolean',
+            'last_login' => 'datetime',
         ];
+    }
+
+    /**
+     * OVERRIDE PENTING: 
+     * Beri tahu sistem Auth Laravel untuk menggunakan 'password_hash' 
+     * sebagai ganti 'password' bawaan.
+     */
+    public function getAuthPassword()
+    {
+        return $this->password_hash;
     }
 }
