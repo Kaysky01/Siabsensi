@@ -5,13 +5,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SIABSEN — Sistem Absensi Cerdas</title>
-  <link rel="stylesheet" href="static/css/style.css">
+  <link rel="stylesheet" href="{{ asset('static/css/style.css') }}">
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap"
     rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700" rel="stylesheet">
   <!-- jsQR Library for QR Code Detection in Browser -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="{{ asset('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js') }}"></script>
 </head>
 
 <body>
@@ -21,7 +21,7 @@
     <aside class="sidebar">
       <div class="sidebar-logo">
         <div class="logo-mark">
-          <img src="static/img/logo.png" alt="Logo" class="logo-icon">
+          <img src="{{ asset('static/img/logo.png') }}" alt="Logo" class="logo-icon">
           <div>
             <div class="logo-text">SIABSEN</div>
             <div class="logo-sub">v2.4</div>
@@ -84,6 +84,12 @@
           </div>
           <div class="header-actions">
             <button class="btn btn-ghost btn-sm" onclick="refreshData()"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span> Refresh</button>
+            <form action="{{ route('logout') }}" method="get" style="display:inline;">
+              @csrf
+              <button type="submit" class="btn btn-ghost btn-sm">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">logout</span> Logout
+              </button>
+            </form>
           </div>
         </div>
 
@@ -1027,7 +1033,7 @@
   </div>
 
   <!-- Main Dashboard Script -->
-  <script src="static/js/script.js?v=2.5"></script>
+  <script src="{{ asset('static/js/script.js?v=2.5') }}"></script>
 </body>
 
 </html>

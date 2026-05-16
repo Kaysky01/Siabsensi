@@ -22,7 +22,7 @@
       </div>
 
       <form id="login-form" action="{{ route('auth') }}" method="POST">
-        @csrf 
+        @csrf
         <div class="form-group">
           <label class="form-label">Username</label>
           <div class="form-input-wrapper">
@@ -58,6 +58,11 @@
                 {{ $message }}
             </div>
         @enderror
+        @if(session('error'))
+            <div style="color: red; margin-bottom: 15px; padding: 10px; border: 1px solid red; background-color: #fdd;">
+                {{ session('error') }}
+            </div>
+        @endif
 
         <div class="remember-me">
           <input type="checkbox" name="remember" id="remember-me">
