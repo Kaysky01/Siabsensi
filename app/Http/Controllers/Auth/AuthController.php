@@ -44,7 +44,7 @@ class AuthController extends Controller
                 return redirect()->intended('/'); 
             } else if ($user->role === 'mahasiswa') {
                 // Arahkan mahasiswa ke portal mahasiswa
-                return redirect()->intended('mahasiswa.dashboard'); 
+                return redirect()->route('mahasiswa.dashboard'); 
             }
         }
 

@@ -215,35 +215,35 @@ function showPage(page) {
       renderDeptList(dashboardData.by_kelompok || []);
     }
 
-    function renderDemoData() {
-      // Demo static data when API not available
-      document.getElementById('s-total').textContent = '24';
-      document.getElementById('s-present').textContent = '18';
-      document.getElementById('s-absent').textContent = '6';
-      document.getElementById('s-inoffice').textContent = '14';
-      document.getElementById('s-pct').textContent = '75';
-      document.getElementById('sidebar-present').textContent = '18';
+    // function renderDemoData() {
+    //   // Demo static data when API not available
+    //   document.getElementById('s-total').textContent = '24';
+    //   document.getElementById('s-present').textContent = '18';
+    //   document.getElementById('s-absent').textContent = '6';
+    //   document.getElementById('s-inoffice').textContent = '14';
+    //   document.getElementById('s-pct').textContent = '75';
+    //   document.getElementById('sidebar-present').textContent = '18';
 
-      const demo = [
-        { name: 'Budi Santoso', kelompok: 'Teknologi', check_in: '08:12:33', check_out: '', status: 'present', camera_id: 'CAM-01', yolo_confidence: 0.91 },
-        { name: 'Siti Rahayu', kelompok: 'SDM', check_in: '07:55:10', check_out: '17:01:22', status: 'present', camera_id: 'CAM-01', yolo_confidence: 0.88 },
-        { name: 'Ahmad Fauzi', kelompok: 'Keuangan', check_in: '09:03:44', check_out: '', status: 'present', camera_id: 'CAM-02', yolo_confidence: 0.79 },
-        { name: 'Dewi Lestari', kelompok: 'Teknologi', check_in: '08:30:01', check_out: '16:45:00', status: 'present', camera_id: 'CAM-01', yolo_confidence: 0.93 },
-        { name: 'Reza Pratama', kelompok: 'Operasional', check_in: '08:00:00', check_out: '', status: 'present', camera_id: 'CAM-02', yolo_confidence: 0.85 },
-      ];
-      renderRecentAttendance(demo);
+    //   const demo = [
+    //     { name: 'Budi Santoso', kelompok: 'Teknologi', check_in: '08:12:33', check_out: '', status: 'present', camera_id: 'CAM-01', yolo_confidence: 0.91 },
+    //     { name: 'Siti Rahayu', kelompok: 'SDM', check_in: '07:55:10', check_out: '17:01:22', status: 'present', camera_id: 'CAM-01', yolo_confidence: 0.88 },
+    //     { name: 'Ahmad Fauzi', kelompok: 'Keuangan', check_in: '09:03:44', check_out: '', status: 'present', camera_id: 'CAM-02', yolo_confidence: 0.79 },
+    //     { name: 'Dewi Lestari', kelompok: 'Teknologi', check_in: '08:30:01', check_out: '16:45:00', status: 'present', camera_id: 'CAM-01', yolo_confidence: 0.93 },
+    //     { name: 'Reza Pratama', kelompok: 'Operasional', check_in: '08:00:00', check_out: '', status: 'present', camera_id: 'CAM-02', yolo_confidence: 0.85 },
+    //   ];
+    //   renderRecentAttendance(demo);
 
-      const trendData = [
-        { date: '2025-01-05', present: 16 }, { date: '2025-01-06', present: 19 }, { date: '2025-01-07', present: 21 },
-        { date: '2025-01-08', present: 14 }, { date: '2025-01-09', present: 20 }, { date: '2025-01-10', present: 22 }, { date: '2025-01-11', present: 18 },
-      ];
-      renderTrend(trendData);
+    //   const trendData = [
+    //     { date: '2025-01-05', present: 16 }, { date: '2025-01-06', present: 19 }, { date: '2025-01-07', present: 21 },
+    //     { date: '2025-01-08', present: 14 }, { date: '2025-01-09', present: 20 }, { date: '2025-01-10', present: 22 }, { date: '2025-01-11', present: 18 },
+    //   ];
+    //   renderTrend(trendData);
 
-      const deptData = [
-        { kelompok: 'Teknologi', count: 7 }, { kelompok: 'SDM', count: 4 }, { kelompok: 'Keuangan', count: 3 }, { kelompok: 'Operasional', count: 4 },
-      ];
-      renderDeptList(deptData);
-    }
+    //   const deptData = [
+    //     { kelompok: 'Teknologi', count: 7 }, { kelompok: 'SDM', count: 4 }, { kelompok: 'Keuangan', count: 3 }, { kelompok: 'Operasional', count: 4 },
+    //   ];
+    //   renderDeptList(deptData);
+    // }
 
     function renderRecentAttendance(list) {
       const colors = ['#4f7cff', '#22d3a0', '#f5a623', '#ff6b6b', '#a78bfa'];

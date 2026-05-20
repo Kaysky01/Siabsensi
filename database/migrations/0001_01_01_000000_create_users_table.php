@@ -23,6 +23,10 @@ return new class extends Migration
             $table->string('mahasiswa_id', 50)->nullable();
             $table->tinyInteger('is_active')->nullable()->default(1);
             $table->dateTime('last_login')->nullable();
+            
+            // Tambahkan baris ini untuk membuat kolom remember_token
+            $table->rememberToken(); 
+            
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
 
@@ -33,7 +37,7 @@ return new class extends Migration
             $table->index('username', 'idx_username'); 
             $table->index('role', 'idx_role'); 
             $table->index('mahasiswa_id', 'idx_mahasiswa'); 
-        });
+        }); 
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->string('email')->primary();

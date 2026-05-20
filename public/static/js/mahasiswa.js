@@ -1,93 +1,93 @@
-const API = 'http://localhost:5000/api';
+const API = '/api';
 let mahasiswaData = [];
 let currentMahasiswa = null; // Store current logged-in mahasiswa
 
 // ─── Authentication Check & URL Cleanup ────────────────────────────────────
-(function() {
-  // Get token from URL query parameter
-  const urlParams = new URLSearchParams(window.location.search);
-  const tokenFromUrl = urlParams.get('token');
+// (function() {
+//   // Get token from URL query parameter
+//   const urlParams = new URLSearchParams(window.location.search);
+//   const tokenFromUrl = urlParams.get('token');
   
-  // If token in URL, save to sessionStorage and clean URL
-  if (tokenFromUrl) {
-    sessionStorage.setItem('session_token', tokenFromUrl);
-    // Clean URL without reloading page
-    window.history.replaceState({}, document.title, window.location.pathname);
-  }
+//   // If token in URL, save to sessionStorage and clean URL
+//   if (tokenFromUrl) {
+//     sessionStorage.setItem('session_token', tokenFromUrl);
+//     // Clean URL without reloading page
+//     window.history.replaceState({}, document.title, window.location.pathname);
+//   }
   
-  // Check if user is authenticated
-  const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
+//   // Check if user is authenticated
+//   const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
   
-  if (!token) {
-    // No token, redirect to login
-    window.location.href = '/login';
-    return;
-  }
+//   if (!token) {
+//     // No token, redirect to login
+//     window.location.href = '/login';
+//     return;
+//   }
   
-  // Validate token with server
-  fetch(API + '/auth/validate', {
-    headers: { 
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    credentials: 'include'
-  })
-  .then(res => res.json())
-  .then(result => {
-    if (!result.success) {
-      // Invalid token, clear storage and redirect to login
-      localStorage.removeItem('session_token');
-      localStorage.removeItem('user');
-      sessionStorage.removeItem('session_token');
-      sessionStorage.removeItem('user');
-      window.location.href = '/login';
-      return;
-    }
+//   // Validate token with server
+//   fetch(API + '/auth/validate', {
+//     headers: { 
+//       'Authorization': `Bearer ${token}`,
+//       'Content-Type': 'application/json'
+//     },
+//     credentials: 'include'
+//   })
+//   .then(res => res.json())
+//   .then(result => {
+//     if (!result.success) {
+//       // Invalid token, clear storage and redirect to login
+//       localStorage.removeItem('session_token');
+//       localStorage.removeItem('user');
+//       sessionStorage.removeItem('session_token');
+//       sessionStorage.removeItem('user');
+//       window.location.href = '/login';
+//       return;
+//     }
     
-    // Check if user has mahasiswa role and data
-    return fetch(API + '/auth/me', {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include'
-    });
-  })
-  .then(res => {
-    if (!res) return;
-    return res.json();
-  })
-  .then(result => {
-    if (!result || !result.success) {
-      console.error('[Mahasiswa Portal] Failed to load user data');
-      window.location.href = '/login';
-      return;
-    }
+//     // Check if user has mahasiswa role and data
+//     return fetch(API + '/auth/me', {
+//       headers: { 
+//         'Authorization': `Bearer ${token}`,
+//         'Content-Type': 'application/json'
+//       },
+//       credentials: 'include'
+//     });
+//   })
+//   .then(res => {
+//     if (!res) return;
+//     return res.json();
+//   })
+//   .then(result => {
+//     if (!result || !result.success) {
+//       console.error('[Mahasiswa Portal] Failed to load user data');
+//       window.location.href = '/login';
+//       return;
+//     }
     
-    // Check if user has mahasiswa data
-    if (result.data && result.data.mahasiswa) {
-      currentMahasiswa = result.data.mahasiswa;
-      console.log('[Mahasiswa Portal] Mahasiswa data loaded:', currentMahasiswa.name);
+//     // Check if user has mahasiswa data
+//     if (result.data && result.data.mahasiswa) {
+//       currentMahasiswa = result.data.mahasiswa;
+//       console.log('[Mahasiswa Portal] Mahasiswa data loaded:', currentMahasiswa.name);
       
-      // Initialize portal when DOM is ready
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializeMahasiswaPortal);
-      } else {
-        setTimeout(initializeMahasiswaPortal, 100);
-      }
-    } else {
-      // User authenticated but no mahasiswa data
-      console.error('[Mahasiswa Portal] ERROR: No mahasiswa data found');
-      alert('Error: Akun mahasiswa tidak terhubung dengan data mahasiswa. Hubungi administrator.');
-      window.location.href = '/login';
-    }
-  })
-  .catch(err => {
-    console.error('Auth validation error:', err);
-    // On error, redirect to login
-    window.location.href = '/login';
-  });
-})();
+//       // Initialize portal when DOM is ready
+//       if (document.readyState === 'loading') {
+//         document.addEventListener('DOMContentLoaded', initializeMahasiswaPortal);
+//       } else {
+//         setTimeout(initializeMahasiswaPortal, 100);
+//       }
+//     } else {
+//       // User authenticated but no mahasiswa data
+//       console.error('[Mahasiswa Portal] ERROR: No mahasiswa data found');
+//       alert('Error: Akun mahasiswa tidak terhubung dengan data mahasiswa. Hubungi administrator.');
+//       window.location.href = '/login';
+//     }
+//   })
+//   .catch(err => {
+//     console.error('Auth validation error:', err);
+//     // On error, redirect to login
+//     window.location.href = '/login';
+//   });
+// })();
 
 // ─── API Helper Function ─────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {

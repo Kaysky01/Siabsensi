@@ -13,11 +13,11 @@ Route::post('/auth/login', [AuthController::class, 'auth'])->name('auth');
 Route::middleware(['auth'])->group(function () {
     Route::get('/logout', [AuthController::class, 'logout'])->name('logout');
 
-    Route::middleware(['role:admin'])->group(function () {
-        Route::get('/admin/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+    Route::middleware(['auth', 'role:admin'])->group(function () {
+        Route::get('/admin/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
     });
     
-    Route::middleware(['role:mahasiswa'])->group(function () {
+    Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
         Route::get('/mahasiswa/dashboard', [MahasiswaController::class, 'dashboard'])->name('mahasiswa.dashboard');
     });
 

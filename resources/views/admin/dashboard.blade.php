@@ -98,7 +98,7 @@
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">group</span>
             <div class="stat-label">Total Mahasiswa</div>
-            <div class="stat-value" id="s-total">—</div>
+            <div class="stat-value" id="s-total">{{ $totalMahasiswas }}</div>
             <div class="stat-delta">Aktif terdaftar dalam sistem</div>
           </div>
           
@@ -106,19 +106,19 @@
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">task_alt</span>
             <div class="stat-label">Hadir Hari Ini</div>
-            <div class="stat-value" id="s-present">—</div>
+            <div class="stat-value" id="s-present">{{ $hadirHariIni }}</div>
             <div class="stat-delta"><span class="up" id="s-pct">—</span>% kehadiran</div>
           </div>
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">person_off</span>
             <div class="stat-label">Tidak Hadir</div>
-            <div class="stat-value" id="s-absent">—</div>
+            <div class="stat-value" id="s-absent">{{ $tidakHadir }}</div>
             <div class="stat-delta">Belum absen masuk</div>
           </div>
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">schedule</span>
             <div class="stat-label">Masih di Kantor</div>
-            <div class="stat-value" id="s-inoffice">—</div>
+            <div class="stat-value" id="s-inoffice">{{ $masihDiKantor }}</div>
             <div class="stat-delta">Belum absen keluar</div>
           </div>
         </div>
@@ -141,9 +141,29 @@
                 </tr>
               </thead>
               <tbody id="recent-tbody">
-                <tr>
-                  <td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Memuat data...</td>
-                </tr>
+                @forelse($recentAttendances as $absen)
+                  <tr>
+                    <td>
+                      <div style="font-weight: 500;">{{ $absen->mahasiswa->name ?? 'Tidak diketahui' }}</div>
+                      <div style="font-size: 0.85em; color: var(--muted);">{{ $absen->mahasiswa->kelompok ?? '-' }}</div>
+                    </td>
+                    <td>{{ $absen->check_in_time ? \Carbon\Carbon::parse($absen->check_in_time)->format('H:i') : '-' }}</td>
+                    <td>{{ $absen->check_out_time ? \Carbon\Carbon::parse($absen->check_out_time)->format('H:i') : '-' }}</td>
+                    <td>
+                      @if($absen->status == 'present')
+                        <span style="color: #00dc50; font-weight: bold;">Hadir</span>
+                      @else
+                        <span style="color: #ff9800; font-weight: bold;">{{ ucfirst($absen->status) }}</span>
+                      @endif 
+                    </td>
+                  </tr>
+                @empty
+                  <tr>
+                    <td colspan="4" style="text-align:center; color:var(--muted); padding:20px;">
+                      Belum ada aktivitas absensi hari ini.
+                    </td>
+                  </tr>
+                @endforelse
               </tbody>
             </table>
           </div>
@@ -163,7 +183,9 @@
               <div class="section-header">
                 <div class="section-title">Per Kelompok</div>
               </div>
-              <div id="dept-list"></div>
+              @foreach($perKelompok as $kel)
+              <div id="dept-list">{{ $kel->kelompok }}</div>
+              @endforeach
             </div>
           </div>
         </div>
@@ -661,7 +683,7 @@
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">school</span>
             <div class="stat-label">Mahasiswa</div>
-            <div class="stat-value" id="stat-mahasiswa-count">0</div>
+            <div class="stat-value" id="stat-mahasiswa-count">{{ $totalMahasiswas }}</div>
           </div>
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">group</span>
