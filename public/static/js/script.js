@@ -416,15 +416,15 @@ function showPage(page) {
       renderMahasiswa(list);
     }
 
-    function getDemoMahasiswa() {
-      return [
-        { id: 'MHS001', name: 'Budi Santoso', kelompok: 'A', jurusan: 'Teknik Informatika', email: 'budi@student.ac.id', qr_code_id: 'MHS001' },
-        { id: 'MHS002', name: 'Siti Rahayu', kelompok: 'B', jurusan: 'Sistem Informasi', email: 'siti@student.ac.id', qr_code_id: 'MHS002' },
-        { id: 'MHS003', name: 'Ahmad Fauzi', kelompok: 'A', jurusan: 'Teknik Komputer', email: 'ahmad@student.ac.id', qr_code_id: 'MHS003' },
-        { id: 'MHS004', name: 'Dewi Lestari', kelompok: 'C', jurusan: 'Teknik Informatika', email: 'dewi@student.ac.id', qr_code_id: 'MHS004' },
-        { id: 'MHS005', name: 'Reza Pratama', kelompok: 'B', jurusan: 'Sistem Informasi', email: 'reza@student.ac.id', qr_code_id: 'MHS005' },
-      ];
-    }
+    // function getDemoMahasiswa() {
+    //   return [
+    //     { id: 'MHS001', name: 'Budi Santoso', kelompok: 'A', jurusan: 'Teknik Informatika', email: 'budi@student.ac.id', qr_code_id: 'MHS001' },
+    //     { id: 'MHS002', name: 'Siti Rahayu', kelompok: 'B', jurusan: 'Sistem Informasi', email: 'siti@student.ac.id', qr_code_id: 'MHS002' },
+    //     { id: 'MHS003', name: 'Ahmad Fauzi', kelompok: 'A', jurusan: 'Teknik Komputer', email: 'ahmad@student.ac.id', qr_code_id: 'MHS003' },
+    //     { id: 'MHS004', name: 'Dewi Lestari', kelompok: 'C', jurusan: 'Teknik Informatika', email: 'dewi@student.ac.id', qr_code_id: 'MHS004' },
+    //     { id: 'MHS005', name: 'Reza Pratama', kelompok: 'B', jurusan: 'Sistem Informasi', email: 'reza@student.ac.id', qr_code_id: 'MHS005' },
+    //   ];
+    // }
 
     function populateMahasiswaFilters(list) {
       // Get unique kelompok and jurusan

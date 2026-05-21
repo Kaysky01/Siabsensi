@@ -280,12 +280,18 @@
               <label class="form-label">Kelompok</label>
               <select id="mhs-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterMahasiswa()">
                 <option value="">Semua</option>
+                @foreach($mahasiswas->pluck('kelompok')->unique()->filter() as $klp)
+                  <option value="{{ $klp }}">{{ $klp }}</option>
+                @endforeach
               </select>
             </div>
             <div>
               <label class="form-label">Jurusan</label>
               <select id="mhs-filter-jurusan" class="form-input" style="width:180px;padding:7px 10px" onchange="filterMahasiswa()">
                 <option value="">Semua</option>
+                @foreach($mahasiswas->pluck('jurusan')->unique()->filter() as $jur)
+                  <option value="{{ $jur }}">{{ $jur }}</option>
+                @endforeach
               </select>
             </div>
             <div style="align-self:flex-end">
@@ -312,9 +318,31 @@
               </tr>
             </thead>
             <tbody id="mhs-tbody">
-              <tr>
-                <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
-              </tr>
+              @forelse($mahasiswas as $mhs)
+                <tr class="mhs-row" data-name="{{ strtolower($mhs->name) }}" data-kelompok="{{ $mhs->kelompok }}" data-jurusan="{{ $mhs->jurusan }}">
+                  <td>
+                    <div style="font-weight:600">{{ $mhs->name }}</div>
+                    <div style="font-size:12px;color:var(--text-muted)">{{ $mhs->mahasiswa_id }}</div>
+                  </td>
+                  <td>{{ $mhs->kelompok ?? '-' }}</td>
+                  <td>{{ $mhs->jurusan ?? '-' }}</td>
+                  <td>{{ $mhs->email ?? '-' }}</td>
+                  <td>{{ $mhs->no_telp_mahasiswa ?? '-' }}</td>
+                  <td>{{ $mhs->no_telp_ortu ?? '-' }}</td>
+                  <td>
+                    <span style="font-family:var(--font-mono);font-size:12px;background:var(--bg-hover);padding:4px 8px;border-radius:4px">{{ $mhs->mahasiswa_id }}</span>
+                  </td>
+                  <td>
+                    <button class="btn btn-ghost btn-sm" onclick="editMahasiswa('{{ $mhs->mahasiswa_id }}')" title="Edit Mahasiswa">
+                      <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">edit</span>
+                    </button>
+                  </td>
+                </tr>
+              @empty
+                <tr>
+                  <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Belum ada data mahasiswa</td>
+                </tr>
+              @endforelse
             </tbody>
           </table>
         </div>
@@ -334,8 +362,11 @@
               <label class="form-label">Sampai Tanggal</label>
               <input type="date" id="hist-end" class="form-input" style="width:150px;padding:7px 10px">
             </div>
-            <div style="align-self:flex-end">
-              <button class="btn btn-primary btn-sm" onclick="loadHistory()">Cari</button>
+            <div style="align-self:flex-end;display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" onclick="filterHistory()">Cari</button>
+              <button class="btn btn-secondary btn-sm" onclick="resetHistoryFilter()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span> Reset
+              </button>
             </div>
           </div>
         </div>
@@ -345,7 +376,7 @@
               <tr>
                 <th>Tanggal</th>
                 <th>Mahasiswa</th>
-                <th>Kelompok</th>
+                <th>Kelompok</th
                 <th>Masuk</th>
                 <th>Keluar</th>
                 <th>Durasi</th>
@@ -353,10 +384,32 @@
               </tr>
             </thead>
             <tbody id="hist-tbody">
-              <tr>
-                <td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Pilih rentang tanggal dan
-                  tekan Cari</td>
-              </tr>
+              @forelse($riwayatAbsensi as $absen)
+                @php
+                    $masuk = \Carbon\Carbon::parse($absen->created_at);
+                    $keluar = $absen->check_out ? \Carbon\Carbon::parse($absen->check_out) : null;
+                    $durasi = $keluar ? $masuk->diffInHours($keluar) . ' jam ' . $masuk->diff($keluar)->format('%I') . ' mnt' : '-';
+                @endphp
+                <tr class="hist-row" data-date="{{ $masuk->format('Y-m-d') }}">
+                  <td>{{ $masuk->translatedFormat('d M Y') }}</td>
+                  <td>{{ $absen->name }}</td>
+                  <td>{{ $absen->kelompok ?? '-' }}</td>
+                  <td>{{ $masuk->format('H:i:s') }}</td>
+                  <td>{{ $keluar ? $keluar->format('H:i:s') : '-' }}</td>
+                  <td>{{ $durasi }}</td>
+                  <td>
+                    @if($keluar)
+                      <span style="color:var(--success);font-weight:600">Selesai</span>
+                    @else
+                      <span style="color:var(--warning);font-weight:600">Di Kantor</span>
+                    @endif
+                  </td>
+                </tr>
+              @empty
+                <tr>
+                  <td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Belum ada riwayat absensi</td>
+                </tr>
+              @endforelse
             </tbody>
           </table>
         </div>
@@ -1123,6 +1176,55 @@
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+
+    // Fungsi Filter Data Mahasiswa di sisi Klien
+    function filterMahasiswa() {
+      const search = document.getElementById('mhs-search').value.toLowerCase();
+      const kelompok = document.getElementById('mhs-filter-kelompok').value;
+      const jurusan = document.getElementById('mhs-filter-jurusan').value;
+      
+      const rows = document.querySelectorAll('.mhs-row');
+      rows.forEach(row => {
+        const rowName = row.getAttribute('data-name');
+        const rowKlp = row.getAttribute('data-kelompok');
+        const rowJur = row.getAttribute('data-jurusan');
+        
+        let match = true;
+        if (search && !rowName.includes(search)) match = false;
+        if (kelompok && rowKlp !== kelompok) match = false;
+        if (jurusan && rowJur !== jurusan) match = false;
+        
+        row.style.display = match ? '' : 'none';
+      });
+    }
+
+    function resetMahasiswaFilter() {
+      document.getElementById('mhs-search').value = '';
+      document.getElementById('mhs-filter-kelompok').value = '';
+      document.getElementById('mhs-filter-jurusan').value = '';
+      filterMahasiswa();
+    }
+
+    // Fungsi Filter Data Riwayat Absensi
+    function filterHistory() {
+      const start = document.getElementById('hist-start').value;
+      const end = document.getElementById('hist-end').value;
+      
+      const rows = document.querySelectorAll('.hist-row');
+      rows.forEach(row => {
+        const rowDate = row.getAttribute('data-date');
+        let match = true;
+        if (start && rowDate < start) match = false;
+        if (end && rowDate > end) match = false;
+        row.style.display = match ? '' : 'none';
+      });
+    }
+
+    function resetHistoryFilter() {
+      document.getElementById('hist-start').value = '';
+      document.getElementById('hist-end').value = '';
+      filterHistory();
     }
   </script>
 </body>

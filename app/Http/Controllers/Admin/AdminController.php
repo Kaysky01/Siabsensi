@@ -90,6 +90,21 @@ class AdminController extends Controller
             ->orderBy('attendance.created_at', 'desc')
             ->get();
 
+        // 9. Seluruh Data Mahasiswa
+        $mahasiswas = Mahasiswa::orderBy('name', 'asc')->get();
+
+        // 10. Riwayat Absensi
+        $riwayatAbsensi = DB::table('attendance')
+            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+            ->select(
+                'mahasiswa.name',
+                'mahasiswa.kelompok',
+                'attendance.created_at',
+                'attendance.check_out'
+            )
+            ->orderBy('attendance.created_at', 'desc')
+            ->get();
+
         // Mengirim seluruh data ke view
         return view('admin.dashboard', compact(
             'totalMahasiswaAktif',
@@ -101,7 +116,9 @@ class AdminController extends Controller
             'absensiTerkini',
             'tren7Hari',
             'perKelompok',
-            'seluruhAbsensiHariIni'
+            'seluruhAbsensiHariIni',
+            'mahasiswas',
+            'riwayatAbsensi'
         ));
     }
 }
