@@ -19,80 +19,89 @@ class AdminController extends Controller
         $today = Carbon::today();
 
         // 1. Data Statistik Mahasiswa & Kehadiran
-        $totalMahasiswas = Mahasiswa::where('is_active', true)->count();
-        
-        // Menghitung jumlah data absensi hari ini
-        $hadirHariIni = Attendance::whereDate('date', $today)->whereNotNull('check_in')->count();
-        $totalIzinSakit = IzinSubmission::whereDate('date', $today)->where('status', 'approved')->count();
+        $totalMahasiswaAktif = Mahasiswa::where('is_active', true)->count();
+        $totalMahasiswaNonAktif = Mahasiswa::where('is_active', false)->count();
 
-        // Tidak Hadir (Belum Absen / Bolos)
-        $tidakHadir = $totalMahasiswas - ($hadirHariIni + $totalIzinSakit);
+        // 2. Data Mahasiswa Hadir Hari Ini (Aktif & Sudah Absen)
+        // (Catatan: Sesuaikan kolom 'created_at' menjadi 'check_in' jika nama kolom timestamp absen Anda berbeda)
+        $mahasiswaHadirHariIni = DB::table('attendance')
+            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.is_active', 1)
+            ->whereDate('attendance.created_at', $today)
+            ->distinct('attendance.mahasiswa_id')
+            ->count('attendance.mahasiswa_id');
+            
+        $mahasiswaTidakHadir = $totalMahasiswaAktif - $mahasiswaHadirHariIni;
 
-        // Masih di Kantor (Sudah check-in, tapi belum check-out) 
-        $masihDiKantor = Attendance::whereDate('date', $today)
-                            ->whereNotNull('check_in')
-                            ->whereNull('check_out')
-                            ->count();
+        // 3. Persentase Kehadiran
+        $persentaseKehadiran = $totalMahasiswaAktif > 0 ? round(($mahasiswaHadirHariIni / $totalMahasiswaAktif) * 100) : 0;
 
-        // 2. Data Notifikasi / Pending Tugas Admin
-        $totalPending = IzinSubmission::where('status', 'pending')->count() + 
-                        KehadiranSubmission::where('status', 'pending')->count();
-                        
-        $activeCameras = CameraStream::where('is_active', true)->count();
+        // 4. Mahasiswa Masih di Kantor (Belum absen keluar)
+        $mahasiswaMasihDiKantor = DB::table('attendance')
+            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.is_active', 1)
+            ->whereDate('attendance.created_at', $today)
+            ->whereNull('attendance.check_out') // Mencari yang belum absen keluar
+            ->distinct('attendance.mahasiswa_id')
+            ->count('attendance.mahasiswa_id');
 
-        // 3. Aktivitas Terkini (Absensi Terbaru)
-        // Eager loading tabel mahasiswa dan camera, sorting menggunakan created_at 
-        $recentAttendances = Attendance::with(['mahasiswa', 'camera'])
-                                    ->whereDate('date', $today)
-                                    ->orderBy('created_at', 'desc') 
-                                    ->take(5)
-                                    ->get();
+        // 5. Absensi Terkini (5 data terbaru hari ini)
+        $absensiTerkini = DB::table('attendance')
+            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+            ->select('mahasiswa.name', 'attendance.created_at', 'attendance.check_out')
+            ->whereDate('attendance.created_at', $today)
+            ->orderBy('attendance.created_at', 'desc')
+            ->limit(5)
+            ->get();
 
-        // Mengambil koleksi data mahasiswa aktif jika dibutuhkan di form/view
-        $mahasiswas = Mahasiswa::where('is_active', true)->get();
-
-        // 4. Data Tren 7 Hari Terakhir
-        $tujuhHariLalu = Carbon::today()->subDays(6);
-        $kehadiran7Hari = Attendance::selectRaw('DATE(date) as tanggal, COUNT(*) as total')
-            ->where('date', '>=', $tujuhHariLalu)
-            ->whereNotNull('check_in')
-            ->groupBy('tanggal')
-            ->orderBy('tanggal', 'asc')
-            ->pluck('total', 'tanggal');
-
-        // Format data tren agar harinya selalu urut & lengkap (walau ada hari yg 0 kehadiran)
-        $labelTren = [];
-        $dataTren = [];
+        // 6. Tren Kehadiran 7 Hari Terakhir
+        $tren7Hari = [];
         for ($i = 6; $i >= 0; $i--) {
-            $dateStr = Carbon::today()->subDays($i)->format('Y-m-d');
-            $labelTren[] = Carbon::today()->subDays($i)->isoFormat('dddd'); // Output: Senin, Selasa, dst
-            $dataTren[] = $kehadiran7Hari[$dateStr] ?? 0;
+            $date = Carbon::today()->subDays($i);
+            $count = DB::table('attendance')
+                ->whereDate('created_at', $date)
+                ->distinct('mahasiswa_id')
+                ->count('mahasiswa_id');
+            $tren7Hari[] = [
+                'tanggal' => $date->format('d M'),
+                'jumlah' => $count
+            ];
         }
 
-        // 5. Data Kehadiran Per Kelompok (Hari Ini)
+        // 7. Kehadiran Per Kelompok (Hari Ini)
         $perKelompok = DB::table('attendance')
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->whereDate('attendance.date', $today)
-            ->whereNotNull('attendance.check_in')
-            ->selectRaw('mahasiswa.kelompok, COUNT(*) as total')
+            ->whereDate('attendance.created_at', $today)
+            ->select('mahasiswa.kelompok', DB::raw('count(DISTINCT attendance.mahasiswa_id) as total'))
             ->groupBy('mahasiswa.kelompok')
             ->orderBy('total', 'desc')
             ->get();
 
+        // 8. Seluruh Absensi Hari Ini (untuk halaman "Absensi Hari Ini")
+        $seluruhAbsensiHariIni = DB::table('attendance')
+            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+            ->select(
+                'mahasiswa.name',
+                'mahasiswa.kelompok',
+                'attendance.created_at',
+                'attendance.check_out'
+            )
+            ->whereDate('attendance.created_at', $today)
+            ->orderBy('attendance.created_at', 'desc')
+            ->get();
+
         // Mengirim seluruh data ke view
         return view('admin.dashboard', compact(
-            'totalMahasiswas', 
-            'hadirHariIni', 
-            'totalIzinSakit', 
-            'tidakHadir', 
-            'masihDiKantor',
-            'totalPending', 
-            'activeCameras', 
-            'recentAttendances',
-            'mahasiswas',
-            'labelTren',
-            'dataTren',
-            'perKelompok'
+            'totalMahasiswaAktif',
+            'totalMahasiswaNonAktif',
+            'mahasiswaHadirHariIni',
+            'mahasiswaTidakHadir',
+            'persentaseKehadiran',
+            'mahasiswaMasihDiKantor',
+            'absensiTerkini',
+            'tren7Hari',
+            'perKelompok',
+            'seluruhAbsensiHariIni'
         ));
     }
 }

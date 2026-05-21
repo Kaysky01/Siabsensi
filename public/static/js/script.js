@@ -326,15 +326,15 @@ function showPage(page) {
       renderFullAttendance(list);
     }
 
-    function getDemoAttendanceFull() {
-      return [
-        { name: 'Budi Santoso', kelompok: 'Teknologi', check_in: '2025-01-11 08:12:33', check_out: '', camera_id: 'CAM-01', status: 'present', yolo_confidence: 0.91 },
-        { name: 'Siti Rahayu', kelompok: 'SDM', check_in: '2025-01-11 07:55:10', check_out: '2025-01-11 17:01:22', camera_id: 'CAM-01', status: 'present', yolo_confidence: 0.88 },
-        { name: 'Ahmad Fauzi', kelompok: 'Keuangan', check_in: '2025-01-11 09:03:44', check_out: '', camera_id: 'CAM-02', status: 'present', yolo_confidence: 0.79 },
-        { name: 'Dewi Lestari', kelompok: 'Teknologi', check_in: '2025-01-11 08:30:01', check_out: '2025-01-11 16:45:00', camera_id: 'CAM-01', status: 'present', yolo_confidence: 0.93 },
-        { name: 'Reza Pratama', kelompok: 'Operasional', check_in: '2025-01-11 08:00:00', check_out: '', camera_id: 'CAM-02', status: 'present', yolo_confidence: 0.85 },
-      ];
-    }
+    // function getDemoAttendanceFull() {
+    //   return [
+    //     { name: 'Budi Santoso', kelompok: 'Teknologi', check_in: '2025-01-11 08:12:33', check_out: '', camera_id: 'CAM-01', status: 'present', yolo_confidence: 0.91 },
+    //     { name: 'Siti Rahayu', kelompok: 'SDM', check_in: '2025-01-11 07:55:10', check_out: '2025-01-11 17:01:22', camera_id: 'CAM-01', status: 'present', yolo_confidence: 0.88 },
+    //     { name: 'Ahmad Fauzi', kelompok: 'Keuangan', check_in: '2025-01-11 09:03:44', check_out: '', camera_id: 'CAM-02', status: 'present', yolo_confidence: 0.79 },
+    //     { name: 'Dewi Lestari', kelompok: 'Teknologi', check_in: '2025-01-11 08:30:01', check_out: '2025-01-11 16:45:00', camera_id: 'CAM-01', status: 'present', yolo_confidence: 0.93 },
+    //     { name: 'Reza Pratama', kelompok: 'Operasional', check_in: '2025-01-11 08:00:00', check_out: '', camera_id: 'CAM-02', status: 'present', yolo_confidence: 0.85 },
+    //   ];
+    // }
 
     function renderFullAttendance(list) {
       const tbody = document.getElementById('full-att-tbody');

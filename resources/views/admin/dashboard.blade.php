@@ -11,7 +11,7 @@
     rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700" rel="stylesheet">
   <!-- jsQR Library for QR Code Detection in Browser -->
-  <script src="{{ asset('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js') }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 
 <body>
@@ -98,7 +98,7 @@
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">group</span>
             <div class="stat-label">Total Mahasiswa</div>
-            <div class="stat-value" id="s-total">{{ $totalMahasiswas }}</div>
+            <div class="stat-value" id="s-total">{{ $totalMahasiswaAktif }}</div>
             <div class="stat-delta">Aktif terdaftar dalam sistem</div>
           </div>
           
@@ -106,19 +106,19 @@
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">task_alt</span>
             <div class="stat-label">Hadir Hari Ini</div>
-            <div class="stat-value" id="s-present">{{ $hadirHariIni }}</div>
-            <div class="stat-delta"><span class="up" id="s-pct">—</span>% kehadiran</div>
+            <div class="stat-value" id="s-present">{{ $mahasiswaHadirHariIni }}</div>
+            <div class="stat-delta"><span class="up" id="s-pct">{{ $persentaseKehadiran }}</span>% kehadiran</div>
           </div>
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">person_off</span>
             <div class="stat-label">Tidak Hadir</div>
-            <div class="stat-value" id="s-absent">{{ $tidakHadir }}</div>
+            <div class="stat-value" id="s-absent">{{ $mahasiswaTidakHadir }}</div>
             <div class="stat-delta">Belum absen masuk</div>
           </div>
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">schedule</span>
             <div class="stat-label">Masih di Kantor</div>
-            <div class="stat-value" id="s-inoffice">{{ $masihDiKantor }}</div>
+            <div class="stat-value" id="s-inoffice">{{ $mahasiswaMasihDiKantor }}</div>
             <div class="stat-delta">Belum absen keluar</div>
           </div>
         </div>
@@ -141,27 +141,22 @@
                 </tr>
               </thead>
               <tbody id="recent-tbody">
-                @forelse($recentAttendances as $absen)
+                @forelse($absensiTerkini as $absen)
                   <tr>
+                    <td>{{ $absen->name }}</td>
+                    <td>{{ \Carbon\Carbon::parse($absen->created_at)->format('H:i') }}</td>
+                    <td>{{ $absen->check_out ? \Carbon\Carbon::parse($absen->check_out)->format('H:i') : '-' }}</td>
                     <td>
-                      <div style="font-weight: 500;">{{ $absen->mahasiswa->name ?? 'Tidak diketahui' }}</div>
-                      <div style="font-size: 0.85em; color: var(--muted);">{{ $absen->mahasiswa->kelompok ?? '-' }}</div>
-                    </td>
-                    <td>{{ $absen->check_in_time ? \Carbon\Carbon::parse($absen->check_in_time)->format('H:i') : '-' }}</td>
-                    <td>{{ $absen->check_out_time ? \Carbon\Carbon::parse($absen->check_out_time)->format('H:i') : '-' }}</td>
-                    <td>
-                      @if($absen->status == 'present')
-                        <span style="color: #00dc50; font-weight: bold;">Hadir</span>
+                      @if($absen->check_out)
+                        <span style="color:var(--success);font-weight:600">Selesai</span>
                       @else
-                        <span style="color: #ff9800; font-weight: bold;">{{ ucfirst($absen->status) }}</span>
-                      @endif 
+                        <span style="color:var(--warning);font-weight:600">Di Kantor</span>
+                      @endif
                     </td>
                   </tr>
                 @empty
                   <tr>
-                    <td colspan="4" style="text-align:center; color:var(--muted); padding:20px;">
-                      Belum ada aktivitas absensi hari ini.
-                    </td>
+                    <td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Belum ada absensi hari ini</td>
                   </tr>
                 @endforelse
               </tbody>
@@ -174,8 +169,16 @@
               <div class="section-header">
                 <div class="section-title">Tren 7 Hari</div>
               </div>
-              <div class="trend-chart">
-                <div class="bar-chart" id="trend-chart"></div>
+              <div class="trend-chart" id="trend-chart" style="height:150px; display:flex; align-items:flex-end; gap:8px; padding-top:10px;">
+                @php $maxTren = collect($tren7Hari)->max('jumlah') ?: 1; @endphp
+                @foreach($tren7Hari as $tren)
+                  @php $height = ($tren['jumlah'] / $maxTren) * 100; @endphp
+                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%;">
+                    <div style="margin-top:auto; font-size:11px; color:var(--text-muted)">{{ $tren['jumlah'] }}</div>
+                    <div style="width:100%; background:var(--primary); border-radius:4px 4px 0 0; height:{{ $height }}%; min-height:4px;"></div>
+                    <div style="font-size:10px; color:var(--text-muted); text-align:center">{{ $tren['tanggal'] }}</div>
+                  </div>
+                @endforeach
               </div>
             </div>
 
@@ -183,9 +186,16 @@
               <div class="section-header">
                 <div class="section-title">Per Kelompok</div>
               </div>
-              @foreach($perKelompok as $kel)
-              <div id="dept-list">{{ $kel->kelompok }}</div>
-              @endforeach
+              <div id="dept-list" style="display:flex; flex-direction:column; gap:8px;">
+                @forelse($perKelompok as $kelompok)
+                  <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border);">
+                    <span>{{ $kelompok->kelompok ?: 'Tidak Diketahui' }}</span>
+                    <span style="font-weight:600;">{{ $kelompok->total }} <span style="font-weight:normal;color:var(--text-muted);font-size:12px">Hadir</span></span>
+                  </div>
+                @empty
+                  <div style="text-align:center;color:var(--muted);padding:10px">Belum ada data</div>
+                @endforelse
+              </div>
             </div>
           </div>
         </div>
@@ -195,7 +205,7 @@
         <div class="page-header">
           <div>
             <div class="page-title">Absensi Hari Ini</div>
-            <div class="page-sub" id="att-date-label">—</div>
+            <div class="page-sub" id="att-date-label">{{ \Carbon\Carbon::today()->translatedFormat('l, d F Y') }}</div>
           </div>
           <div class="header-actions">
             <input type="date" id="att-date-filter" class="form-input" style="width:160px;padding:7px 10px"
@@ -218,9 +228,33 @@
               </tr>
             </thead>
             <tbody id="full-att-tbody">
-              <tr>
-                <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
-              </tr>
+              @forelse($seluruhAbsensiHariIni as $index => $absen)
+                @php
+                    $masuk = \Carbon\Carbon::parse($absen->created_at);
+                    $keluar = $absen->check_out ? \Carbon\Carbon::parse($absen->check_out) : null;
+                    $durasi = $keluar ? $masuk->diffInHours($keluar) . ' jam ' . $masuk->diff($keluar)->format('%I') . ' mnt' : '-';
+                @endphp
+                <tr>
+                  <td>{{ $index + 1 }}</td>
+                  <td>{{ $absen->name }}</td>
+                  <td>{{ $absen->kelompok ?? '-' }}</td>
+                  <td>{{ $masuk->format('H:i:s') }}</td>
+                  <td>{{ $keluar ? $keluar->format('H:i:s') : '-' }}</td>
+                  <td>{{ $durasi }}</td>
+                  <td>Kamera Sistem</td>
+                  <td>
+                    @if($keluar)
+                      <span style="color:var(--success);font-weight:600">Selesai</span>
+                    @else
+                      <span style="color:var(--warning);font-weight:600">Di Kantor</span>
+                    @endif
+                  </td>
+                </tr>
+              @empty
+                <tr>
+                  <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Belum ada absensi hari ini</td>
+                </tr>
+              @endforelse
             </tbody>
           </table>
         </div>
@@ -683,7 +717,7 @@
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">school</span>
             <div class="stat-label">Mahasiswa</div>
-            <div class="stat-value" id="stat-mahasiswa-count">{{ $totalMahasiswas }}</div>
+            <div class="stat-value" id="stat-mahasiswa-count">0</div>
           </div>
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">group</span>
@@ -1056,6 +1090,41 @@
 
   <!-- Main Dashboard Script -->
   <script src="{{ asset('static/js/script.js?v=2.5') }}"></script>
+
+  <script>
+    // Fungsi untuk Export CSV data Absensi sisi Klien (Browser)
+    function exportCSV() {
+      const table = document.getElementById("full-att-table");
+      if (!table) return;
+
+      let csv = [];
+      // Mengambil semua baris (tr) dari tabel
+      const rows = table.querySelectorAll("tr");
+      
+      for (let i = 0; i < rows.length; i++) {
+        let row = [], cols = rows[i].querySelectorAll("td, th");
+        
+        for (let j = 0; j < cols.length; j++) {
+          // Bersihkan teks dari newline dan amankan tanda kutip ganda
+          let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""');
+          row.push('"' + data + '"'); // Bungkus setiap sel dengan kutip ganda
+        }
+        csv.push(row.join(","));
+      }
+
+      // Buat Blob file CSV dan trigger download
+      const csvString = csv.join("\n");
+      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      
+      const dateFilter = document.getElementById("att-date-filter")?.value || new Date().toISOString().split("T")[0];
+      link.href = URL.createObjectURL(blob);
+      link.download = "Data_Absensi_" + dateFilter + ".csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
 </body>
 
 </html>
