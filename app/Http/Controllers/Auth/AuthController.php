@@ -40,8 +40,8 @@ class AuthController extends Controller
                 // Arahkan admin secara spesifik ke route 'admin.dashboard' (/admin)
                 return redirect()->route('admin.dashboard'); 
             } else if ($user->role === 'timdis') {
-                // Arahkan timdis ke rute yang sesuai (silakan disesuaikan nanti)
-                return redirect()->intended('/'); 
+                // Arahkan timdis ke rute dashboard timdis
+                return redirect()->route('timdis.dashboard'); 
             } else if ($user->role === 'mahasiswa') {
                 // Arahkan mahasiswa ke portal mahasiswa
                 return redirect()->route('mahasiswa.dashboard'); 

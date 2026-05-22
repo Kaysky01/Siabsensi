@@ -1301,6 +1301,155 @@
         document.getElementById('video-preview-section').style.display = 'block';
       }
     }
+
+    // --- LOGIKA VERIFIKASI IZIN / SAKIT ---
+    async function loadIzinSubmissions() {
+      const search = document.getElementById('izin-search')?.value || '';
+      const kelompok = document.getElementById('izin-filter-kelompok')?.value || '';
+      const status = document.getElementById('izin-filter-status')?.value || '';
+      
+      const tbody = document.getElementById('izin-submissions-table-body');
+      if (!tbody) return;
+      
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat data...</td></tr>';
+      
+      try {
+        const queryParams = new URLSearchParams({ search, kelompok, status });
+        const response = await fetch('/admin/izin-submissions?' + queryParams.toString());
+        const result = await response.json();
+        
+        if (result.success) {
+          document.getElementById('stat-pending-izin').textContent = result.stats.pending;
+          document.getElementById('stat-approved-izin').textContent = result.stats.approved;
+          document.getElementById('stat-rejected-izin').textContent = result.stats.rejected;
+          
+          if (result.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Tidak ada pengajuan ditemukan</td></tr>';
+            return;
+          }
+          
+          let html = '';
+          result.data.forEach(item => {
+            let statusBadge = '';
+            if (item.status === 'pending') statusBadge = '<span class="badge badge-warning">Pending</span>';
+            else if (item.status === 'approved') statusBadge = '<span style="background:var(--success-light);color:var(--success);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Disetujui</span>';
+            else if (item.status === 'rejected') statusBadge = '<span style="background:var(--danger-light);color:var(--danger);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Ditolak</span>';
+            
+            let aksiBtns = '';
+            if (item.status === 'pending') {
+              aksiBtns = `
+                <button class="btn btn-primary btn-sm" onclick="approveIzin(${item.id})" title="Setujui">
+                  <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">check</span>
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="openRejectIzin(${item.id})" title="Tolak">
+                  <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">close</span>
+                </button>
+              `;
+            } else {
+              aksiBtns = '<span style="font-size:12px;color:var(--text-muted)">Selesai</span>';
+            }
+            
+            let tanggal = item.tanggal || (item.created_at ? item.created_at.split('T')[0] : '-');
+            let jenis = item.jenis ? item.jenis.toUpperCase() : 'IZIN';
+
+            html += `
+              <tr>
+                <td><div style="font-weight:600">${item.mahasiswa_name}</div></td>
+                <td>${item.kelompok || '-'}</td>
+                <td><span style="font-size:12px;font-weight:600">${jenis}</span></td>
+                <td>${tanggal}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${item.keterangan || ''}">${item.keterangan || '-'}</td>
+                <td>
+                  ${item.bukti_path ? `<button class="btn btn-ghost btn-sm" onclick="viewBukti('${item.bukti_path}')">Lihat Bukti</button>` : '-'}
+                </td>
+                <td>${statusBadge}</td>
+                <td><div style="display:flex;gap:4px">${aksiBtns}</div></td>
+              </tr>
+            `;
+          });
+          tbody.innerHTML = html;
+        }
+      } catch (error) {
+        console.error('Error fetching izin:', error);
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:30px">Gagal memuat data</td></tr>';
+      }
+    }
+
+    function filterIzinSubmissions() { loadIzinSubmissions(); }
+
+    function resetIzinFilter() {
+      if(document.getElementById('izin-search')) document.getElementById('izin-search').value = '';
+      if(document.getElementById('izin-filter-kelompok')) document.getElementById('izin-filter-kelompok').value = '';
+      if(document.getElementById('izin-filter-status')) document.getElementById('izin-filter-status').value = 'pending';
+      loadIzinSubmissions();
+    }
+
+    function viewBukti(url) {
+      const fullUrl = url.startsWith('public/') ? '/storage/' + url.substring(7) : url;
+      const ext = fullUrl.split('.').pop().toLowerCase();
+      const contentDiv = document.getElementById('bukti-content');
+      
+      if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
+        contentDiv.innerHTML = `<img src="${fullUrl}" style="max-width:100%;max-height:60vh;border-radius:8px">`;
+      } else if (ext === 'pdf') {
+        contentDiv.innerHTML = `<iframe src="${fullUrl}" style="width:100%;height:60vh;border:none"></iframe>`;
+      } else {
+        contentDiv.innerHTML = `<a href="${fullUrl}" target="_blank" class="btn btn-primary">Download File</a>`;
+      }
+      const modal = document.getElementById('modal-bukti');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    async function approveIzin(id) {
+      if (!confirm('Anda yakin ingin menyetujui pengajuan ini?')) return;
+      try {
+        const response = await fetch('/admin/izin-submissions/' + id + '/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+          body: JSON.stringify({ status: 'approved' })
+        });
+        const result = await response.json();
+        if (result.success) {
+          loadIzinSubmissions();
+        } else {
+          alert('Gagal: ' + result.message);
+        }
+      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
+    }
+
+    function openRejectIzin(id) {
+      document.getElementById('reject-submission-id').value = id;
+      document.getElementById('reject-reason-input').value = '';
+      const modal = document.getElementById('modal-reject-izin');
+      if(modal) modal.style.display = 'flex';
+    }
+
+    async function confirmRejectIzin() {
+      const id = document.getElementById('reject-submission-id').value;
+      const reason = document.getElementById('reject-reason-input').value;
+      if (!reason.trim()) return alert('Alasan penolakan wajib diisi!');
+      
+      try {
+        const response = await fetch('/admin/izin-submissions/' + id + '/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+          body: JSON.stringify({ status: 'rejected', reject_reason: reason })
+        });
+        const result = await response.json();
+        if (result.success) {
+          const modal = document.getElementById('modal-reject-izin');
+          if(modal) modal.style.display = 'none';
+          loadIzinSubmissions();
+        } else {
+          alert('Gagal: ' + result.message);
+        }
+      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
+    }
+
+    // Otomatis load data ketika halaman ini dibuka atau dijalankan pertama kali
+    document.addEventListener('DOMContentLoaded', () => {
+      loadIzinSubmissions();
+    });
   </script>
 </body>
 

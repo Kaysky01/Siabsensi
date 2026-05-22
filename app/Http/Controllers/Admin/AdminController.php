@@ -152,4 +152,59 @@ class AdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
         }
     }
+
+    public function getIzinSubmissions(Request $request)
+    {
+        $query = IzinSubmission::join('mahasiswa', 'izin_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->select('izin_submissions.*', 'mahasiswa.name as mahasiswa_name', 'mahasiswa.kelompok');
+
+        if ($request->filled('status')) {
+            $query->where('izin_submissions.status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $query->where('mahasiswa.name', 'like', '%' . $request->search . '%');
+        }
+
+        if ($request->filled('kelompok')) {
+            $query->where('mahasiswa.kelompok', $request->kelompok);
+        }
+
+        $submissions = $query->orderBy('izin_submissions.created_at', 'desc')->get();
+
+        $stats = [
+            'pending' => IzinSubmission::where('status', 'pending')->count(),
+            'approved' => IzinSubmission::where('status', 'approved')->count(),
+            'rejected' => IzinSubmission::where('status', 'rejected')->count(),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $submissions,
+            'stats' => $stats
+        ]);
+    }
+
+    public function verifyIzin(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:approved,rejected',
+            'reject_reason' => 'required_if:status,rejected'
+        ]);
+
+        try {
+            $izin = IzinSubmission::findOrFail($id);
+            $izin->status = $request->status;
+            
+            if ($request->status === 'rejected') {
+                $izin->reject_reason = $request->reject_reason;
+            }
+
+            $izin->save();
+
+            return response()->json(['success' => true, 'message' => 'Status pengajuan berhasil diperbarui.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        }
+    }
 }
