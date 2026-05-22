@@ -121,4 +121,35 @@ class AdminController extends Controller
             'riwayatAbsensi'
         ));
     }
+
+    public function uploadVideo(Request $request)
+    {
+        $request->validate([
+            'video' => 'required|file|mimetypes:video/mp4|max:102400', // Maks 100MB
+            'action' => 'required|in:check_in,check_out'
+        ]);
+
+        try {
+            if ($request->hasFile('video')) {
+                $file = $request->file('video');
+                $filename = time() . '_' . $file->getClientOriginalName();
+                
+                // Simpan file ke storage/app/public/videos
+                $path = $file->storeAs('public/videos', $filename);
+
+                // NOTE: Anda bisa menambahkan interaksi dengan Python API atau Flask di bagian ini
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Video berhasil diupload',
+                    'file_path' => $path,
+                    'action' => $request->action
+                ]);
+            }
+
+            return response()->json(['success' => false, 'message' => 'Tidak ada file yang diupload.'], 400);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        }
+    }
 }

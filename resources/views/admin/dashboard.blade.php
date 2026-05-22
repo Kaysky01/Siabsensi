@@ -1226,6 +1226,81 @@
       document.getElementById('hist-end').value = '';
       filterHistory();
     }
+
+    // --- LOGIKA UPLOAD VIDEO MP4 ---
+    let selectedVideoFile = null;
+
+    // Fungsi ketika file video dipilih
+    function handleVideoFileSelect(event) {
+      const file = event.target.files[0];
+      if (file && file.type === 'video/mp4') {
+        selectedVideoFile = file;
+        const videoPlayer = document.getElementById('preview-video-player');
+        const fileURL = URL.createObjectURL(file);
+        videoPlayer.src = fileURL;
+        
+        document.getElementById('video-preview-section').style.display = 'block';
+        document.getElementById('preview-video-info').textContent = file.name + ' (' + (file.size / (1024 * 1024)).toFixed(2) + ' MB)';
+      } else {
+        alert('Silakan pilih file video MP4 yang valid.');
+        event.target.value = '';
+        selectedVideoFile = null;
+        document.getElementById('video-preview-section').style.display = 'none';
+      }
+    }
+
+    // Fungsi membatalkan upload video
+    function cancelVideoUpload() {
+      document.getElementById('video-file-input').value = '';
+      selectedVideoFile = null;
+      document.getElementById('video-preview-section').style.display = 'none';
+      const videoPlayer = document.getElementById('preview-video-player');
+      videoPlayer.pause();
+      videoPlayer.src = '';
+    }
+
+    // Fungsi untuk mengupload dan memproses video
+    async function uploadAndProcessVideo() {
+      if (!selectedVideoFile) {
+        alert('Pilih video terlebih dahulu.');
+        return;
+      }
+
+      const action = document.getElementById('video-action-select').value;
+      const formData = new FormData();
+      formData.append('video', selectedVideoFile);
+      formData.append('action', action);
+      formData.append('_token', '{{ csrf_token() }}');
+
+      document.getElementById('video-preview-section').style.display = 'none';
+      document.getElementById('video-processing-panel').style.display = 'block';
+      document.getElementById('processing-progress').textContent = 'Mengupload video...';
+
+      try {
+        const response = await fetch('/admin/upload-video', {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          document.getElementById('video-processing-panel').style.display = 'none';
+          document.getElementById('video-success-panel').style.display = 'block';
+          document.getElementById('success-summary').textContent = 'Video ' + selectedVideoFile.name + ' (' + action + ') berhasil diunggah dan diproses.';
+          cancelVideoUpload();
+        } else {
+          alert('Gagal memproses video: ' + result.message);
+          document.getElementById('video-processing-panel').style.display = 'none';
+          document.getElementById('video-preview-section').style.display = 'block';
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        alert('Terjadi kesalahan saat mengupload video.');
+        document.getElementById('video-processing-panel').style.display = 'none';
+        document.getElementById('video-preview-section').style.display = 'block';
+      }
+    }
   </script>
 </body>
 
