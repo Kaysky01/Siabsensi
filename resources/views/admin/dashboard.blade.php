@@ -58,6 +58,7 @@
           <span class="material-symbols-outlined icon">how_to_reg</span> Verifikasi Kehadiran
           <span class="badge badge-warning" id="sidebar-pending-kehadiran">0</span>
         </div>
+        @if(auth()->user()->role === 'admin')
         <div class="nav-section">Sistem</div>
         <div class="nav-item" onclick="showPage('users')">
           <span class="material-symbols-outlined icon">manage_accounts</span> User Management
@@ -65,6 +66,7 @@
         <div class="nav-item" onclick="showPage('settings')">
           <span class="material-symbols-outlined icon">settings</span> Pengaturan
         </div>
+        @endif
       </nav>
 
       <div class="sidebar-footer">
@@ -147,7 +149,11 @@
                     <td>{{ \Carbon\Carbon::parse($absen->created_at)->format('H:i') }}</td>
                     <td>{{ $absen->check_out ? \Carbon\Carbon::parse($absen->check_out)->format('H:i') : '-' }}</td>
                     <td>
-                      @if($absen->check_out)
+                      @if(isset($absen->status) && $absen->status === 'izin')
+                        <span style="color:var(--warning);font-weight:600">Izin</span>
+                      @elseif(isset($absen->status) && $absen->status === 'sakit')
+                        <span style="color:var(--warning);font-weight:600">Sakit</span>
+                      @elseif($absen->check_out)
                         <span style="color:var(--success);font-weight:600">Selesai</span>
                       @else
                         <span style="color:var(--warning);font-weight:600">Di Kantor</span>
@@ -243,7 +249,11 @@
                   <td>{{ $durasi }}</td>
                   <td>Kamera Sistem</td>
                   <td>
-                    @if($keluar)
+                    @if(isset($absen->status) && $absen->status === 'izin')
+                      <span style="color:var(--warning);font-weight:600">Izin</span>
+                    @elseif(isset($absen->status) && $absen->status === 'sakit')
+                      <span style="color:var(--warning);font-weight:600">Sakit</span>
+                    @elseif($keluar)
                       <span style="color:var(--success);font-weight:600">Selesai</span>
                     @else
                       <span style="color:var(--warning);font-weight:600">Di Kantor</span>
@@ -377,6 +387,7 @@
                 <th>Tanggal</th>
                 <th>Mahasiswa</th>
                 <th>Kelompok</th
+                <th>Kelompok</th>
                 <th>Masuk</th>
                 <th>Keluar</th>
                 <th>Durasi</th>
@@ -398,7 +409,11 @@
                   <td>{{ $keluar ? $keluar->format('H:i:s') : '-' }}</td>
                   <td>{{ $durasi }}</td>
                   <td>
-                    @if($keluar)
+                    @if(isset($absen->status) && $absen->status === 'izin')
+                      <span style="color:var(--warning);font-weight:600">Izin</span>
+                    @elseif(isset($absen->status) && $absen->status === 'sakit')
+                      <span style="color:var(--warning);font-weight:600">Sakit</span>
+                    @elseif($keluar)
                       <span style="color:var(--success);font-weight:600">Selesai</span>
                     @else
                       <span style="color:var(--warning);font-weight:600">Di Kantor</span>
@@ -506,29 +521,27 @@
             <div class="page-sub">Kelola dan verifikasi pengajuan izin/sakit dari mahasiswa</div>
           </div>
           <div class="header-actions">
-            <button class="btn btn-ghost btn-sm" onclick="loadIzinSubmissions()">
+            <button class="btn btn-ghost btn-sm" onclick="location.reload()">
               <span class="material-symbols-outlined" style="font-size:16px">refresh</span> Refresh
             </button>
           </div>
         </div>
 
-        <!-- Stats Cards -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px">
           <div class="stat-card">
             <div class="stat-label">Pending</div>
-            <div class="stat-value" id="stat-pending-izin">0</div>
+            <div class="stat-value" id="stat-pending-izin">{{ $totalPendingIzin }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Disetujui</div>
-            <div class="stat-value" id="stat-approved-izin">0</div>
+            <div class="stat-value" id="stat-approved-izin">{{ $totalApprovedIzin }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Ditolak</div>
-            <div class="stat-value" id="stat-rejected-izin">0</div>
+            <div class="stat-value" id="stat-rejected-izin">{{ $totalRejectedIzin }}</div>
           </div>
         </div>
 
-        <!-- Filter dan Pencarian -->
         <div class="panel" style="margin-bottom:16px;padding:14px 20px">
           <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
             <div style="flex:1;min-width:200px">
@@ -539,13 +552,16 @@
               <label class="form-label">Kelompok</label>
               <select id="izin-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterIzinSubmissions()">
                 <option value="">Semua</option>
+                @foreach($mahasiswas->pluck('kelompok')->unique()->filter() as $klp)
+                  <option value="{{ strtolower($klp) }}">{{ $klp }}</option>
+                @endforeach
               </select>
             </div>
             <div>
               <label class="form-label">Status</label>
               <select id="izin-filter-status" class="form-input" style="width:150px;padding:7px 10px" onchange="filterIzinSubmissions()">
-                <option value="">Semua</option>
-                <option value="pending" selected>Pending</option>
+                <option value="" selected>Semua</option>
+                <option value="pending">Pending</option>
                 <option value="approved">Disetujui</option>
                 <option value="rejected">Ditolak</option>
               </select>
@@ -559,7 +575,6 @@
           </div>
         </div>
 
-        <!-- Tabel Pengajuan -->
         <div class="panel">
           <div style="overflow-x:auto">
             <table class="att-table">
@@ -576,16 +591,64 @@
                 </tr>
               </thead>
               <tbody id="izin-submissions-table-body">
-                <tr>
-                  <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
-                    Loading...
-                  </td>
-                </tr>
+                @forelse($izinSubmissions as $izin)
+                  <tr class="izin-row" 
+                      data-name="{{ strtolower($izin->mahasiswa->name ?? '') }}" 
+                      data-kelompok="{{ strtolower($izin->mahasiswa->kelompok ?? '') }}" 
+                      data-status="{{ strtolower($izin->status) }}">
+                    
+                    <td>{{ $izin->mahasiswa->name ?? 'Data Terhapus' }}</td>
+                    <td>{{ $izin->mahasiswa->kelompok ?? '-' }}</td>
+                    <td>
+                        <span style="font-weight: 600; color: {{ $izin->jenis == 'izin' ? '#f59e0b' : '#ef4444' }}">
+                            {{ ucfirst($izin->jenis) }}
+                        </span>
+                    </td>
+                    <td>{{ \Carbon\Carbon::parse($izin->tanggal)->format('d M Y') }}</td>
+                    <td>{{ $izin->keterangan }}</td>
+                    <td>
+                      @if($izin->bukti)
+                        <a href="{{ asset('storage/' . $izin->bukti) }}" target="_blank" style="color: var(--primary);">Lihat Bukti</a>
+                      @else
+                        -
+                      @endif
+                    </td>
+                    <td>
+                      @if($izin->status == 'pending')
+                        <span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px; font-size: 12px;">Pending</span>
+                      @elseif($izin->status == 'approved')
+                        <span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; font-size: 12px;">Disetujui</span>
+                      @else
+                        <span style="background: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px; font-size: 12px;">Ditolak</span>
+                      @endif
+                    </td>
+                    <td>
+                      @if($izin->status == 'pending')
+                        <form action="{{ url('/admin/izin/'.$izin->id.'/approve') }}" method="POST" style="display:inline;">
+                            @csrf
+                            <button type="submit" class="btn btn-sm" style="background: #22c55e; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Terima</button>
+                        </form>
+                        <form action="{{ url('/admin/izin/'.$izin->id.'/reject') }}" method="POST" style="display:inline;">
+                            @csrf
+                            <button type="submit" class="btn btn-sm" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Tolak</button>
+                        </form>
+                      @else
+                        -
+                      @endif
+                    </td>
+                  </tr>
+                @empty
+                  <tr>
+                    <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
+                      Belum ada data pengajuan izin atau sakit.
+                    </td>
+                  </tr>
+                @endforelse
               </tbody>
             </table>
           </div>
         </div>
-      </section>
+    </section>
 
       <!-- ===== VERIFIKASI PENGAJUAN KEHADIRAN (TIMDIS) ===== -->
       <section id="page-kehadiran-timdis" style="display:none">
@@ -628,13 +691,16 @@
               <label class="form-label">Kelompok</label>
               <select id="kehadiran-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterKehadiranSubmissions()">
                 <option value="">Semua</option>
+                @foreach($mahasiswas->pluck('kelompok')->unique()->filter() as $klp)
+                  <option value="{{ $klp }}">{{ $klp }}</option>
+                @endforeach
               </select>
             </div>
             <div>
               <label class="form-label">Status</label>
               <select id="kehadiran-filter-status" class="form-input" style="width:150px;padding:7px 10px" onchange="filterKehadiranSubmissions()">
-                <option value="">Semua</option>
-                <option value="pending" selected>Pending</option>
+                <option value="" selected>Semua</option>
+                <option value="pending">Pending</option>
                 <option value="approved">Disetujui</option>
                 <option value="rejected">Ditolak</option>
               </select>
@@ -743,6 +809,7 @@
       </section>
 
       <!-- ===== USER MANAGEMENT PAGE ===== -->
+      @if(auth()->user()->role === 'admin')
       <section id="page-users" style="display:none">
         <div class="page-header">
           <div>
@@ -834,6 +901,7 @@
           </table>
         </div>
       </section>
+      @endif
 
     </main>
   </div>
@@ -1106,6 +1174,26 @@
     </div>
   </div>
 
+  <!-- Modal Reject Kehadiran -->
+  <div class="modal-backdrop" id="modal-reject-kehadiran">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-title">Tolak Pengajuan Kehadiran</div>
+      <input type="hidden" id="reject-kehadiran-id">
+      <div class="form-row" style="margin-top:16px">
+        <label class="form-label">Alasan Penolakan *</label>
+        <textarea id="reject-kehadiran-reason" class="form-input" rows="4"
+                  placeholder="Jelaskan alasan penolakan..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-reject-kehadiran')">Batal</button>
+        <button class="btn btn-danger" onclick="confirmRejectKehadiran()">
+          <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">close</span>
+          Tolak Pengajuan
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Detail Bukti -->
   <div class="modal-backdrop" id="modal-bukti">
     <div class="modal" style="max-width:700px">
@@ -1151,21 +1239,17 @@
       if (!table) return;
 
       let csv = [];
-      // Mengambil semua baris (tr) dari tabel
       const rows = table.querySelectorAll("tr");
       
       for (let i = 0; i < rows.length; i++) {
         let row = [], cols = rows[i].querySelectorAll("td, th");
-        
         for (let j = 0; j < cols.length; j++) {
-          // Bersihkan teks dari newline dan amankan tanda kutip ganda
           let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""');
-          row.push('"' + data + '"'); // Bungkus setiap sel dengan kutip ganda
+          row.push('"' + data + '"'); 
         }
         csv.push(row.join(","));
       }
 
-      // Buat Blob file CSV dan trigger download
       const csvString = csv.join("\n");
       const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
       const link = document.createElement("a");
@@ -1230,7 +1314,6 @@
     // --- LOGIKA UPLOAD VIDEO MP4 ---
     let selectedVideoFile = null;
 
-    // Fungsi ketika file video dipilih
     function handleVideoFileSelect(event) {
       const file = event.target.files[0];
       if (file && file.type === 'video/mp4') {
@@ -1249,7 +1332,6 @@
       }
     }
 
-    // Fungsi membatalkan upload video
     function cancelVideoUpload() {
       document.getElementById('video-file-input').value = '';
       selectedVideoFile = null;
@@ -1259,7 +1341,6 @@
       videoPlayer.src = '';
     }
 
-    // Fungsi untuk mengupload dan memproses video
     async function uploadAndProcessVideo() {
       if (!selectedVideoFile) {
         alert('Pilih video terlebih dahulu.');
@@ -1277,7 +1358,7 @@
       document.getElementById('processing-progress').textContent = 'Mengupload video...';
 
       try {
-        const response = await fetch('/admin/upload-video', {
+        const response = await fetch('{{ url("/admin/upload-video") }}', {
           method: 'POST',
           body: formData
         });
@@ -1315,7 +1396,7 @@
       
       try {
         const queryParams = new URLSearchParams({ search, kelompok, status });
-        const response = await fetch('/admin/izin-submissions?' + queryParams.toString());
+        const response = await fetch('{{ url("/admin/izin-submissions") }}?' + queryParams.toString());
         const result = await response.json();
         
         if (result.success) {
@@ -1323,6 +1404,12 @@
           document.getElementById('stat-approved-izin').textContent = result.stats.approved;
           document.getElementById('stat-rejected-izin').textContent = result.stats.rejected;
           
+          const sidebarIzin = document.getElementById('sidebar-pending-izin');
+          if (sidebarIzin) {
+            sidebarIzin.textContent = result.stats.pending;
+            sidebarIzin.style.display = result.stats.pending > 0 ? '' : 'none';
+          }
+
           if (result.data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Tidak ada pengajuan ditemukan</td></tr>';
             return;
@@ -1349,8 +1436,8 @@
               aksiBtns = '<span style="font-size:12px;color:var(--text-muted)">Selesai</span>';
             }
             
-            let tanggal = item.tanggal || (item.created_at ? item.created_at.split('T')[0] : '-');
-            let jenis = item.jenis ? item.jenis.toUpperCase() : 'IZIN';
+            let tanggal = item.date || (item.created_at ? item.created_at.split('T')[0] : '-');
+            let jenis = item.submission_type ? item.submission_type.toUpperCase() : 'IZIN';
 
             html += `
               <tr>
@@ -1380,12 +1467,13 @@
     function resetIzinFilter() {
       if(document.getElementById('izin-search')) document.getElementById('izin-search').value = '';
       if(document.getElementById('izin-filter-kelompok')) document.getElementById('izin-filter-kelompok').value = '';
-      if(document.getElementById('izin-filter-status')) document.getElementById('izin-filter-status').value = 'pending';
+      if(document.getElementById('izin-filter-status')) document.getElementById('izin-filter-status').value = '';
       loadIzinSubmissions();
     }
 
     function viewBukti(url) {
-      const fullUrl = url.startsWith('public/') ? '/storage/' + url.substring(7) : url;
+      const baseUrl = "{{ asset('storage') }}";
+      const fullUrl = url.startsWith('public/') ? baseUrl + '/' + url.substring(7) : url;
       const ext = fullUrl.split('.').pop().toLowerCase();
       const contentDiv = document.getElementById('bukti-content');
       
@@ -1403,7 +1491,7 @@
     async function approveIzin(id) {
       if (!confirm('Anda yakin ingin menyetujui pengajuan ini?')) return;
       try {
-        const response = await fetch('/admin/izin-submissions/' + id + '/verify', {
+        const response = await fetch('{{ url("/admin/izin-submissions") }}/' + id + '/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
           body: JSON.stringify({ status: 'approved' })
@@ -1430,7 +1518,7 @@
       if (!reason.trim()) return alert('Alasan penolakan wajib diisi!');
       
       try {
-        const response = await fetch('/admin/izin-submissions/' + id + '/verify', {
+        const response = await fetch('{{ url("/admin/izin-submissions") }}/' + id + '/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
           body: JSON.stringify({ status: 'rejected', reject_reason: reason })
@@ -1446,9 +1534,413 @@
       } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
     }
 
+    // --- LOGIKA VERIFIKASI KEHADIRAN ---
+    async function loadKehadiranSubmissions() {
+      const search = document.getElementById('kehadiran-search')?.value || '';
+      const kelompok = document.getElementById('kehadiran-filter-kelompok')?.value || '';
+      const status = document.getElementById('kehadiran-filter-status')?.value || '';
+      
+      const tbody = document.getElementById('kehadiran-submissions-table-body');
+      if (!tbody) return;
+      
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Memuat data...</td></tr>';
+      
+      try {
+        const queryParams = new URLSearchParams({ search, kelompok, status });
+        const response = await fetch('{{ url("/admin/kehadiran-submissions") }}?' + queryParams.toString());
+        const result = await response.json();
+        
+        if (result.success) {
+          document.getElementById('stat-pending-kehadiran').textContent = result.stats.pending;
+          document.getElementById('stat-approved-kehadiran').textContent = result.stats.approved;
+          document.getElementById('stat-rejected-kehadiran').textContent = result.stats.rejected;
+          
+          const sidebarKehadiran = document.getElementById('sidebar-pending-kehadiran');
+          if (sidebarKehadiran) {
+             sidebarKehadiran.textContent = result.stats.pending;
+             sidebarKehadiran.style.display = result.stats.pending > 0 ? '' : 'none';
+          }
+
+          if (result.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Tidak ada pengajuan ditemukan</td></tr>';
+            return;
+          }
+          
+          let html = '';
+          result.data.forEach(item => {
+            let statusBadge = '';
+            if (item.status === 'pending') statusBadge = '<span class="badge badge-warning">Pending</span>';
+            else if (item.status === 'approved') statusBadge = '<span style="background:var(--success-light);color:var(--success);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Disetujui</span>';
+            else if (item.status === 'rejected') statusBadge = '<span style="background:var(--danger-light);color:var(--danger);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Ditolak</span>';
+            
+            let aksiBtns = '';
+            if (item.status === 'pending') {
+              aksiBtns = `
+                <button class="btn btn-primary btn-sm" onclick="approveKehadiran(${item.id})" title="Setujui">
+                  <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">check</span>
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="openRejectKehadiran(${item.id})" title="Tolak">
+                  <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">close</span>
+                </button>
+              `;
+            } else {
+              aksiBtns = '<span style="font-size:12px;color:var(--text-muted)">Selesai</span>';
+            }
+            
+            let tanggal = item.date || (item.created_at ? item.created_at.split('T')[0] : '-');
+
+            html += `
+              <tr>
+                <td><div style="font-weight:600">${item.mahasiswa_name}</div></td>
+                <td>${item.kelompok || '-'}</td>
+                <td>${tanggal}</td>
+                <td>${item.check_in_time || '-'}</td>
+                <td>${item.check_out_time || '-'}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${item.keterangan || ''}">${item.keterangan || '-'}</td>
+                <td>
+                  ${item.bukti_path ? `<button class="btn btn-ghost btn-sm" onclick="viewBukti('${item.bukti_path}')">Lihat Bukti</button>` : '-'}
+                </td>
+                <td>${statusBadge}</td>
+                <td><div style="display:flex;gap:4px">${aksiBtns}</div></td>
+              </tr>
+            `;
+          });
+          tbody.innerHTML = html;
+        }
+      } catch (error) {
+        console.error('Error fetching kehadiran:', error);
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:30px">Gagal memuat data</td></tr>';
+      }
+    }
+
+    function filterKehadiranSubmissions() { loadKehadiranSubmissions(); }
+
+    function resetKehadiranFilter() {
+      if(document.getElementById('kehadiran-search')) document.getElementById('kehadiran-search').value = '';
+      if(document.getElementById('kehadiran-filter-kelompok')) document.getElementById('kehadiran-filter-kelompok').value = '';
+      if(document.getElementById('kehadiran-filter-status')) document.getElementById('kehadiran-filter-status').value = '';
+      loadKehadiranSubmissions();
+    }
+
+    async function approveKehadiran(id) {
+      if (!confirm('Anda yakin ingin menyetujui pengajuan kehadiran ini? Data absensi akan otomatis diperbarui.')) return;
+      try {
+        const response = await fetch('{{ url("/admin/kehadiran-submissions") }}/' + id + '/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+          body: JSON.stringify({ status: 'approved' })
+        });
+        const result = await response.json();
+        if (result.success) {
+          loadKehadiranSubmissions();
+        } else {
+          alert('Gagal: ' + result.message);
+        }
+      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
+    }
+
+    function openRejectKehadiran(id) {
+      document.getElementById('reject-kehadiran-id').value = id;
+      document.getElementById('reject-kehadiran-reason').value = '';
+      const modal = document.getElementById('modal-reject-kehadiran');
+      if(modal) modal.style.display = 'flex';
+    }
+
+    async function confirmRejectKehadiran() {
+      const id = document.getElementById('reject-kehadiran-id').value;
+      const reason = document.getElementById('reject-kehadiran-reason').value;
+      if (!reason.trim()) return alert('Alasan penolakan wajib diisi!');
+      
+      try {
+        const response = await fetch('{{ url("/admin/kehadiran-submissions") }}/' + id + '/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+          body: JSON.stringify({ status: 'rejected', reject_reason: reason })
+        });
+        const result = await response.json();
+        if (result.success) {
+          const modal = document.getElementById('modal-reject-kehadiran');
+          if(modal) modal.style.display = 'none';
+          loadKehadiranSubmissions();
+        } else {
+          alert('Gagal: ' + result.message);
+        }
+      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
+    }
+
+    // --- LOGIKA USER MANAGEMENT ---
+    async function loadUsers() {
+      const search = document.getElementById('user-search')?.value || '';
+      const role = document.getElementById('user-filter-role')?.value || '';
+      const status = document.getElementById('user-filter-status')?.value || '';
+
+      const tbody = document.getElementById('users-tbody');
+      if (!tbody) return;
+
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Memuat data...</td></tr>';
+
+      try {
+        const queryParams = new URLSearchParams({ search, role, status });
+        const response = await fetch('{{ url("/admin/users") }}?' + queryParams.toString());
+        const result = await response.json();
+
+        if (result.success) {
+          document.getElementById('stat-admin-count').textContent = result.stats.admin;
+          document.getElementById('stat-timdis-count').textContent = result.stats.timdis;
+          document.getElementById('stat-mahasiswa-count').textContent = result.stats.mahasiswa;
+          document.getElementById('stat-total-users').textContent = result.stats.total;
+
+          if (result.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Tidak ada user ditemukan</td></tr>';
+            return;
+          }
+
+          let html = '';
+          result.data.forEach(user => {
+            const initials = (user.full_name || 'U').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+            const colors = ['#4f7cff', '#22d3a0', '#f5a623', '#ff6b6b', '#a78bfa'];
+            const colorIndex = user.id % colors.length;
+            const color = colors[colorIndex];
+            
+            let statusBadge = user.is_active ? '<span class="badge badge-success" style="background:var(--success-light);color:var(--success);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Aktif</span>' : '<span class="badge badge-danger" style="background:var(--danger-light);color:var(--danger);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Nonaktif</span>';
+            let lastLogin = user.last_login ? user.last_login.split('T').join(' ').substring(0, 16) : '-';
+            let mhsId = user.mahasiswa_id || '-';
+
+            let toggleBtn = user.is_active 
+              ? `<button class="btn btn-danger btn-sm" onclick="toggleUserStatus(${user.id}, false)" title="Nonaktifkan">
+                  <span class="material-symbols-outlined" style="font-size:16px">block</span>
+                </button>`
+              : `<button class="btn btn-primary btn-sm" onclick="toggleUserStatus(${user.id}, true)" title="Aktifkan">
+                  <span class="material-symbols-outlined" style="font-size:16px">check_circle</span>
+                </button>`;
+
+            let deleteBtn = `
+                <button class="btn btn-danger btn-sm" onclick="deleteUser(${user.id})" title="Hapus">
+                  <span class="material-symbols-outlined" style="font-size:16px">delete</span>
+                </button>
+            `;
+
+            html += `
+              <tr>
+                <td>
+                  <div class="mahasiswa-cell" style="display:flex;gap:12px;align-items:center">
+                    <div class="avatar" style="background:${color}22;color:${color};width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:600;font-size:14px">${initials}</div>
+                    <div>
+                      <div class="mhs-name" style="font-weight:600">${user.full_name}</div>
+                      <div class="mhs-dept" style="font-family:var(--mono);font-size:12px;color:var(--text-muted)">@${user.username}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>${user.email || '-'}</td>
+                <td><span style="text-transform:capitalize">${user.role}</span></td>
+                <td><span style="font-family:var(--font-mono);font-size:12px">${mhsId}</span></td>
+                <td>${statusBadge}</td>
+                <td>${lastLogin}</td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-ghost btn-sm" onclick='editUser(${JSON.stringify(user).replace(/'/g, "&apos;").replace(/"/g, "&quot;")})' title="Edit">
+                      <span class="material-symbols-outlined" style="font-size:16px">edit</span>
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="openResetPassword(${user.id}, '${user.username}')" title="Reset Password">
+                      <span class="material-symbols-outlined" style="font-size:16px">lock_reset</span>
+                    </button>
+                    ${toggleBtn}
+                    ${deleteBtn}
+                  </div>
+                </td>
+              </tr>
+            `;
+          });
+          tbody.innerHTML = html;
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:30px">Gagal memuat data</td></tr>';
+      }
+    }
+
+    function filterUsers() { loadUsers(); }
+
+    function resetUserFilter() {
+      if(document.getElementById('user-search')) document.getElementById('user-search').value = '';
+      if(document.getElementById('user-filter-role')) document.getElementById('user-filter-role').value = '';
+      if(document.getElementById('user-filter-status')) document.getElementById('user-filter-status').value = '';
+      loadUsers();
+    }
+
+    async function loadMahasiswaOptions() {
+      const select = document.getElementById('user-mahasiswa-id');
+      select.innerHTML = '<option value="">Memuat...</option>';
+      try {
+        const response = await fetch('{{ url("/admin/mahasiswa-options") }}');
+        const result = await response.json();
+        if (result.success) {
+          let html = '<option value="">-- Pilih Mahasiswa --</option>';
+          result.data.forEach(mhs => {
+            html += `<option value="${mhs.id}">${mhs.id} - ${mhs.name} (${mhs.kelompok || '-'})</option>`;
+          });
+          select.innerHTML = html;
+        }
+      } catch (error) {
+        console.error('Error fetching mhs options:', error);
+      }
+    }
+
+    function toggleMahasiswaField() {
+      const role = document.getElementById('user-role').value;
+      const mhsRow = document.getElementById('mahasiswa-id-row');
+      const mhsSelect = document.getElementById('user-mahasiswa-id');
+      if (role === 'mahasiswa') {
+        mhsRow.style.display = 'block';
+        mhsSelect.required = true;
+        if(mhsSelect.options.length <= 1) loadMahasiswaOptions();
+      } else {
+        mhsRow.style.display = 'none';
+        mhsSelect.required = false;
+        mhsSelect.value = '';
+      }
+    }
+
+    function openAddUserModal() {
+      document.getElementById('user-id').value = '';
+      document.getElementById('user-form').reset();
+      document.getElementById('modal-user-title').textContent = 'Tambah User';
+      document.getElementById('password-row').style.display = 'block';
+      document.getElementById('user-password').required = true;
+      toggleMahasiswaField();
+      const modal = document.getElementById('modal-user');
+      if(modal) modal.style.display = 'flex';
+    }
+
+    function editUser(user) {
+      document.getElementById('user-id').value = user.id;
+      document.getElementById('user-username').value = user.username;
+      document.getElementById('user-fullname').value = user.full_name;
+      document.getElementById('user-email').value = user.email || '';
+      document.getElementById('user-role').value = user.role;
+      
+      document.getElementById('modal-user-title').textContent = 'Edit User';
+      document.getElementById('password-row').style.display = 'none';
+      document.getElementById('user-password').required = false;
+      
+      toggleMahasiswaField();
+      
+      if (user.role === 'mahasiswa') {
+        const mhsSelect = document.getElementById('user-mahasiswa-id');
+        const optionExists = Array.from(mhsSelect.options).some(opt => opt.value === user.mahasiswa_id);
+        if (!optionExists && user.mahasiswa_id) {
+          mhsSelect.innerHTML += `<option value="${user.mahasiswa_id}">${user.mahasiswa_id} (Saat ini)</option>`;
+        }
+        mhsSelect.value = user.mahasiswa_id;
+      }
+      
+      const modal = document.getElementById('modal-user');
+      if(modal) modal.style.display = 'flex';
+    }
+
+    async function submitUser(event) {
+      event.preventDefault();
+      const id = document.getElementById('user-id').value;
+      const data = {
+        username: document.getElementById('user-username').value,
+        full_name: document.getElementById('user-fullname').value,
+        email: document.getElementById('user-email').value,
+        role: document.getElementById('user-role').value,
+        mahasiswa_id: document.getElementById('user-mahasiswa-id').value
+      };
+      if (!id) data.password = document.getElementById('user-password').value;
+      
+      const url = id ? `{{ url("/admin/users") }}/${id}` : '{{ url("/admin/users") }}';
+      const method = id ? 'PUT' : 'POST';
+      
+      try {
+        const response = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+          body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (result.success) {
+          closeModal('modal-user');
+          loadUsers();
+        } else {
+          alert(result.message);
+        }
+      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan'); }
+    }
+
+    function openResetPassword(id, username) {
+      document.getElementById('reset-user-id').value = id;
+      document.getElementById('reset-username').textContent = username;
+      document.getElementById('reset-password-form').reset();
+      const modal = document.getElementById('modal-reset-password');
+      if(modal) modal.style.display = 'flex';
+    }
+
+    async function submitResetPassword(event) {
+      event.preventDefault();
+      const id = document.getElementById('reset-user-id').value;
+      const password = document.getElementById('reset-new-password').value;
+      const confirm = document.getElementById('reset-confirm-password').value;
+      
+      if (password !== confirm) return alert('Konfirmasi password tidak cocok!');
+      
+      try {
+        const response = await fetch(`{{ url("/admin/users") }}/${id}/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+          body: JSON.stringify({ password: password, password_confirmation: confirm })
+        });
+        const result = await response.json();
+        if (result.success) {
+          closeModal('modal-reset-password');
+          alert('Password berhasil direset!');
+        } else {
+          alert(result.message);
+        }
+      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan'); }
+    }
+
+    async function toggleUserStatus(id, activate) {
+      const action = activate ? 'Aktifkan' : 'Nonaktifkan';
+      if (!confirm(`Anda yakin ingin ${action.toLowerCase()} user ini?`)) return;
+      try {
+        const response = await fetch(`{{ url("/admin/users") }}/${id}/toggle-status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+        });
+        const result = await response.json();
+        if (result.success) {
+          loadUsers();
+        } else {
+          alert(result.message);
+        }
+      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
+    }
+
+    async function deleteUser(id) {
+      if (!confirm('Anda yakin ingin menghapus user ini secara permanen?')) return;
+      try {
+        const response = await fetch(`{{ url("/admin/users") }}/${id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+        });
+        const result = await response.json();
+        if (result.success) {
+          loadUsers();
+        } else {
+          alert(result.message);
+        }
+      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
+    }
+
     // Otomatis load data ketika halaman ini dibuka atau dijalankan pertama kali
     document.addEventListener('DOMContentLoaded', () => {
       loadIzinSubmissions();
+      loadKehadiranSubmissions();
+      @if(auth()->user()->role === 'admin')
+      loadUsers();
+      @endif
     });
   </script>
 </body>

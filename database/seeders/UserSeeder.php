@@ -53,6 +53,30 @@ class UserSeeder extends Seeder
                 'created_at'    => $now,
                 'updated_at'    => $now,
             ],
+            // 4. Akun Mahasiswa 2 (Dari DashboardSeeder)
+            [
+                'username'      => 'mhs002',
+                'password_hash' => Hash::make('mhs123'),
+                'full_name'     => 'Siti Aisyah',
+                'email'         => 'sitiaisyah@mhs.test',
+                'role'          => 'mahasiswa',
+                'mahasiswa_id'  => 'MHS-002', 
+                'is_active'     => 1,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ],
+            // 5. Akun Mahasiswa Nonaktif (Dari DashboardSeeder)
+            [
+                'username'      => 'mhs006',
+                'password_hash' => Hash::make('mhs123'),
+                'full_name'     => 'Dwi Handayani',
+                'email'         => 'dwihandayani@mhs.test',
+                'role'          => 'mahasiswa',
+                'mahasiswa_id'  => 'MHS-006', 
+                'is_active'     => 0, // Akun Nonaktif
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ],
         ]);
     }
 }

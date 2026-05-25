@@ -27,6 +27,15 @@ Route::middleware(['auth'])->group(function () {
     // Rute URL Khusus Admin (/admin/...)
     Route::middleware(['role:admin'])->group(function () {
         Route::get('/admin/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
+        
+        // Routes API User Management
+        Route::get('/admin/users', [AdminController::class, 'getUsers'])->name('admin.users.get');
+        Route::post('/admin/users', [AdminController::class, 'storeUser'])->name('admin.users.store');
+        Route::put('/admin/users/{id}', [AdminController::class, 'updateUser'])->name('admin.users.update');
+        Route::post('/admin/users/{id}/reset-password', [AdminController::class, 'resetUserPassword'])->name('admin.users.reset-password');
+        Route::post('/admin/users/{id}/toggle-status', [AdminController::class, 'toggleUserStatus'])->name('admin.users.toggle-status');
+        Route::delete('/admin/users/{id}', [AdminController::class, 'destroyUser'])->name('admin.users.destroy');
+        Route::get('/admin/mahasiswa-options', [AdminController::class, 'getMahasiswaOptions'])->name('admin.mahasiswa-options');
     });
 
     // Rute URL Khusus Timdis (/timdis/...)
@@ -40,6 +49,10 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/admin/izin-submissions', [AdminController::class, 'getIzinSubmissions'])->name('admin.izin.get');
         Route::post('/admin/izin-submissions/{id}/verify', [AdminController::class, 'verifyIzin'])->name('admin.izin.verify');
         
+        // Routes Verifikasi Kehadiran
+        Route::get('/admin/kehadiran-submissions', [AdminController::class, 'getKehadiranSubmissions'])->name('admin.kehadiran.get');
+        Route::post('/admin/kehadiran-submissions/{id}/verify', [AdminController::class, 'verifyKehadiran'])->name('admin.kehadiran.verify');
+
         // Route Upload Video
         Route::post('/admin/upload-video', [AdminController::class, 'uploadVideo'])->name('admin.upload.video');
     });

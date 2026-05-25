@@ -9,7 +9,9 @@ use App\Models\Mahasiswa;
 use App\Models\IzinSubmission;
 use App\Models\KehadiranSubmission;
 use App\Models\CameraStream;
+use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB; // <-- untuk query builder relasi tabel
 
 class AdminController extends Controller
@@ -48,7 +50,7 @@ class AdminController extends Controller
         // 5. Absensi Terkini (5 data terbaru hari ini)
         $absensiTerkini = DB::table('attendance')
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->select('mahasiswa.name', 'attendance.created_at', 'attendance.check_out')
+            ->select('mahasiswa.name', 'attendance.created_at', 'attendance.check_out', 'attendance.status')
             ->whereDate('attendance.created_at', $today)
             ->orderBy('attendance.created_at', 'desc')
             ->limit(5)
@@ -84,7 +86,8 @@ class AdminController extends Controller
                 'mahasiswa.name',
                 'mahasiswa.kelompok',
                 'attendance.created_at',
-                'attendance.check_out'
+                'attendance.check_out',
+                'attendance.status'
             )
             ->whereDate('attendance.created_at', $today)
             ->orderBy('attendance.created_at', 'desc')
@@ -100,10 +103,19 @@ class AdminController extends Controller
                 'mahasiswa.name',
                 'mahasiswa.kelompok',
                 'attendance.created_at',
-                'attendance.check_out'
+                'attendance.check_out',
+                'attendance.status'
             )
             ->orderBy('attendance.created_at', 'desc')
             ->get();
+        
+        // 11. Data Pengajuan Izin/Sakit
+        // Mengambil semua data izin beserta relasi mahasiswanya, diurutkan dari yang terbaru
+        $izinSubmissions = \App\Models\IzinSubmission::with('mahasiswa')->orderBy('created_at', 'desc')->get();
+        
+        $totalPendingIzin = $izinSubmissions->where('status', 'pending')->count();
+        $totalApprovedIzin = $izinSubmissions->where('status', 'approved')->count();
+        $totalRejectedIzin = $izinSubmissions->where('status', 'rejected')->count();
 
         // Mengirim seluruh data ke view
         return view('admin.dashboard', compact(
@@ -118,7 +130,11 @@ class AdminController extends Controller
             'perKelompok',
             'seluruhAbsensiHariIni',
             'mahasiswas',
-            'riwayatAbsensi'
+            'riwayatAbsensi',
+            'izinSubmissions',
+            'totalPendingIzin',
+            'totalApprovedIzin',
+            'totalRejectedIzin'
         ));
     }
 
@@ -195,16 +211,232 @@ class AdminController extends Controller
         try {
             $izin = IzinSubmission::findOrFail($id);
             $izin->status = $request->status;
+            $izin->verified_by = auth()->user()->full_name ?? auth()->user()->username;
+            $izin->verified_at = now();
             
             if ($request->status === 'rejected') {
-                $izin->reject_reason = $request->reject_reason;
+                $izin->rejection_reason = $request->reject_reason;
             }
 
             $izin->save();
 
+            if ($request->status === 'approved') {
+                Attendance::updateOrCreate(
+                    [
+                        'mahasiswa_id' => $izin->mahasiswa_id,
+                        'date' => $izin->date,
+                    ],
+                    [
+                        'status' => $izin->submission_type,
+                        'notes' => 'Diinput via Pengajuan Izin/Sakit'
+                    ]
+                );
+            }
+
             return response()->json(['success' => true, 'message' => 'Status pengajuan berhasil diperbarui.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getKehadiranSubmissions(Request $request)
+    {
+        $query = KehadiranSubmission::join('mahasiswa', 'kehadiran_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->select('kehadiran_submissions.*', 'mahasiswa.name as mahasiswa_name', 'mahasiswa.kelompok');
+
+        if ($request->filled('status')) {
+            $query->where('kehadiran_submissions.status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $query->where('mahasiswa.name', 'like', '%' . $request->search . '%');
+        }
+
+        if ($request->filled('kelompok')) {
+            $query->where('mahasiswa.kelompok', $request->kelompok);
+        }
+
+        $submissions = $query->orderBy('kehadiran_submissions.created_at', 'desc')->get();
+
+        $stats = [
+            'pending' => KehadiranSubmission::where('status', 'pending')->count(),
+            'approved' => KehadiranSubmission::where('status', 'approved')->count(),
+            'rejected' => KehadiranSubmission::where('status', 'rejected')->count(),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $submissions,
+            'stats' => $stats
+        ]);
+    }
+
+    public function verifyKehadiran(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:approved,rejected',
+            'reject_reason' => 'required_if:status,rejected'
+        ]);
+
+        try {
+            $kehadiran = KehadiranSubmission::findOrFail($id);
+            $kehadiran->status = $request->status;
+            $kehadiran->verified_by = auth()->user()->full_name ?? auth()->user()->username;
+            $kehadiran->verified_at = now();
+            
+            if ($request->status === 'rejected') {
+                $kehadiran->rejection_reason = $request->reject_reason;
+            }
+
+            $kehadiran->save();
+
+            if ($request->status === 'approved') {
+                Attendance::updateOrCreate(
+                    [
+                        'mahasiswa_id' => $kehadiran->mahasiswa_id,
+                        'date' => $kehadiran->date,
+                    ],
+                    [
+                        'check_in' => $kehadiran->date . ' ' . $kehadiran->check_in_time,
+                        'check_out' => $kehadiran->check_out_time ? $kehadiran->date . ' ' . $kehadiran->check_out_time : null,
+                        'status' => 'hadir',
+                        'notes' => 'Diinput via Pengajuan Kehadiran'
+                    ]
+                );
+            }
+
+            return response()->json(['success' => true, 'message' => 'Status pengajuan kehadiran berhasil diperbarui.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getUsers(Request $request)
+    {
+        $query = User::query();
+
+        if ($request->filled('search')) {
+            $query->where(function($q) use ($request) {
+                $q->where('username', 'like', '%' . $request->search . '%')
+                  ->orWhere('full_name', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        if ($request->filled('role')) {
+            $query->where('role', $request->role);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('is_active', $request->status);
+        }
+
+        $users = $query->orderBy('created_at', 'desc')->get();
+
+        $stats = [
+            'admin' => User::where('role', 'admin')->count(),
+            'timdis' => User::where('role', 'timdis')->count(),
+            'mahasiswa' => User::where('role', 'mahasiswa')->count(),
+            'total' => User::count(),
+        ];
+
+        return response()->json(['success' => true, 'data' => $users, 'stats' => $stats]);
+    }
+
+    public function getMahasiswaOptions()
+    {
+        $usedIds = User::whereNotNull('mahasiswa_id')->pluck('mahasiswa_id');
+        $mahasiswas = Mahasiswa::whereNotIn('id', $usedIds)->select('id', 'name', 'kelompok')->get();
+        
+        return response()->json(['success' => true, 'data' => $mahasiswas]);
+    }
+
+    public function storeUser(Request $request)
+    {
+        $request->validate([
+            'username' => 'required|string|unique:users,username',
+            'password' => 'required|string|min:6',
+            'full_name' => 'required|string',
+            'role' => 'required|in:admin,timdis,mahasiswa',
+            'mahasiswa_id' => 'required_if:role,mahasiswa',
+        ]);
+
+        try {
+            User::create([
+                'username' => $request->username,
+                'password_hash' => Hash::make($request->password), // model User Anda menggunakan password_hash
+                'full_name' => $request->full_name,
+                'email' => $request->email,
+                'role' => $request->role,
+                'mahasiswa_id' => $request->role === 'mahasiswa' ? $request->mahasiswa_id : null,
+                'is_active' => true,
+            ]);
+            return response()->json(['success' => true, 'message' => 'User berhasil ditambahkan.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateUser(Request $request, $id)
+    {
+        $request->validate([
+            'username' => 'required|string|unique:users,username,' . $id,
+            'full_name' => 'required|string',
+            'role' => 'required|in:admin,timdis,mahasiswa',
+            'mahasiswa_id' => 'required_if:role,mahasiswa',
+        ]);
+
+        try {
+            $user = User::findOrFail($id);
+            $user->update([
+                'username' => $request->username,
+                'full_name' => $request->full_name,
+                'email' => $request->email,
+                'role' => $request->role,
+                'mahasiswa_id' => $request->role === 'mahasiswa' ? $request->mahasiswa_id : null,
+            ]);
+            return response()->json(['success' => true, 'message' => 'User berhasil diperbarui.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
+        }
+    }
+
+    public function resetUserPassword(Request $request, $id)
+    {
+        $request->validate([
+            'password' => 'required|string|min:6|confirmed'
+        ]);
+
+        try {
+            $user = User::findOrFail($id);
+            $user->update([
+                'password_hash' => Hash::make($request->password)
+            ]);
+            return response()->json(['success' => true, 'message' => 'Password berhasil direset.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
+        }
+    }
+
+    public function toggleUserStatus(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+            $user->is_active = !$user->is_active;
+            $user->save();
+            return response()->json(['success' => true, 'message' => 'Status user berhasil diperbarui.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
+        }
+    }
+
+    public function destroyUser($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+            $user->delete();
+            return response()->json(['success' => true, 'message' => 'User berhasil dihapus.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
         }
     }
 }
