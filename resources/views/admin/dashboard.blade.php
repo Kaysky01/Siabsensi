@@ -146,18 +146,12 @@
                 @forelse($absensiTerkini as $absen)
                   <tr>
                     <td>{{ $absen->name }}</td>
-                    <td>{{ \Carbon\Carbon::parse($absen->created_at)->format('H:i') }}</td>
-                    <td>{{ $absen->check_out ? \Carbon\Carbon::parse($absen->check_out)->format('H:i') : '-' }}</td>
+                    <td>{{ $absen->jam_masuk }}</td>
+                    <td>{{ $absen->jam_keluar }}</td>
                     <td>
-                      @if(isset($absen->status) && $absen->status === 'izin')
-                        <span style="color:var(--warning);font-weight:600">Izin</span>
-                      @elseif(isset($absen->status) && $absen->status === 'sakit')
-                        <span style="color:var(--warning);font-weight:600">Sakit</span>
-                      @elseif($absen->check_out)
-                        <span style="color:var(--success);font-weight:600">Selesai</span>
-                      @else
-                        <span style="color:var(--warning);font-weight:600">Di Kantor</span>
-                      @endif
+                        <span style="color:{{ $absen->status_color }};font-weight:600">
+                            {{ $absen->status_label }}
+                        </span>
                     </td>
                   </tr>
                 @empty
@@ -235,36 +229,31 @@
             </thead>
             <tbody id="full-att-tbody">
               @forelse($seluruhAbsensiHariIni as $index => $absen)
-                @php
-                    $masuk = \Carbon\Carbon::parse($absen->created_at);
-                    $keluar = $absen->check_out ? \Carbon\Carbon::parse($absen->check_out) : null;
-                    $durasi = $keluar ? $masuk->diffInHours($keluar) . ' jam ' . $masuk->diff($keluar)->format('%I') . ' mnt' : '-';
-                @endphp
-                <tr>
-                  <td>{{ $index + 1 }}</td>
-                  <td>{{ $absen->name }}</td>
-                  <td>{{ $absen->kelompok ?? '-' }}</td>
-                  <td>{{ $masuk->format('H:i:s') }}</td>
-                  <td>{{ $keluar ? $keluar->format('H:i:s') : '-' }}</td>
-                  <td>{{ $durasi }}</td>
-                  <td>Kamera Sistem</td>
-                  <td>
-                    @if(isset($absen->status) && $absen->status === 'izin')
-                      <span style="color:var(--warning);font-weight:600">Izin</span>
-                    @elseif(isset($absen->status) && $absen->status === 'sakit')
-                      <span style="color:var(--warning);font-weight:600">Sakit</span>
-                    @elseif($keluar)
-                      <span style="color:var(--success);font-weight:600">Selesai</span>
-                    @else
-                      <span style="color:var(--warning);font-weight:600">Di Kantor</span>
-                    @endif
-                  </td>
-                </tr>
-              @empty
-                <tr>
-                  <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Belum ada absensi hari ini</td>
-                </tr>
-              @endforelse
+            <tr>
+              <td>{{ $index + 1 }}</td>
+              <td>{{ $absen->name }}</td>
+              <td>{{ $absen->kelompok ?? '-' }}</td>
+              <td>{{ $absen->jam_masuk }}</td>
+              <td>{{ $absen->jam_keluar }}</td>
+              <td>{{ $absen->durasi }}</td>
+              <td>Kamera Sistem</td>
+
+              <td>
+                  <span style="color:{{ $absen->status_color }};font-weight:600">
+                      {{ $absen->status_label }}
+                  </span>
+              </td>
+            </tr>
+
+            @empty
+
+            <tr>
+              <td colspan="8"
+                  style="text-align:center;color:var(--muted);padding:30px">
+                  Belum ada absensi hari ini
+              </td>
+            </tr>
+            @endforelse
             </tbody>
           </table>
         </div>
@@ -290,7 +279,7 @@
               <label class="form-label">Kelompok</label>
               <select id="mhs-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterMahasiswa()">
                 <option value="">Semua</option>
-                @foreach($mahasiswas->pluck('kelompok')->unique()->filter() as $klp)
+                @foreach($kelompokList as $klp)
                   <option value="{{ $klp }}">{{ $klp }}</option>
                 @endforeach
               </select>
@@ -299,7 +288,7 @@
               <label class="form-label">Jurusan</label>
               <select id="mhs-filter-jurusan" class="form-input" style="width:180px;padding:7px 10px" onchange="filterMahasiswa()">
                 <option value="">Semua</option>
-                @foreach($mahasiswas->pluck('jurusan')->unique()->filter() as $jur)
+                @foreach($jurusanList as $jur)
                   <option value="{{ $jur }}">{{ $jur }}</option>
                 @endforeach
               </select>
@@ -332,20 +321,36 @@
                 <tr class="mhs-row" data-name="{{ strtolower($mhs->name) }}" data-kelompok="{{ $mhs->kelompok }}" data-jurusan="{{ $mhs->jurusan }}">
                   <td>
                     <div style="font-weight:600">{{ $mhs->name }}</div>
-                    <div style="font-size:12px;color:var(--text-muted)">{{ $mhs->mahasiswa_id }}</div>
+                    <div style="font-size:12px;color:var(--text-muted)">{{ $mhs->id }}</div>
                   </td>
                   <td>{{ $mhs->kelompok ?? '-' }}</td>
                   <td>{{ $mhs->jurusan ?? '-' }}</td>
                   <td>{{ $mhs->email ?? '-' }}</td>
                   <td>{{ $mhs->no_telp_mahasiswa ?? '-' }}</td>
                   <td>{{ $mhs->no_telp_ortu ?? '-' }}</td>
+                  <td>{{ $mhs->qr_code_id ?? '-' }}</td>
                   <td>
-                    <span style="font-family:var(--font-mono);font-size:12px;background:var(--bg-hover);padding:4px 8px;border-radius:4px">{{ $mhs->mahasiswa_id }}</span>
-                  </td>
-                  <td>
-                    <button class="btn btn-ghost btn-sm" onclick="editMahasiswa('{{ $mhs->mahasiswa_id }}')" title="Edit Mahasiswa">
-                      <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">edit</span>
-                    </button>
+                    <div style="display:flex;gap:6px">
+                      <!-- Tombol QR -->
+                      <button class="btn btn-secondary btn-sm"
+                              onclick="showQRCode('{{ $mhs->qr_code_id }}','{{ $mhs->name }}')"
+                              title="Lihat QR Code">
+                        <span class="material-symbols-outlined"
+                              style="font-size:16px;vertical-align:middle">
+                          qr_code
+                        </span>
+                      </button>
+                      
+                      <!-- Tombol Edit -->
+                      <button class="btn btn-ghost btn-sm"
+                              onclick="editMahasiswa('{{ $mhs->id }}')"
+                              title="Edit Mahasiswa">
+                        <span class="material-symbols-outlined"
+                              style="font-size:16px;vertical-align:middle">
+                          edit
+                        </span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               @empty
@@ -386,7 +391,6 @@
               <tr>
                 <th>Tanggal</th>
                 <th>Mahasiswa</th>
-                <th>Kelompok</th
                 <th>Kelompok</th>
                 <th>Masuk</th>
                 <th>Keluar</th>
@@ -396,35 +400,27 @@
             </thead>
             <tbody id="hist-tbody">
               @forelse($riwayatAbsensi as $absen)
-                @php
-                    $masuk = \Carbon\Carbon::parse($absen->created_at);
-                    $keluar = $absen->check_out ? \Carbon\Carbon::parse($absen->check_out) : null;
-                    $durasi = $keluar ? $masuk->diffInHours($keluar) . ' jam ' . $masuk->diff($keluar)->format('%I') . ' mnt' : '-';
-                @endphp
-                <tr class="hist-row" data-date="{{ $masuk->format('Y-m-d') }}">
-                  <td>{{ $masuk->translatedFormat('d M Y') }}</td>
-                  <td>{{ $absen->name }}</td>
-                  <td>{{ $absen->kelompok ?? '-' }}</td>
-                  <td>{{ $masuk->format('H:i:s') }}</td>
-                  <td>{{ $keluar ? $keluar->format('H:i:s') : '-' }}</td>
-                  <td>{{ $durasi }}</td>
-                  <td>
-                    @if(isset($absen->status) && $absen->status === 'izin')
-                      <span style="color:var(--warning);font-weight:600">Izin</span>
-                    @elseif(isset($absen->status) && $absen->status === 'sakit')
-                      <span style="color:var(--warning);font-weight:600">Sakit</span>
-                    @elseif($keluar)
-                      <span style="color:var(--success);font-weight:600">Selesai</span>
-                    @else
-                      <span style="color:var(--warning);font-weight:600">Di Kantor</span>
-                    @endif
-                  </td>
-                </tr>
-              @empty
-                <tr>
-                  <td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Belum ada riwayat absensi</td>
-                </tr>
-              @endforelse
+            <tr class="hist-row">
+                <td>{{ $absen->tanggal }}</td>
+                <td>{{ $absen->name }}</td>
+                <td>{{ $absen->kelompok ?? '-' }}</td>
+                <td>{{ $absen->jam_masuk }}</td>
+                <td>{{ $absen->jam_keluar }}</td>
+                <td>{{ $absen->durasi }}</td>
+                <td>
+                    <span style="color:{{ $absen->status_color }};font-weight:600">
+                        {{ $absen->status_label }}
+                    </span>
+                </td>
+            </tr>
+            @empty
+            <tr>
+                <td colspan="7"
+                    style="text-align:center;color:var(--muted);padding:30px">
+                    Belum ada riwayat absensi
+                </td>
+            </tr>
+            @endforelse
             </tbody>
           </table>
         </div>
@@ -552,7 +548,7 @@
               <label class="form-label">Kelompok</label>
               <select id="izin-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterIzinSubmissions()">
                 <option value="">Semua</option>
-                @foreach($mahasiswas->pluck('kelompok')->unique()->filter() as $klp)
+                @foreach($kelompokList as $klp)
                   <option value="{{ strtolower($klp) }}">{{ $klp }}</option>
                 @endforeach
               </select>
@@ -691,7 +687,7 @@
               <label class="form-label">Kelompok</label>
               <select id="kehadiran-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterKehadiranSubmissions()">
                 <option value="">Semua</option>
-                @foreach($mahasiswas->pluck('kelompok')->unique()->filter() as $klp)
+                @foreach($kelompokList as $klp)
                   <option value="{{ $klp }}">{{ $klp }}</option>
                 @endforeach
               </select>
@@ -1231,8 +1227,13 @@
 
   <!-- Main Dashboard Script -->
   <script src="{{ asset('static/js/script.js?v=2.5') }}"></script>
+    <script>
+      const csrfToken = "{{ csrf_token() }}";
+  </script>
 
-  <script>
+  <script src="{{ asset('static/js/admin.js') }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <!-- <script>
     // Fungsi untuk Export CSV data Absensi sisi Klien (Browser)
     function exportCSV() {
       const table = document.getElementById("full-att-table");
@@ -1942,7 +1943,40 @@
       loadUsers();
       @endif
     });
-  </script>
-</body>
+  </script> -->
 
+  <!-- MODAL QR CODE -->
+   <div id="modal-qr"
+        style="
+            display:none;
+            position:fixed;
+            inset:0;
+            background:rgba(0,0,0,.6);
+            z-index:99999;
+            align-items:center;
+            justify-content:center;
+        ">
+
+        <div style="
+            background:white;
+            padding:24px;
+            border-radius:16px;
+            width:340px;
+            text-align:center;
+        ">
+
+            <h3 id="qr-title">QR Code</h3>
+
+            <canvas id="qr-canvas"></canvas>
+
+            <button class="btn btn-primary"
+                    style="margin-top:16px"
+                    onclick="closeQRModal()">
+                Tutup
+            </button>
+
+        </div>
+
+    </div>
+</body>
 </html>

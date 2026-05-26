@@ -20,66 +20,117 @@ class AdminController extends Controller
     {
         $today = Carbon::today();
 
-        // 1. Data Statistik Mahasiswa & Kehadiran
+        // =========================
+        // STATISTIK DASHBOARD
+        // =========================
+
         $totalMahasiswaAktif = Mahasiswa::where('is_active', true)->count();
+
         $totalMahasiswaNonAktif = Mahasiswa::where('is_active', false)->count();
 
-        // 2. Data Mahasiswa Hadir Hari Ini (Aktif & Sudah Absen)
-        // (Catatan: Sesuaikan kolom 'created_at' menjadi 'check_in' jika nama kolom timestamp absen Anda berbeda)
         $mahasiswaHadirHariIni = DB::table('attendance')
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
             ->where('mahasiswa.is_active', 1)
             ->whereDate('attendance.created_at', $today)
             ->distinct('attendance.mahasiswa_id')
             ->count('attendance.mahasiswa_id');
-            
+
         $mahasiswaTidakHadir = $totalMahasiswaAktif - $mahasiswaHadirHariIni;
 
-        // 3. Persentase Kehadiran
-        $persentaseKehadiran = $totalMahasiswaAktif > 0 ? round(($mahasiswaHadirHariIni / $totalMahasiswaAktif) * 100) : 0;
+        $persentaseKehadiran = $totalMahasiswaAktif > 0
+            ? round(($mahasiswaHadirHariIni / $totalMahasiswaAktif) * 100)
+            : 0;
 
-        // 4. Mahasiswa Masih di Kantor (Belum absen keluar)
         $mahasiswaMasihDiKantor = DB::table('attendance')
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
             ->where('mahasiswa.is_active', 1)
             ->whereDate('attendance.created_at', $today)
-            ->whereNull('attendance.check_out') // Mencari yang belum absen keluar
+            ->whereNull('attendance.check_out')
             ->distinct('attendance.mahasiswa_id')
             ->count('attendance.mahasiswa_id');
 
-        // 5. Absensi Terkini (5 data terbaru hari ini)
+        // =========================
+        // ABSENSI TERKINI
+        // =========================
+
         $absensiTerkini = DB::table('attendance')
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->select('mahasiswa.name', 'attendance.created_at', 'attendance.check_out', 'attendance.status')
+            ->select(
+                'mahasiswa.name',
+                'attendance.created_at',
+                'attendance.check_out',
+                'attendance.status'
+            )
             ->whereDate('attendance.created_at', $today)
             ->orderBy('attendance.created_at', 'desc')
             ->limit(5)
-            ->get();
+            ->get()
+            ->map(function ($item) {
 
-        // 6. Tren Kehadiran 7 Hari Terakhir
+                $masuk = Carbon::parse($item->created_at);
+
+                $item->jam_masuk = $masuk->format('H:i');
+
+                $item->jam_keluar = $item->check_out
+                    ? Carbon::parse($item->check_out)->format('H:i')
+                    : '-';
+
+                // STATUS
+                $item->status_label = 'Di Kantor';
+                $item->status_color = 'var(--warning)';
+
+                if ($item->status === 'izin') {
+                    $item->status_label = 'Izin';
+                } elseif ($item->status === 'sakit') {
+                    $item->status_label = 'Sakit';
+                } elseif ($item->check_out) {
+                    $item->status_label = 'Selesai';
+                    $item->status_color = 'var(--success)';
+                }
+
+                return $item;
+            });
+
+        // =========================
+        // TREN 7 HARI
+        // =========================
+
         $tren7Hari = [];
+
         for ($i = 6; $i >= 0; $i--) {
+
             $date = Carbon::today()->subDays($i);
+
             $count = DB::table('attendance')
                 ->whereDate('created_at', $date)
                 ->distinct('mahasiswa_id')
                 ->count('mahasiswa_id');
+
             $tren7Hari[] = [
                 'tanggal' => $date->format('d M'),
                 'jumlah' => $count
             ];
         }
 
-        // 7. Kehadiran Per Kelompok (Hari Ini)
+        // =========================
+        // PER KELOMPOK
+        // =========================
+
         $perKelompok = DB::table('attendance')
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
             ->whereDate('attendance.created_at', $today)
-            ->select('mahasiswa.kelompok', DB::raw('count(DISTINCT attendance.mahasiswa_id) as total'))
+            ->select(
+                'mahasiswa.kelompok',
+                DB::raw('count(DISTINCT attendance.mahasiswa_id) as total')
+            )
             ->groupBy('mahasiswa.kelompok')
             ->orderBy('total', 'desc')
             ->get();
 
-        // 8. Seluruh Absensi Hari Ini (untuk halaman "Absensi Hari Ini")
+        // =========================
+        // ABSENSI HARI INI
+        // =========================
+
         $seluruhAbsensiHariIni = DB::table('attendance')
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
             ->select(
@@ -91,12 +142,61 @@ class AdminController extends Controller
             )
             ->whereDate('attendance.created_at', $today)
             ->orderBy('attendance.created_at', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($item) {
 
-        // 9. Seluruh Data Mahasiswa
+                $masuk = Carbon::parse($item->created_at);
+
+                $keluar = $item->check_out
+                    ? Carbon::parse($item->check_out)
+                    : null;
+
+                $item->jam_masuk = $masuk->format('H:i:s');
+
+                $item->jam_keluar = $keluar
+                    ? $keluar->format('H:i:s')
+                    : '-';
+
+                $item->durasi = $keluar
+                    ? floor($masuk->diffInHours($keluar)) . ' jam ' .
+                    $masuk->diff($keluar)->format('%I') . ' menit'
+                    : '-';
+
+                // STATUS
+                $item->status_label = 'Di Kantor';
+                $item->status_color = 'var(--warning)';
+
+                if ($item->status === 'izin') {
+                    $item->status_label = 'Izin';
+                } elseif ($item->status === 'sakit') {
+                    $item->status_label = 'Sakit';
+                } elseif ($item->check_out) {
+                    $item->status_label = 'Selesai';
+                    $item->status_color = 'var(--success)';
+                }
+
+                return $item;
+            });
+
+        // =========================
+        // DATA MAHASISWA
+        // =========================
+
         $mahasiswas = Mahasiswa::orderBy('name', 'asc')->get();
 
-        // 10. Riwayat Absensi
+        // FILTER OPTION
+        $kelompokList = Mahasiswa::whereNotNull('kelompok')
+            ->distinct()
+            ->pluck('kelompok');
+
+        $jurusanList = Mahasiswa::whereNotNull('jurusan')
+            ->distinct()
+            ->pluck('jurusan');
+
+        // =========================
+        // RIWAYAT ABSENSI
+        // =========================
+
         $riwayatAbsensi = DB::table('attendance')
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
             ->select(
@@ -107,17 +207,69 @@ class AdminController extends Controller
                 'attendance.status'
             )
             ->orderBy('attendance.created_at', 'desc')
-            ->get();
-        
-        // 11. Data Pengajuan Izin/Sakit
-        // Mengambil semua data izin beserta relasi mahasiswanya, diurutkan dari yang terbaru
-        $izinSubmissions = \App\Models\IzinSubmission::with('mahasiswa')->orderBy('created_at', 'desc')->get();
-        
-        $totalPendingIzin = $izinSubmissions->where('status', 'pending')->count();
-        $totalApprovedIzin = $izinSubmissions->where('status', 'approved')->count();
-        $totalRejectedIzin = $izinSubmissions->where('status', 'rejected')->count();
+            ->get()
+            ->map(function ($item) {
 
-        // Mengirim seluruh data ke view
+                $masuk = Carbon::parse($item->created_at);
+
+                $keluar = $item->check_out
+                    ? Carbon::parse($item->check_out)
+                    : null;
+
+                $item->tanggal = $masuk->translatedFormat('d M Y');
+
+                $item->jam_masuk = $masuk->format('H:i:s');
+
+                $item->jam_keluar = $keluar
+                    ? $keluar->format('H:i:s')
+                    : '-';
+
+                $item->durasi = $keluar
+                    ? floor($masuk->diffInHours($keluar)) . ' jam ' .
+                    $masuk->diff($keluar)->format('%I') . ' menit'
+                    : '-';
+
+                // STATUS
+                $item->status_label = 'Di Kantor';
+                $item->status_color = 'var(--warning)';
+                $item->tanggal_raw = $masuk->format('Y-m-d');
+
+                if ($item->status === 'izin') {
+                    $item->status_label = 'Izin';
+                } elseif ($item->status === 'sakit') {
+                    $item->status_label = 'Sakit';
+                } elseif ($item->check_out) {
+                    $item->status_label = 'Selesai';
+                    $item->status_color = 'var(--success)';
+                }
+
+                return $item;
+            });
+
+        // =========================
+        // IZIN / SAKIT
+        // =========================
+
+        $izinSubmissions = IzinSubmission::with('mahasiswa')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $totalPendingIzin = $izinSubmissions
+            ->where('status', 'pending')
+            ->count();
+
+        $totalApprovedIzin = $izinSubmissions
+            ->where('status', 'approved')
+            ->count();
+
+        $totalRejectedIzin = $izinSubmissions
+            ->where('status', 'rejected')
+            ->count();
+
+        // =========================
+        // RETURN VIEW
+        // =========================
+
         return view('admin.dashboard', compact(
             'totalMahasiswaAktif',
             'totalMahasiswaNonAktif',
@@ -134,7 +286,9 @@ class AdminController extends Controller
             'izinSubmissions',
             'totalPendingIzin',
             'totalApprovedIzin',
-            'totalRejectedIzin'
+            'totalRejectedIzin',
+            'kelompokList',
+            'jurusanList'
         ));
     }
 
