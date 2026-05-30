@@ -790,10 +790,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if(document.getElementById('users-tbody')) {
       loadUsers();
   }
+}); // <--- KURUNG TUTUPNYA DIPINDAH KE SINI
 
-  // ─── RENDER ABSENSI LENGKAP ────────────────────────────────────────────────
+// ─── RENDER ABSENSI LENGKAP ────────────────────────────────────────────────
 async function renderFullAttendance() {
-  const tableBody = document.getElementById("full-att-table-body"); // Pastikan ID ini ada di HTML Anda
+  const tableBody = document.getElementById("full-att-table-body");
   if (!tableBody) return;
 
   const dateFilter = document.getElementById("att-date-filter")?.value || new Date().toISOString().split("T")[0];
@@ -801,7 +802,6 @@ async function renderFullAttendance() {
   tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Memuat data...</td></tr>';
 
   try {
-    // Sesuaikan endpoint dengan route Laravel Anda
     const result = await apiFetch(`/admin/attendance-data?date=${dateFilter}`);
     
     if (result && result.success) {
@@ -831,4 +831,3 @@ async function renderFullAttendance() {
     tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:red;">Error saat mengambil data</td></tr>';
   }
 }
-});

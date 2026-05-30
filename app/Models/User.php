@@ -59,4 +59,9 @@ class User extends Authenticatable
     {
         return $this->password_hash;
     }
+
+    public function mahasiswa() 
+    {
+        return $this->belongsTo(Mahasiswa::class, 'mahasiswa_id', 'id');  
+    }
 }

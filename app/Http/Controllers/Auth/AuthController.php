@@ -64,4 +64,21 @@ class AuthController extends Controller
 
         return redirect()->route('login');
     }
+
+    /**
+     * Mengambil data profil user yang sedang login
+     */
+    public function me()
+    {
+        // Ambil user yang sedang login
+        $user = Auth::user();
+
+        // Kembalikan data user dalam format JSON
+        return response() -> json([
+            'success' => true,
+            'data' => [
+                'mahasiswa' => $user->mahasiswa
+            ]
+        ]);
+    }
 }

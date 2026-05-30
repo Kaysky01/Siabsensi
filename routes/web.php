@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Mahasiswa\IzinController;
+use App\Http\Controllers\Mahasiswa\KehadiranController;
 use App\Http\Controllers\Mahasiswa\MahasiswaController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +25,31 @@ Route::get('/', function () {
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/logout', [AuthController::class, 'logout'])->name('logout');
+
+    // Rute API untuk mengambil data user yang sedang login
+    Route::get('/api/auth/me', [AuthController::class, 'me'])->name('api.auth.me');
+
+    // Rute API Data Mahasiswa
+    Route::get('/api/mahasiswa/{id}/statistics', [MahasiswaController::class, 'getStatistics']);
+    Route::get('/api/mahasiswa/{id}/chart/weekly', [MahasiswaController::class, 'getWeeklyChart']);
+    Route::get('/api/mahasiswa/{id}/chart/monthly', [MahasiswaController::class, 'getMonthlyChart']);
+    Route::get('/api/mahasiswa/{id}/activity', [MahasiswaController::class, 'getRecentActivity']);
+
+    // Rute untuk data mahasiswa
+    Route::get('/api/mahasiswa/{id}', [MahasiswaController::class, 'getProfile']);
+    Route::put('/api/mahasiswa/{id}', [MahasiswaController::class, 'updateProfile']);
+    Route::get('/api/mahasiswa/{id}/riwayat', [MahasiswaController::class, 'getRiwayat']);
+    Route::get('/api/mahasiswa/{id}/riwayat/export', [MahasiswaController::class, 'exportRiwayat']);
+
+    // Rute untuk pengajuan izin mahasiswa
+    Route::post('/api/izin/submit', [IzinController::class, 'submit']);
+    Route::get('/api/izin/mahasiswa/{id}', [IzinController::class, 'history']);
+    Route::get('/api/izin/bukti/{filename}', [IzinController::class, 'getBukti']);
+
+    // Rute untuk kehadiran mahasiswa
+    Route::post('/api/kehadiran/submit', [KehadiranController::class, 'submit']);
+    Route::get('/api/kehadiran/mahasiswa/{id}', [KehadiranController::class, 'history']);
+    Route::get('/api/kehadiran/bukti/{filename}', [App\Http\Controllers\Mahasiswa\KehadiranController::class, 'getBukti']);
 
     // Rute URL Khusus Admin (/admin/...)
     Route::middleware(['role:admin'])->group(function () {

@@ -2,113 +2,54 @@ const API = '/api';
 let mahasiswaData = [];
 let currentMahasiswa = null; // Store current logged-in mahasiswa
 
-// ─── Authentication Check & URL Cleanup ────────────────────────────────────
-// (function() {
-//   // Get token from URL query parameter
-//   const urlParams = new URLSearchParams(window.location.search);
-//   const tokenFromUrl = urlParams.get('token');
-  
-//   // If token in URL, save to sessionStorage and clean URL
-//   if (tokenFromUrl) {
-//     sessionStorage.setItem('session_token', tokenFromUrl);
-//     // Clean URL without reloading page
-//     window.history.replaceState({}, document.title, window.location.pathname);
-//   }
-  
-//   // Check if user is authenticated
-//   const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
-  
-//   if (!token) {
-//     // No token, redirect to login
-//     window.location.href = '/login';
-//     return;
-//   }
-  
-//   // Validate token with server
-//   fetch(API + '/auth/validate', {
-//     headers: { 
-//       'Authorization': `Bearer ${token}`,
-//       'Content-Type': 'application/json'
-//     },
-//     credentials: 'include'
-//   })
-//   .then(res => res.json())
-//   .then(result => {
-//     if (!result.success) {
-//       // Invalid token, clear storage and redirect to login
-//       localStorage.removeItem('session_token');
-//       localStorage.removeItem('user');
-//       sessionStorage.removeItem('session_token');
-//       sessionStorage.removeItem('user');
-//       window.location.href = '/login';
-//       return;
-//     }
-    
-//     // Check if user has mahasiswa role and data
-//     return fetch(API + '/auth/me', {
-//       headers: { 
-//         'Authorization': `Bearer ${token}`,
-//         'Content-Type': 'application/json'
-//       },
-//       credentials: 'include'
-//     });
-//   })
-//   .then(res => {
-//     if (!res) return;
-//     return res.json();
-//   })
-//   .then(result => {
-//     if (!result || !result.success) {
-//       console.error('[Mahasiswa Portal] Failed to load user data');
-//       window.location.href = '/login';
-//       return;
-//     }
-    
-//     // Check if user has mahasiswa data
-//     if (result.data && result.data.mahasiswa) {
-//       currentMahasiswa = result.data.mahasiswa;
-//       console.log('[Mahasiswa Portal] Mahasiswa data loaded:', currentMahasiswa.name);
+// ─── Authentication Check & Pengambilan Data ────────────────────────────────
+(function() {
+  // Langsung minta data ke server menggunakan Session Cookies dari Laravel
+  fetch(API + '/auth/me', {
+    headers: { 
+      'Content-Type': 'application/json'
+    },
+    credentials: 'include' // Sangat penting! Ini yang membawa status login Laravel-mu ke API
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Gagal terhubung ke server');
+    return res.json();
+  })
+  .then(result => {
+    // Cek apakah data mahasiswa berhasil didapat
+    if (result && result.success && result.data && result.data.mahasiswa) {
+      currentMahasiswa = result.data.mahasiswa || result.data;
+      // Gunakan full_name jika name tidak ada
+      const namaMhs = currentMahasiswa.full_name || currentMahasiswa.name;
+      console.log('[Mahasiswa Portal] Data berhasil dimuat:', namaMhs);
       
-//       // Initialize portal when DOM is ready
-//       if (document.readyState === 'loading') {
-//         document.addEventListener('DOMContentLoaded', initializeMahasiswaPortal);
-//       } else {
-//         setTimeout(initializeMahasiswaPortal, 100);
-//       }
-//     } else {
-//       // User authenticated but no mahasiswa data
-//       console.error('[Mahasiswa Portal] ERROR: No mahasiswa data found');
-//       alert('Error: Akun mahasiswa tidak terhubung dengan data mahasiswa. Hubungi administrator.');
-//       window.location.href = '/login';
-//     }
-//   })
-//   .catch(err => {
-//     console.error('Auth validation error:', err);
-//     // On error, redirect to login
-//     window.location.href = '/login';
-//   });
-// })();
+      // Jalankan fungsi pengisian dashboard
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeMahasiswaPortal);
+      } else {
+        setTimeout(initializeMahasiswaPortal, 100);
+      }
+    } else {
+      console.error('[Mahasiswa Portal] ERROR: Data mahasiswa tidak ditemukan di response API.');
+    }
+  })
+  .catch(err => {
+    console.error('Terjadi kesalahan saat memuat data:', err);
+  });
+})();
 
 // ─── API Helper Function ─────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
   try {
-    // Get token from storage
-    const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
-    
-    // Add Authorization header if token exists
     const headers = {
       'Content-Type': 'application/json',
       ...(opts.headers || {})
     };
     
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
     const r = await fetch(API + path, {
       ...opts,
       headers,
-      credentials: 'include'  // Include cookies
+      credentials: 'include'  // Include cookies session Laravel
     });
     return await r.json();
   } catch (e) {
@@ -206,23 +147,24 @@ function hideAllMahasiswaSelectors() {
 function showWelcomeMessage() {
   console.log('[WELCOME] Creating welcome message...');
   
-  // Update welcome message in page header
   const welcomeElement = document.getElementById('welcome-message');
   if (welcomeElement && currentMahasiswa) {
+    const displayName = currentMahasiswa.full_name || currentMahasiswa.name || 'Mahasiswa';
+    const displayKelompok = currentMahasiswa.kelompok || '-';
+    const displayJurusan = currentMahasiswa.jurusan || '-';
+
     welcomeElement.innerHTML = `
       <div style="display: flex; align-items: center; gap: 12px; margin-top: 8px;">
         <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary);">account_circle</span>
         <div>
-          <span style="font-weight: 600; color: var(--text);">${currentMahasiswa.name}</span>
+          <span style="font-weight: 600; color: var(--text);">${displayName}</span>
           <span style="color: var(--text-muted); margin-left: 8px;">
-            ${currentMahasiswa.id} • Kelompok ${currentMahasiswa.kelompok} • ${currentMahasiswa.jurusan}
+            ${currentMahasiswa.id} • ${displayKelompok} • ${displayJurusan}
           </span>
         </div>
       </div>
     `;
     console.log('[WELCOME] Welcome message updated in header');
-  } else {
-    console.error('[WELCOME] Welcome element not found or no mahasiswa data');
   }
 }
 
@@ -263,6 +205,16 @@ async function submitIzin() {
   formData.append('date', date);
   formData.append('keterangan', keterangan);
   formData.append('bukti', buktiFile);
+  formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+
+  // header saat fetch
+  const res = await fetch(API + '/izin/submit', { 
+    method: 'POST', 
+    headers: { 
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content 
+    },
+    body: formData 
+});
 
   // Disable button
   const btn = document.querySelector('.btn-primary');
@@ -302,26 +254,33 @@ function resetIzinForm() {
 // ─── Load Riwayat ────────────────────────────────────────────────────────
 // Store submissions data for detail modal
 let mySubmissionsData = [];
+let myKehadiranData = [];
 
 async function loadMyIzinHistory() {
   if (!currentMahasiswa) return;
   
   const mahasiswaId = currentMahasiswa.id;
   const tbody = document.getElementById('my-izin-table-body');
-  tbody.innerHTML = '<tr><td colspan="7" class="loading-state"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" class="loading-state"><div class="spinner" style="margin:0 auto"></div></td></tr>';
 
   try {
     const res = await fetch(API + `/izin/mahasiswa/${mahasiswaId}`);
     const result = await res.json();
 
     if (!result.success || !result.data.submissions.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Belum ada pengajuan</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Belum ada pengajuan</td></tr>';
       return;
     }
 
-    mySubmissionsData = result.data.submissions; // Store for detail modal
+    mySubmissionsData = result.data.submissions;
 
     tbody.innerHTML = result.data.submissions.map(s => {
+      const tglFormatted = s.date ? s.date.substring(0, 10) : '-';
+
+      const jenisBadge = s.submission_type === 'izin' 
+        ? '<span class="badge badge-blue">Izin</span>' 
+        : '<span class="badge badge-orange">Sakit</span>';
+
       const statusBadge = {
         pending:  '<span class="badge badge-yellow"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">schedule</span> Pending</span>',
         approved: '<span class="badge badge-green"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check_circle</span> Disetujui</span>',
@@ -333,24 +292,22 @@ async function loadMyIzinHistory() {
         : '<span style="color:var(--text-muted)">—</span>';
 
       return `<tr>
-        <td style="font-family:var(--font-mono);font-size:13px;font-weight:600">${s.date}</td>
-        <td>
-          <div style="font-weight:600">${currentMahasiswa.name}</div>
-        </td>
+        <td style="font-family:var(--font-mono);font-size:13px;font-weight:600">${tglFormatted}</td>
+        <td>${jenisBadge}</td>
+        <td><div style="font-weight:600">${currentMahasiswa.name}</div></td>
         <td><span class="badge badge-blue">${currentMahasiswa.kelompok}</span></td>
         <td style="font-size:14px">${currentMahasiswa.jurusan}</td>
         <td>${statusBadge}</td>
         <td style="font-size:13px">${verifiedBy}</td>
         <td>
           <button class="btn btn-primary btn-sm" onclick="openDetailMahasiswaModal(${s.id})" title="Lihat Detail">
-            <span class="material-symbols-outlined" style="font-size:14px">visibility</span>
-            Detail
+            <span class="material-symbols-outlined" style="font-size:14px">visibility</span> Detail
           </button>
         </td>
       </tr>`;
     }).join('');
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="7" class="error-state">Gagal memuat data</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="error-state">Gagal memuat data</td></tr>';
   }
 }
 
@@ -373,9 +330,16 @@ function openDetailMahasiswaModal(submissionId) {
     ? '<span class="badge badge-blue"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">description</span> Izin</span>'
     : '<span class="badge badge-orange"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">medical_services</span> Sakit</span>';
   document.getElementById('mhs-detail-jenis').innerHTML = typeBadge;
-  document.getElementById('mhs-detail-tanggal').textContent = submission.date;
-  document.getElementById('mhs-detail-submitted-at').textContent = submission.submitted_at 
-    ? new Date(submission.submitted_at).toLocaleString('id-ID')
+  
+  // Format Tanggal Izin agar rapi (YYYY-MM-DD)
+  const tglFormatted = submission.date ? submission.date.substring(0, 10) : '—';
+  document.getElementById('mhs-detail-tanggal').textContent = tglFormatted;
+
+  // Menggunakan created_at untuk Waktu Pengajuan
+  document.getElementById('mhs-detail-submitted-at').textContent = submission.created_at 
+    ? `pukul ${new Date(submission.created_at).toLocaleString('id-ID', {
+        hour: '2-digit', minute: '2-digit'
+      })}`
     : '—';
   
   const statusBadge = {
@@ -537,6 +501,9 @@ async function submitKehadiran() {
   try {
     const res = await fetch(API + '/kehadiran/submit', {
       method: 'POST',
+      headers: { 
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content 
+      },
       body: formData
     });
 
@@ -568,6 +535,7 @@ async function loadMyKehadiranHistory() {
   
   const mahasiswaId = currentMahasiswa.id;
   const tbody = document.getElementById('my-kehadiran-table-body');
+
   tbody.innerHTML = '<tr><td colspan="7" class="loading-state"><div class="spinner" style="margin:0 auto"></div></td></tr>';
 
   try {
@@ -579,7 +547,12 @@ async function loadMyKehadiranHistory() {
       return;
     }
 
+    myKehadiranData = result.data.submissions;
+
     tbody.innerHTML = result.data.submissions.map(s => {
+      
+      const tglFormatted = s.date ? s.date.substring(0, 10) : '-';
+
       const statusBadge = {
         pending:  '<span class="badge badge-yellow"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">schedule</span> Pending</span>',
         approved: '<span class="badge badge-green"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check_circle</span> Disetujui</span>',
@@ -591,7 +564,7 @@ async function loadMyKehadiranHistory() {
         : '<span style="color:var(--text-muted)">—</span>';
 
       return `<tr>
-        <td style="font-family:var(--font-mono);font-size:13px;font-weight:600">${s.date}</td>
+        <td style="font-family:var(--font-mono);font-size:13px;font-weight:600">${tglFormatted}</td>
         <td>
           <div style="font-weight:600">${currentMahasiswa.name}</div>
         </td>
@@ -615,34 +588,31 @@ async function loadMyKehadiranHistory() {
 
 // ─── Dashboard Functions ─────────────────────────────────────────────────
 async function loadDashboardData() {
-  if (!currentMahasiswa) {
-    console.error('No mahasiswa data');
-    return;
-  }
-  
+  if (!currentMahasiswa) return;
   const mahasiswaId = currentMahasiswa.id;
 
   try {
-    // Load attendance statistics
     const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/statistics`);
-    const result = await res.json();
     
+    // PENGAMAN: Jika API belum dibuat di Laravel (404), hentikan eksekusi chart di sini
+    if (!res.ok) {
+      console.warn('⚠️ API Statistik belum tersedia. Silakan buat route di Laravel.');
+      document.getElementById('dashboard-stats').style.display = 'block';
+      return; 
+    }
+
+    const result = await res.json();
     if (result.success) {
       const stats = result.data;
-      
-      // Update basic stats
       document.getElementById('stat-total-hadir').textContent = stats.totalHadir || 0;
       document.getElementById('stat-bulan-ini').textContent = stats.hadirBulanIni || 0;
       document.getElementById('stat-izin-sakit').textContent = stats.totalIzin || 0;
       document.getElementById('stat-tidak-hadir').textContent = stats.tidakHadir || 0;
-      
-      // Update additional stats
       document.getElementById('stat-percentage').textContent = `${stats.persentaseKehadiran || 0}%`;
       document.getElementById('stat-avg-duration').textContent = stats.rataRataDurasi || '0 jam';
       document.getElementById('stat-longest-streak').textContent = `${stats.streakTerpanjang || 0} hari`;
       document.getElementById('stat-late-count').textContent = `${stats.terlambat || 0} kali`;
       
-      // Load charts
       loadAttendanceChart(mahasiswaId);
       loadMonthlyChart(mahasiswaId);
       loadRecentActivity(mahasiswaId);
@@ -651,7 +621,6 @@ async function loadDashboardData() {
     }
   } catch (e) {
     console.error('Error loading dashboard data:', e);
-    toast('Gagal memuat statistik', 'Pastikan server berjalan', true);
   }
 }
 
@@ -1064,6 +1033,12 @@ async function loadProfileData() {
 
   try {
     const res = await fetch(`${API}/mahasiswa/${currentMahasiswa.id}`);
+
+    // 👇 Tambahkan 3 baris pengaman ini 👇
+    if (!res.ok) {
+        throw new Error('API Profile gagal dipanggil atau belum dibuat (404)');
+    }
+
     const result = await res.json();
     
     if (result.success && result.data) {
@@ -1103,7 +1078,10 @@ async function updateProfile() {
   try {
     const res = await fetch(`${API}/mahasiswa/${mahasiswaId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content 
+      },
       body: JSON.stringify({ name, kelompok, jurusan, email })
     });
 
@@ -1197,7 +1175,7 @@ async function filterRiwayat() {
       if (value) queryParams.append(key, value);
     });
 
-    const res = await fetch(`${API}/mahasiswa/riwayat?${queryParams}`);
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/riwayat?${queryParams}`);
     const result = await res.json();
 
     if (result.success) {
@@ -1220,50 +1198,52 @@ function renderRiwayatTable(data) {
   }
 
   tbody.innerHTML = data.map((row, index) => {
-    const tanggal = new Date(row.date);
-    const hari = tanggal.toLocaleDateString('id-ID', { weekday: 'long' });
-    const tanggalStr = tanggal.toLocaleDateString('id-ID');
+    const jamMasuk = row.check_in_time; // Sudah dalam format H:i dari PHP
+    const jamKeluar = row.check_out_time; // Sudah dalam format H:i dari PHP
+    const durasi = calculateDuration(jamMasuk, jamKeluar);
     
-    const jamMasuk = row.check_in_time || '-';
-    const jamKeluar = row.check_out_time || '-';
-    const durasi = calculateDuration(row.check_in_time, row.check_out_time);
-    
-    let status = 'Tidak Hadir';
+    // Perbaikan deteksi status agar sesuai database-mu
+    const statusDB = (row.status || '').toLowerCase();
+    let statusLabel = 'Tidak Hadir';
     let statusClass = 'badge-danger';
     
-    if (row.status === 'present') {
-      status = 'Hadir';
+    if (statusDB === 'present' || statusDB === 'hadir') {
+      statusLabel = 'Hadir';
       statusClass = 'badge-success';
-    } else if (row.status === 'izin') {
-      status = 'Izin';
+    } else if (statusDB === 'izin') {
+      statusLabel = 'Izin';
       statusClass = 'badge-warning';
-    } else if (row.status === 'sakit') {
-      status = 'Sakit';
+    } else if (statusDB === 'sakit') {
+      statusLabel = 'Sakit';
       statusClass = 'badge-warning';
     }
 
     return `
       <tr>
         <td>${index + 1}</td>
-        <td>${tanggalStr}</td>
-        <td>${hari}</td>
+        <td>${row.date_str}</td>
+        <td>${row.hari}</td>
         <td>${jamMasuk}</td>
         <td>${jamKeluar}</td>
         <td>${durasi}</td>
-        <td><span class="badge ${statusClass}">${status}</span></td>
+        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
       </tr>
     `;
   }).join('');
 }
 
 function calculateDuration(checkIn, checkOut) {
-  if (!checkIn || !checkOut) return '-';
+  // Jika salah satu jam adalah '-', jangan hitung apa-apa
+  if (!checkIn || !checkOut || checkIn === '-' || checkOut === '-') {
+    return '-'; 
+  }
   
-  const start = new Date(`2000-01-01 ${checkIn}`);
-  const end = new Date(`2000-01-01 ${checkOut}`);
+  // Gunakan format yang valid untuk Date
+  const start = new Date(`2000-01-01T${checkIn}:00`);
+  const end = new Date(`2000-01-01T${checkOut}:00`);
   
+  // Jika waktu keluar lebih kecil dari waktu masuk, asumsikan lewat tengah malam
   if (end < start) {
-    // Handle next day checkout
     end.setDate(end.getDate() + 1);
   }
   
@@ -1305,7 +1285,7 @@ async function exportRiwayatCSV() {
       if (value) queryParams.append(key, value);
     });
 
-    const res = await fetch(`${API}/mahasiswa/riwayat/export?${queryParams}`);
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/riwayat/export?${queryParams}`);
     
     if (res.ok) {
       const blob = await res.blob();
@@ -1416,22 +1396,93 @@ function populateYearDropdowns() {
 }
 
 function openDetailKehadiranModal(submissionId) {
-  // Find submission data
-  fetch(`${API}/kehadiran/submissions/${submissionId}`)
-    .then(res => res.json())
-    .then(result => {
-      if (result.success && result.data) {
-        const submission = result.data;
-        
-        // Fill modal with data (similar to izin modal)
-        // You can implement this based on your modal structure
-        toast('Detail kehadiran', `ID: ${submissionId}`);
-      }
-    })
-    .catch(err => {
-      console.error('Error loading kehadiran detail:', err);
-      toast('Gagal memuat detail', '', true);
-    });
+  // 1. Cari data dari variabel global
+  const submission = myKehadiranData.find(s => s.id === submissionId);
+  
+  if (!submission) {
+    toast('Data tidak ditemukan', '', true);
+    return;
+  }
+
+  // 2. Isi Data Mahasiswa (Ambil dari currentMahasiswa)
+  document.getElementById('khd-detail-mahasiswa-id').textContent = currentMahasiswa.id;
+  document.getElementById('khd-detail-mahasiswa-name').textContent = currentMahasiswa.name;
+  document.getElementById('khd-detail-mahasiswa-kelompok').textContent = currentMahasiswa.kelompok;
+  document.getElementById('khd-detail-mahasiswa-jurusan').textContent = currentMahasiswa.jurusan;
+
+  // 3. Isi Data Spesifik Kehadiran
+  const tglFormatted = submission.date ? submission.date.substring(0, 10) : '—';
+  document.getElementById('khd-detail-tanggal').textContent = tglFormatted;
+  
+  // Menampilkan Jam Masuk dan Keluar
+  document.getElementById('khd-detail-checkin').textContent = submission.check_in_time || '—';
+  document.getElementById('khd-detail-checkout').textContent = submission.check_out_time || '—';
+
+  // Menampilkan waktu submit (created_at)
+  document.getElementById('khd-detail-submitted-at').textContent = submission.created_at 
+    ? `pukul ${new Date(submission.created_at).toLocaleString('id-ID', {
+        hour: '2-digit', minute: '2-digit'
+      })}`
+    : '—';
+  
+  // Status Badge
+  const statusBadge = {
+    pending:  '<span class="badge badge-yellow"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">schedule</span> Pending</span>',
+    approved: '<span class="badge badge-green"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check_circle</span> Disetujui</span>',
+    rejected: '<span class="badge badge-red"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">cancel</span> Ditolak</span>'
+  }[submission.status] || submission.status;
+  document.getElementById('khd-detail-status').innerHTML = statusBadge;
+  
+  document.getElementById('khd-detail-keterangan').textContent = submission.keterangan || '—';
+
+  // 4. Isi Bukti Gambar / PDF
+  const buktiContainer = document.getElementById('khd-detail-bukti-container');
+  if (submission.bukti_path) {
+    const ext = submission.bukti_path.split('.').pop().toLowerCase();
+    const filename = submission.bukti_path.split(/[\\/]/).pop();
+    
+    // PERHATIAN: Gunakan rute kehadiran, bukan rute izin
+    const url = API + `/kehadiran/bukti/${filename}`;
+    
+    if (['jpg', 'jpeg', 'png'].includes(ext)) {
+      buktiContainer.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:var(--radius-md);border:2px solid var(--border)">`;
+    } else if (ext === 'pdf') {
+      buktiContainer.innerHTML = `
+        <div style="padding:30px">
+          <span class="material-symbols-outlined" style="font-size:64px;color:var(--danger)">picture_as_pdf</span>
+          <p style="margin-top:12px;font-weight:600">File PDF</p>
+          <a href="${url}" target="_blank" class="btn btn-primary" style="margin-top:12px;display:inline-flex;gap:6px">
+            <span class="material-symbols-outlined" style="font-size:16px">open_in_new</span> Buka PDF
+          </a>
+        </div>`;
+    }
+  } else {
+    buktiContainer.innerHTML = '<span style="color:var(--text-muted)">Tidak ada bukti</span>';
+  }
+
+  // 5. Isi Info Verifikasi
+  const verificationInfo = document.getElementById('khd-detail-verification-info');
+  if (submission.status !== 'pending') {
+    verificationInfo.style.display = 'block';
+    document.getElementById('khd-detail-verified-by').textContent = submission.verified_by || '—';
+    document.getElementById('khd-detail-verified-at').textContent = submission.verified_at 
+      ? new Date(submission.verified_at).toLocaleString('id-ID')
+      : '—';
+    
+    // Tampilkan alasan penolakan jika status rejected
+    const rejectionContainer = document.getElementById('khd-detail-rejection-reason-container');
+    if (submission.status === 'rejected' && submission.rejection_reason) {
+      rejectionContainer.style.display = 'block';
+      document.getElementById('khd-detail-rejection-reason').textContent = submission.rejection_reason;
+    } else {
+      rejectionContainer.style.display = 'none';
+    }
+  } else {
+    verificationInfo.style.display = 'none';
+  }
+
+  // 6. Buka Modal
+  document.getElementById('modal-detail-kehadiran').classList.add('show');
 }
 
 // ─── Initialize Page ─────────────────────────────────────────────────────

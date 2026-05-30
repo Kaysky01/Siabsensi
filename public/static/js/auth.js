@@ -7,61 +7,22 @@ const AuthModule = (function() {
   const API_BASE = '/api';
   
   /**
-   * Get session token from storage or URL
-   */
-  function getSessionToken() {
-    // Check URL parameter first
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = urlParams.get('token');
-    
-    if (tokenFromUrl) {
-      sessionStorage.setItem('session_token', tokenFromUrl);
-      // Clean URL without reloading
-      window.history.replaceState({}, document.title, window.location.pathname);
-      return tokenFromUrl;
-    }
-    
-    // Check storage
-    return localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
-  }
-  
-  /**
-   * Clear all authentication data
-   */
-  function clearAuth() {
-    localStorage.removeItem('session_token');
-    localStorage.removeItem('user');
-    sessionStorage.removeItem('session_token');
-    sessionStorage.removeItem('user');
-  }
-  
-  /**
-   * Redirect to login page
-   */
-  function redirectToLogin() {
-    window.location.href = '/login';
-  }
-  
-  /**
-   * Validate session token with server
+   * Validate session dengan server menggunakan Cookies Laravel
    * @returns {Promise<Object|null>} User data if valid, null if invalid
    */
-  async function validateSession(token) {
-    if (!token) return null;
-    
+  async function validateSession() {
     try {
       const response = await fetch(API_BASE + '/auth/me', {
         headers: { 
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        credentials: 'include'
+        credentials: 'include' // Ini kunci utamanya: membawa Session dari browser
       });
       
       const result = await response.json();
       
       if (result.success) {
-        return result.data;
+        return result.data.mahasiswa || result.data.user || result.data;
       }
       
       return null;
@@ -78,75 +39,62 @@ const AuthModule = (function() {
    * @param {Function} onFailure - Optional callback jika auth gagal
    */
   async function requireAuth(allowedRoles, onSuccess, onFailure) {
-    const token = getSessionToken();
-    
-    if (!token) {
-      console.log('[AUTH] No token found, redirecting to login');
-      if (onFailure) onFailure('no_token');
-      redirectToLogin();
-      return;
-    }
-    
-    const user = await validateSession(token);
+    // Langsung validasi ke server, tanpa mengecek token di localStorage
+    const user = await validateSession();
     
     if (!user) {
-      console.log('[AUTH] Invalid token, redirecting to login');
-      clearAuth();
-      if (onFailure) onFailure('invalid_token');
-      redirectToLogin();
+      console.log('[AUTH] Sesi tidak valid, mengarahkan ke halaman login...');
+      if (onFailure) onFailure('invalid_session');
+      window.location.href = '/login';
       return;
     }
     
-    // Check role if specified
+    // Pengecekan Hak Akses (Role)
     if (allowedRoles) {
       const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
       
-      if (!roles.includes(user.role)) {
-        console.log(`[AUTH] Access denied. Required: ${roles.join('|')}, Got: ${user.role}`);
+      // Karena data role mungkin ada di user.role atau sekadar mengecek tipe data
+      const userRole = user.role || 'mahasiswa'; 
+      
+      if (!roles.includes(userRole)) {
+        console.log(`[AUTH] Access denied. Required: ${roles.join('|')}, Got: ${userRole}`);
         if (onFailure) onFailure('access_denied');
         
-        // Redirect based on role
-        if (user.role === 'mahasiswa') {
-          window.location.href = '/mahasiswa';
+        // Lempar ke dashboard yang sesuai
+        if (userRole === 'mahasiswa') {
+          window.location.href = '/mahasiswa/dashboard';
         } else {
-          window.location.href = '/';
+          window.location.href = '/admin/dashboard';
         }
         return;
       }
     }
     
-    console.log('[AUTH] Authentication successful:', user.username, `(${user.role})`);
+    console.log('[AUTH] Authentication successful:', user.name || user.username);
     
-    // Call success callback with user data
     if (onSuccess) {
       onSuccess(user);
     }
   }
   
   /**
-   * API fetch helper with automatic token injection
+   * API fetch helper
+   * Tidak butuh Bearer token lagi karena pakai credentials include
    */
   async function apiFetch(path, options = {}) {
-    const token = getSessionToken();
-    
     const headers = {
       ...(options.headers || {})
     };
     
-    // Only add Content-Type if not FormData
     if (!(options.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
-    }
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
     }
     
     try {
       const response = await fetch(API_BASE + path, {
         ...options,
         headers,
-        credentials: 'include'
+        credentials: 'include' // Membawa session Laravel
       });
       
       return response;
@@ -160,32 +108,12 @@ const AuthModule = (function() {
    * Logout user
    */
   async function logout() {
-    const token = getSessionToken();
-    
-    if (token) {
-      try {
-        await fetch(API_BASE + '/auth/logout', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
-      } catch (error) {
-        console.error('Logout error:', error);
-      }
-    }
-    
-    clearAuth();
-    redirectToLogin();
+    // Kita panggil langsung route logout milik Laravel
+    window.location.href = '/logout';
   }
   
   // Public API
   return {
-    getSessionToken,
-    clearAuth,
-    redirectToLogin,
     validateSession,
     requireAuth,
     apiFetch,

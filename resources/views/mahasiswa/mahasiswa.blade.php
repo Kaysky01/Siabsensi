@@ -7,6 +7,7 @@
   <title>SIABSEN — Portal Mahasiswa</title>
   <link rel="stylesheet" href="{{ asset('static/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('static/css/mahasiswa.css') }}">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap"
     rel="stylesheet">
@@ -66,6 +67,13 @@
           <span class="material-symbols-outlined icon">workspace_premium</span>
           Unduh Sertifikat
         </div>
+
+        <div class="nav-section">Keluar</div>
+
+        <div class="nav-item" onclick="window.location.href='/logout'" id="nav-keluar">
+          <span class="material-symbols-outlined icon">logout</span>
+          Logout
+        </div>
       </nav>
 
       <!-- Footer -->
@@ -84,10 +92,11 @@
           <div class="page-title">Portal Mahasiswa SIABSEN</div>
           <div class="page-sub" id="welcome-message">Dashboard & Manajemen Kehadiran</div>
         </div>
+
         <div class="header-actions">
-          <button class="btn btn-ghost btn-sm" onclick="window.location.href='/'">
-            <span class="material-symbols-outlined" style="font-size:16px">admin_panel_settings</span>
-            Dashboard Admin
+          <button class="btn btn-ghost btn-sm" onclick="window.location.href='/logout'">
+            <span class="material-symbols-outlined" style="font-size:16px">logout</span>
+            Logout
           </button>
         </div>
       </div>
@@ -420,6 +429,9 @@
               <tr>
                 <th>Tanggal</th>
                 <th>Jenis</th>
+                <th>Nama Mahasiswa</th>
+                <th>Kelompok</th>
+                <th>Jurusan</th>
                 <th>Status</th>
                 <th>Diverifikasi Oleh</th>
                 <th>Aksi</th>
@@ -796,6 +808,93 @@
   <div id="toast">
     <div class="toast-title" id="toast-title"></div>
     <div class="toast-msg" id="toast-msg"></div>
+  </div>
+
+  <div class="modal-backdrop" id="modal-detail-kehadiran">
+    <div class="modal" style="max-width:800px">
+      <div class="modal-title">Detail Pengajuan Kehadiran</div>
+      <div style="margin-top:20px">
+        
+        <div style="background:var(--bg);padding:20px;border-radius:var(--radius-md);margin-bottom:20px">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:12px">Informasi Mahasiswa</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">ID Mahasiswa</div>
+              <div style="font-weight:600;font-family:var(--font-mono)" id="khd-detail-mahasiswa-id">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Nama Lengkap</div>
+              <div style="font-weight:600" id="khd-detail-mahasiswa-name">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Kelompok</div>
+              <div style="font-weight:600" id="khd-detail-mahasiswa-kelompok">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Jurusan</div>
+              <div style="font-weight:600" id="khd-detail-mahasiswa-jurusan">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--bg);padding:20px;border-radius:var(--radius-md);margin-bottom:20px">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:12px">Detail Kehadiran</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Tanggal</div>
+              <div style="font-family:var(--font-mono);font-weight:600" id="khd-detail-tanggal">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Jam Masuk</div>
+              <div style="font-family:var(--font-mono);font-weight:600;color:var(--success)" id="khd-detail-checkin">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Jam Keluar</div>
+              <div style="font-family:var(--font-mono);font-weight:600;color:var(--primary)" id="khd-detail-checkout">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Waktu Pengajuan</div>
+              <div style="font-family:var(--font-mono);font-size:13px" id="khd-detail-submitted-at">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Status</div>
+              <div id="khd-detail-status">—</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Keterangan</div>
+            <div style="background:var(--surface);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--border)" id="khd-detail-keterangan">—</div>
+          </div>
+        </div>
+
+        <div style="background:var(--bg);padding:20px;border-radius:var(--radius-md);margin-bottom:20px">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:12px">Bukti Pendukung</div>
+          <div id="khd-detail-bukti-container" style="text-align:center">—</div>
+        </div>
+
+        <div id="khd-detail-verification-info" style="background:var(--bg);padding:20px;border-radius:var(--radius-md);display:none">
+          <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;margin-bottom:12px">Informasi Verifikasi</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Diverifikasi Oleh</div>
+              <div style="font-weight:600" id="khd-detail-verified-by">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Waktu Verifikasi</div>
+              <div style="font-family:var(--font-mono);font-size:13px" id="khd-detail-verified-at">—</div>
+            </div>
+          </div>
+          <div id="khd-detail-rejection-reason-container" style="margin-top:16px;display:none">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Alasan Penolakan</div>
+            <div style="background:var(--danger-light);color:var(--danger);padding:12px;border-radius:var(--radius-sm);border:1px solid var(--danger)" id="khd-detail-rejection-reason">—</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-detail-kehadiran')">Tutup</button>
+      </div>
+    </div>
   </div>
 
   <!-- Mahasiswa Portal Script -->
