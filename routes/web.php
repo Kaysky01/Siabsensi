@@ -51,38 +51,74 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/kehadiran/mahasiswa/{id}', [KehadiranController::class, 'history']);
     Route::get('/api/kehadiran/bukti/{filename}', [App\Http\Controllers\Mahasiswa\KehadiranController::class, 'getBukti']);
 
-    // Rute URL Khusus Admin (/admin/...)
-    Route::middleware(['role:admin'])->group(function () {
-        Route::get('/admin/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
-        
-        // Routes API User Management
-        Route::get('/admin/users', [AdminController::class, 'getUsers'])->name('admin.users.get');
-        Route::post('/admin/users', [AdminController::class, 'storeUser'])->name('admin.users.store');
-        Route::put('/admin/users/{id}', [AdminController::class, 'updateUser'])->name('admin.users.update');
-        Route::post('/admin/users/{id}/reset-password', [AdminController::class, 'resetUserPassword'])->name('admin.users.reset-password');
-        Route::post('/admin/users/{id}/toggle-status', [AdminController::class, 'toggleUserStatus'])->name('admin.users.toggle-status');
-        Route::delete('/admin/users/{id}', [AdminController::class, 'destroyUser'])->name('admin.users.destroy');
-        Route::get('/admin/mahasiswa-options', [AdminController::class, 'getMahasiswaOptions'])->name('admin.mahasiswa-options');
-    });
+    Route::get('/admin/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
+    
+    // Rute API Data Dashboard Admin
+    Route::get('/api/dashboard', [AdminController::class, 'getDashboardData'])->name('api.dashboard.data');
+    
+    // Rute API Data Tabel (Absensi & Mahasiswa)
+    Route::get('/api/attendance/today', [AdminController::class, 'getAttendanceToday']);
+    Route::get('/api/attendance/history', [AdminController::class, 'getAttendanceHistory']);
+    Route::get('/api/mahasiswa', [AdminController::class, 'getAllMahasiswa']);
+    
+    // Rute API Verifikasi Pengajuan Izin dan Kehadiran (Admin & Timdis)
+    Route::get('/api/izin/list', [AdminController::class, 'getIzinSubmissions']);
+    Route::post('/api/izin/verify', [AdminController::class, 'verifyIzin']);
+    Route::get('/api/kehadiran/list', [AdminController::class, 'getKehadiranSubmissions']);
+    Route::post('/api/kehadiran/verify', [AdminController::class, 'verifyKehadiran']);
 
-    // Rute URL Khusus Timdis (/timdis/...)
-    Route::middleware(['role:timdis'])->group(function () {
-        Route::get('/timdis/dashboard', [AdminController::class, 'dashboard_admin'])->name('timdis.dashboard');
-    });
-        
-    // Rute API AJAX (Dapat diakses oleh Admin & Timdis)
-    Route::middleware(['role:admin,timdis'])->group(function () {
-        // Routes Verifikasi Izin
-        Route::get('/admin/izin-submissions', [AdminController::class, 'getIzinSubmissions'])->name('admin.izin.get');
-        Route::post('/admin/izin-submissions/{id}/verify', [AdminController::class, 'verifyIzin'])->name('admin.izin.verify');
-        
-        // Routes Verifikasi Kehadiran
-        Route::get('/admin/kehadiran-submissions', [AdminController::class, 'getKehadiranSubmissions'])->name('admin.kehadiran.get');
-        Route::post('/admin/kehadiran-submissions/{id}/verify', [AdminController::class, 'verifyKehadiran'])->name('admin.kehadiran.verify');
+    // CRUD Mahasiswa (Admin)
+    Route::post('/api/mahasiswa', [AdminController::class, 'storeMahasiswa']);
+    Route::delete('/api/mahasiswa/{id}', [AdminController::class, 'deleteMahasiswa']);
+    Route::get('/api/mahasiswa/{id}/qr', [AdminController::class, 'getMahasiswaQR']);
 
-        // Route Upload Video
-        Route::post('/admin/upload-video', [AdminController::class, 'uploadVideo'])->name('admin.upload.video');
-    });
+    // CRUD Users Management (Admin)
+    Route::get('/api/users', [AdminController::class, 'getAllUsers']);
+    Route::post('/api/users', [AdminController::class, 'storeUser']);
+    Route::put('/api/users/{id}', [AdminController::class, 'updateUser']);
+    Route::post('/api/users/{id}/activate', [AdminController::class, 'activateUser']);
+    Route::post('/api/users/{id}/deactivate', [AdminController::class, 'deactivateUser']);
+    Route::post('/api/users/{id}/reset-password', [AdminController::class, 'resetUserPassword']);
+
+    // CRUD Kamera RTSP (Admin)
+    Route::get('/api/cameras', [AdminController::class, 'getCameras']);
+    Route::post('/api/cameras', [AdminController::class, 'storeCamera']);
+    Route::put('/api/cameras/{id}', [AdminController::class, 'updateCamera']);
+    Route::delete('/api/cameras/{id}', [AdminController::class, 'deleteCamera']);
+
+
+    // // Rute URL Khusus Admin (/admin/...)
+    // Route::middleware(['role:admin'])->group(function () {
+    //     Route::get('/admin/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
+        
+    //     // Routes API User Management
+    //     Route::get('/admin/users', [AdminController::class, 'getUsers'])->name('admin.users.get');
+    //     Route::post('/admin/users', [AdminController::class, 'storeUser'])->name('admin.users.store');
+    //     Route::put('/admin/users/{id}', [AdminController::class, 'updateUser'])->name('admin.users.update');
+    //     Route::post('/admin/users/{id}/reset-password', [AdminController::class, 'resetUserPassword'])->name('admin.users.reset-password');
+    //     Route::post('/admin/users/{id}/toggle-status', [AdminController::class, 'toggleUserStatus'])->name('admin.users.toggle-status');
+    //     Route::delete('/admin/users/{id}', [AdminController::class, 'destroyUser'])->name('admin.users.destroy');
+    //     Route::get('/admin/mahasiswa-options', [AdminController::class, 'getMahasiswaOptions'])->name('admin.mahasiswa-options');
+    // });
+
+    // // Rute URL Khusus Timdis (/timdis/...)
+    // Route::middleware(['role:timdis'])->group(function () {
+    //     Route::get('/timdis/dashboard', [AdminController::class, 'dashboard_admin'])->name('timdis.dashboard');
+    // });
+        
+    // // Rute API AJAX (Dapat diakses oleh Admin & Timdis)
+    // Route::middleware(['role:admin,timdis'])->group(function () {
+    //     // Routes Verifikasi Izin
+    //     Route::get('/admin/izin-submissions', [AdminController::class, 'getIzinSubmissions'])->name('admin.izin.get');
+    //     Route::post('/admin/izin-submissions/{id}/verify', [AdminController::class, 'verifyIzin'])->name('admin.izin.verify');
+        
+    //     // Routes Verifikasi Kehadiran
+    //     Route::get('/admin/kehadiran-submissions', [AdminController::class, 'getKehadiranSubmissions'])->name('admin.kehadiran.get');
+    //     Route::post('/admin/kehadiran-submissions/{id}/verify', [AdminController::class, 'verifyKehadiran'])->name('admin.kehadiran.verify');
+
+    //     // Route Upload Video
+    //     Route::post('/admin/upload-video', [AdminController::class, 'uploadVideo'])->name('admin.upload.video');
+    // });
     
     // Rute URL Khusus Mahasiswa (/mahasiswa/...)
     Route::middleware(['role:mahasiswa'])->group(function () {

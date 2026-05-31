@@ -18,579 +18,349 @@ class AdminController extends Controller
 {
     public function dashboard_admin()
     {
-        $today = Carbon::today();
+        return view('admin.dashboard');
+    
+    }
 
-        // =========================
-        // STATISTIK DASHBOARD
-        // =========================
+    public function getDashboardData(Request $request)
+    {
+        $today = Carbon::today()->toDateString();
+        
+        $table = (new Attendance)->getTable();
+        $mhsTable = (new Mahasiswa)->getTable();
+        
+        // 1. Hitung Statistik Utama
+        $totalMahasiswa = Mahasiswa::count();
+        $presentToday = Attendance::whereDate('date', $today)->distinct()->count('mahasiswa_id');
+        $stillIn = Attendance::whereDate('date', $today)->whereNotNull('check_in')->whereNull('check_out')->count();
+        $absent = max(0, $totalMahasiswa - $presentToday);
 
-        $totalMahasiswaAktif = Mahasiswa::where('is_active', true)->count();
-
-        $totalMahasiswaNonAktif = Mahasiswa::where('is_active', false)->count();
-
-        $mahasiswaHadirHariIni = DB::table('attendance')
-            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->where('mahasiswa.is_active', 1)
-            ->whereDate('attendance.created_at', $today)
-            ->distinct('attendance.mahasiswa_id')
-            ->count('attendance.mahasiswa_id');
-
-        $mahasiswaTidakHadir = $totalMahasiswaAktif - $mahasiswaHadirHariIni;
-
-        $persentaseKehadiran = $totalMahasiswaAktif > 0
-            ? round(($mahasiswaHadirHariIni / $totalMahasiswaAktif) * 100)
-            : 0;
-
-        $mahasiswaMasihDiKantor = DB::table('attendance')
-            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->where('mahasiswa.is_active', 1)
-            ->whereDate('attendance.created_at', $today)
-            ->whereNull('attendance.check_out')
-            ->distinct('attendance.mahasiswa_id')
-            ->count('attendance.mahasiswa_id');
-
-        // =========================
-        // ABSENSI TERKINI
-        // =========================
-
-        $absensiTerkini = DB::table('attendance')
-            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->select(
-                'mahasiswa.name',
-                'attendance.created_at',
-                'attendance.check_out',
-                'attendance.status'
-            )
-            ->whereDate('attendance.created_at', $today)
-            ->orderBy('attendance.created_at', 'desc')
-            ->limit(5)
+        // 2. Ambil data Absensi Terkini (Hari ini)
+        $recentAttendances = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+            ->whereDate("$table.date", $today)
+            ->orderBy("$table.check_in", 'desc')
+            ->select("$table.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->take(8)
             ->get()
-            ->map(function ($item) {
-
-                $masuk = Carbon::parse($item->created_at);
-
-                $item->jam_masuk = $masuk->format('H:i');
-
-                $item->jam_keluar = $item->check_out
-                    ? Carbon::parse($item->check_out)->format('H:i')
-                    : '-';
-
-                // STATUS
-                $item->status_label = 'Di Kantor';
-                $item->status_color = 'var(--warning)';
-
-                if ($item->status === 'izin') {
-                    $item->status_label = 'Izin';
-                } elseif ($item->status === 'sakit') {
-                    $item->status_label = 'Sakit';
-                } elseif ($item->check_out) {
-                    $item->status_label = 'Selesai';
-                    $item->status_color = 'var(--success)';
-                }
-
-                return $item;
+            ->map(function($att) {
+                return [
+                    'name' => $att->name,
+                    'kelompok' => $att->kelompok,
+                    'check_in' => $att->check_in,
+                    'check_out' => $att->check_out,
+                    'status' => $att->status ?? 'present', // fallback status
+                    'camera_id' => $att->camera_id ?? null,
+                    'yolo_confidence' => $att->yolo_confidence ?? null,
+                ];
             });
 
-        // =========================
-        // TREN 7 HARI
-        // =========================
-
-        $tren7Hari = [];
-
+        // 3. Ambil data Tren 7 Hari Terakhir
+        $trend = [];
         for ($i = 6; $i >= 0; $i--) {
-
-            $date = Carbon::today()->subDays($i);
-
-            $count = DB::table('attendance')
-                ->whereDate('created_at', $date)
-                ->distinct('mahasiswa_id')
-                ->count('mahasiswa_id');
-
-            $tren7Hari[] = [
-                'tanggal' => $date->format('d M'),
-                'jumlah' => $count
+            $date = Carbon::today()->subDays($i)->toDateString();
+            $count = Attendance::whereDate('date', $date)->distinct()->count('mahasiswa_id');
+            $trend[] = [
+                'date' => $date,
+                'present' => $count
             ];
         }
 
-        // =========================
-        // PER KELOMPOK
-        // =========================
-
-        $perKelompok = DB::table('attendance')
-            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->whereDate('attendance.created_at', $today)
-            ->select(
-                'mahasiswa.kelompok',
-                DB::raw('count(DISTINCT attendance.mahasiswa_id) as total')
-            )
-            ->groupBy('mahasiswa.kelompok')
-            ->orderBy('total', 'desc')
+        // 4. Hitung Kehadiran Berdasarkan Kelompok Hari Ini
+        $byKelompok = DB::table($table)
+            ->join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+            ->whereDate("$table.date", $today)
+            ->select("$mhsTable.kelompok", DB::raw("count(DISTINCT $table.mahasiswa_id) as count"))
+            ->groupBy("$mhsTable.kelompok")
             ->get();
 
-        // =========================
-        // ABSENSI HARI INI
-        // =========================
-
-        $seluruhAbsensiHariIni = DB::table('attendance')
-            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->select(
-                'mahasiswa.name',
-                'mahasiswa.kelompok',
-                'attendance.created_at',
-                'attendance.check_out',
-                'attendance.status'
-            )
-            ->whereDate('attendance.created_at', $today)
-            ->orderBy('attendance.created_at', 'desc')
-            ->get()
-            ->map(function ($item) {
-
-                $masuk = Carbon::parse($item->created_at);
-
-                $keluar = $item->check_out
-                    ? Carbon::parse($item->check_out)
-                    : null;
-
-                $item->jam_masuk = $masuk->format('H:i:s');
-
-                $item->jam_keluar = $keluar
-                    ? $keluar->format('H:i:s')
-                    : '-';
-
-                $item->durasi = $keluar
-                    ? floor($masuk->diffInHours($keluar)) . ' jam ' .
-                    $masuk->diff($keluar)->format('%I') . ' menit'
-                    : '-';
-
-                // STATUS
-                $item->status_label = 'Di Kantor';
-                $item->status_color = 'var(--warning)';
-
-                if ($item->status === 'izin') {
-                    $item->status_label = 'Izin';
-                } elseif ($item->status === 'sakit') {
-                    $item->status_label = 'Sakit';
-                } elseif ($item->check_out) {
-                    $item->status_label = 'Selesai';
-                    $item->status_color = 'var(--success)';
-                }
-
-                return $item;
-            });
-
-        // =========================
-        // DATA MAHASISWA
-        // =========================
-
-        $mahasiswas = Mahasiswa::orderBy('name', 'asc')->get();
-
-        // FILTER OPTION
-        $kelompokList = Mahasiswa::whereNotNull('kelompok')
-            ->distinct()
-            ->pluck('kelompok');
-
-        $jurusanList = Mahasiswa::whereNotNull('jurusan')
-            ->distinct()
-            ->pluck('jurusan');
-
-        // =========================
-        // RIWAYAT ABSENSI
-        // =========================
-
-        $riwayatAbsensi = DB::table('attendance')
-            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->select(
-                'mahasiswa.name',
-                'mahasiswa.kelompok',
-                'attendance.created_at',
-                'attendance.check_out',
-                'attendance.status'
-            )
-            ->orderBy('attendance.created_at', 'desc')
-            ->get()
-            ->map(function ($item) {
-
-                $masuk = Carbon::parse($item->created_at);
-
-                $keluar = $item->check_out
-                    ? Carbon::parse($item->check_out)
-                    : null;
-
-                $item->tanggal = $masuk->translatedFormat('d M Y');
-
-                $item->jam_masuk = $masuk->format('H:i:s');
-
-                $item->jam_keluar = $keluar
-                    ? $keluar->format('H:i:s')
-                    : '-';
-
-                $item->durasi = $keluar
-                    ? floor($masuk->diffInHours($keluar)) . ' jam ' .
-                    $masuk->diff($keluar)->format('%I') . ' menit'
-                    : '-';
-
-                // STATUS
-                $item->status_label = 'Di Kantor';
-                $item->status_color = 'var(--warning)';
-                $item->tanggal_raw = $masuk->format('Y-m-d');
-
-                if ($item->status === 'izin') {
-                    $item->status_label = 'Izin';
-                } elseif ($item->status === 'sakit') {
-                    $item->status_label = 'Sakit';
-                } elseif ($item->check_out) {
-                    $item->status_label = 'Selesai';
-                    $item->status_color = 'var(--success)';
-                }
-
-                return $item;
-            });
-
-        // =========================
-        // IZIN / SAKIT
-        // =========================
-
-        $izinSubmissions = IzinSubmission::with('mahasiswa')
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        $totalPendingIzin = $izinSubmissions
-            ->where('status', 'pending')
-            ->count();
-
-        $totalApprovedIzin = $izinSubmissions
-            ->where('status', 'approved')
-            ->count();
-
-        $totalRejectedIzin = $izinSubmissions
-            ->where('status', 'rejected')
-            ->count();
-
-        // =========================
-        // RETURN VIEW
-        // =========================
-
-        return view('admin.dashboard', compact(
-            'totalMahasiswaAktif',
-            'totalMahasiswaNonAktif',
-            'mahasiswaHadirHariIni',
-            'mahasiswaTidakHadir',
-            'persentaseKehadiran',
-            'mahasiswaMasihDiKantor',
-            'absensiTerkini',
-            'tren7Hari',
-            'perKelompok',
-            'seluruhAbsensiHariIni',
-            'mahasiswas',
-            'riwayatAbsensi',
-            'izinSubmissions',
-            'totalPendingIzin',
-            'totalApprovedIzin',
-            'totalRejectedIzin',
-            'kelompokList',
-            'jurusanList'
-        ));
+        // Kembalikan ke format JSON untuk Javascript
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'stats' => [
+                    'total_mahasiswa' => $totalMahasiswa,
+                    'present' => $presentToday,
+                    'absent' => $absent,
+                    'still_in' => $stillIn,
+                ],
+                'recent' => $recentAttendances,
+                'trend' => $trend,
+                'by_kelompok' => $byKelompok
+            ]
+        ]);
     }
 
-    public function uploadVideo(Request $request)
+    // Mengambil Data Absensi Hari Ini (Tabel)
+    public function getAttendanceToday(Request $request)
     {
-        $request->validate([
-            'video' => 'required|file|mimetypes:video/mp4|max:102400', // Maks 100MB
-            'action' => 'required|in:check_in,check_out'
+        $today = Carbon::today()->toDateString();
+        
+        $table = (new Attendance)->getTable();
+        $mhsTable = (new Mahasiswa)->getTable();
+        $attendances = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+            ->whereDate("$table.date", $today)
+            ->orderBy("$table.check_in", 'desc')
+            ->select("$table.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $attendances
+        ]);
+    }
+
+    // Mengambil Riwayat Absensi Berdasarkan Rentang Tanggal
+    public function getAttendanceHistory(Request $request)
+    {
+        $start = $request->query('start');
+        $end = $request->query('end');
+
+        $table = (new Attendance)->getTable();
+        $mhsTable = (new Mahasiswa)->getTable();
+
+        $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+            ->select("$table.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->orderBy("$table.date", 'desc')
+            ->orderBy("$table.check_in", 'desc');
+
+        if ($start && $end) {
+            $query->whereBetween("$table.date", [$start, $end]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $query->get()
+        ]);
+    }
+
+    // Mengambil Semua Data Mahasiswa
+    public function getAllMahasiswa()
+    {
+        $mahasiswa = Mahasiswa::all();
+        return response()->json([
+            'success' => true,
+            'data' => $mahasiswa
+        ]);
+    }
+
+    // ─── CRUD MAHASISWA ───────────────────────────────────────────
+    public function storeMahasiswa(Request $request)
+    {
+        $validated = $request->validate([
+            'id' => 'required|string|unique:mahasiswa,id',
+            'name' => 'required|string|max:255',
+            'kelompok' => 'required|string',
+            'jurusan' => 'required|string',
+            'email' => 'nullable|email',
+            'no_telp_mahasiswa' => 'nullable|string',
+            'no_telp_ortu' => 'nullable|string',
         ]);
 
-        try {
-            if ($request->hasFile('video')) {
-                $file = $request->file('video');
-                $filename = time() . '_' . $file->getClientOriginalName();
-                
-                // Simpan file ke storage/app/public/videos
-                $path = $file->storeAs('public/videos', $filename);
+        $validated['qr_code_id'] = $validated['id'];
+        $mahasiswa = Mahasiswa::create($validated);
 
-                // NOTE: Anda bisa menambahkan interaksi dengan Python API atau Flask di bagian ini
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Video berhasil diupload',
-                    'file_path' => $path,
-                    'action' => $request->action
-                ]);
-            }
-
-            return response()->json(['success' => false, 'message' => 'Tidak ada file yang diupload.'], 400);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'qr_code_id' => $mahasiswa->qr_code_id,
+                'qr_image_base64' => $this->generateQrBase64($mahasiswa->qr_code_id, 200)
+            ]
+        ]);
     }
 
+    public function deleteMahasiswa($id)
+    {
+        $mahasiswa = Mahasiswa::find($id);
+        if ($mahasiswa) {
+            $mahasiswa->delete();
+            return response()->json(['success' => true]);
+        }
+        return response()->json(['success' => false], 404);
+    }
+
+    public function getMahasiswaQR($id)
+    {
+        $mahasiswa = Mahasiswa::find($id);
+        if (!$mahasiswa) return response()->json(['success' => false], 404);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'qr_code_id' => $mahasiswa->qr_code_id,
+                'qr_image_base64' => $this->generateQrBase64($mahasiswa->qr_code_id, 300)
+            ]
+        ]);
+    }
+
+    private function generateQrBase64($data, $size)
+    {
+        // Gunakan package Laravel QR jika ada
+        if (class_exists('\SimpleSoftwareIO\QrCode\Facades\QrCode')) {
+            return base64_encode(\SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')->size($size)->generate($data));
+        }
+        // Fallback URL jika package tidak ada (menggunakan API eksternal)
+        try {
+            $img = @file_get_contents("https://api.qrserver.com/v1/create-qr-code/?size={$size}x{$size}&data=" . urlencode($data));
+            if ($img) return base64_encode($img);
+        } catch (\Exception $e) {}
+        
+        return '';
+    }
+
+    // ─── CRUD USERS MANAGEMENT ────────────────────────────────────
+    public function getAllUsers()
+    {
+        return response()->json(['success' => true, 'data' => User::all()]);
+    }
+
+    public function storeUser(Request $request)
+    {
+        $data = $request->validate([
+            'username' => 'required|string|unique:users,username',
+            'full_name' => 'required|string',
+            'email' => 'nullable|email',
+            'role' => 'required|in:admin,timdis,mahasiswa',
+            'password' => 'required|string|min:6',
+            'mahasiswa_id' => 'nullable|string'
+        ]);
+
+        $data['password_hash'] = Hash::make($data['password']);
+        unset($data['password']);
+
+        $user = User::create($data);
+        return response()->json(['success' => true, 'data' => $user]);
+    }
+
+    public function updateUser(Request $request, $id)
+    {
+        $user = User::find($id);
+        if (!$user) return response()->json(['success' => false], 404);
+        
+        $user->update($request->only(['full_name', 'email', 'mahasiswa_id']));
+        return response()->json(['success' => true, 'data' => $user]);
+    }
+
+    public function activateUser($id) { User::where('id', $id)->update(['is_active' => 1]); return response()->json(['success' => true]); }
+    public function deactivateUser($id) { User::where('id', $id)->update(['is_active' => 0]); return response()->json(['success' => true]); }
+    public function resetUserPassword(Request $request, $id) {
+        User::where('id', $id)->update(['password_hash' => Hash::make($request->new_password)]);
+        return response()->json(['success' => true]);
+    }
+
+    // ─── VERIFIKASI IZIN (TIMDIS & ADMIN) ────────────────────────────────
     public function getIzinSubmissions(Request $request)
     {
-        $query = IzinSubmission::join('mahasiswa', 'izin_submissions.mahasiswa_id', '=', 'mahasiswa.id')
-            ->select('izin_submissions.*', 'mahasiswa.name as mahasiswa_name', 'mahasiswa.kelompok');
+        $izinTable = (new IzinSubmission)->getTable();
+        $mhsTable = (new Mahasiswa)->getTable();
 
-        if ($request->filled('status')) {
-            $query->where('izin_submissions.status', $request->status);
+        $query = IzinSubmission::join($mhsTable, "$izinTable.mahasiswa_id", '=', "$mhsTable.id")
+            ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->orderBy("$izinTable.created_at", 'desc');
+
+        if ($request->has('status') && $request->status) {
+            $query->where("$izinTable.status", $request->status);
         }
 
-        if ($request->filled('search')) {
-            $query->where('mahasiswa.name', 'like', '%' . $request->search . '%');
-        }
-
-        if ($request->filled('kelompok')) {
-            $query->where('mahasiswa.kelompok', $request->kelompok);
-        }
-
-        $submissions = $query->orderBy('izin_submissions.created_at', 'desc')->get();
-
+        $submissions = $query->get();
         $stats = [
             'pending' => IzinSubmission::where('status', 'pending')->count(),
             'approved' => IzinSubmission::where('status', 'approved')->count(),
             'rejected' => IzinSubmission::where('status', 'rejected')->count(),
         ];
 
-        return response()->json([
-            'success' => true,
-            'data' => $submissions,
-            'stats' => $stats
-        ]);
+        return response()->json(['success' => true, 'data' => ['submissions' => $submissions, 'stats' => $stats]]);
     }
 
-    public function verifyIzin(Request $request, $id)
+    public function verifyIzin(Request $request)
     {
-        $request->validate([
-            'status' => 'required|in:approved,rejected',
-            'reject_reason' => 'required_if:status,rejected'
+        $validated = $request->validate([
+            'submission_id' => 'required|integer',
+            'action' => 'required|in:approve,reject',
+            'verified_by' => 'required|string',
+            'rejection_reason' => 'nullable|string'
         ]);
 
-        try {
-            $izin = IzinSubmission::findOrFail($id);
-            $izin->status = $request->status;
-            $izin->verified_by = auth()->user()->full_name ?? auth()->user()->username;
-            $izin->verified_at = now();
-            
-            if ($request->status === 'rejected') {
-                $izin->rejection_reason = $request->reject_reason;
-            }
+        $submission = IzinSubmission::find($validated['submission_id']);
+        if (!$submission) return response()->json(['success' => false, 'message' => 'Data tidak ditemukan'], 404);
 
-            $izin->save();
-
-            if ($request->status === 'approved') {
-                Attendance::updateOrCreate(
-                    [
-                        'mahasiswa_id' => $izin->mahasiswa_id,
-                        'date' => $izin->date,
-                    ],
-                    [
-                        'status' => $izin->submission_type,
-                        'notes' => 'Diinput via Pengajuan Izin/Sakit'
-                    ]
-                );
-            }
-
-            return response()->json(['success' => true, 'message' => 'Status pengajuan berhasil diperbarui.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
+        $submission->verified_by = $validated['verified_by'];
+        $submission->verified_at = Carbon::now();
+        if ($validated['action'] === 'reject') $submission->rejection_reason = $validated['rejection_reason'];
+        $submission->save();
+        
+        if ($validated['action'] === 'approve') {
+            Attendance::updateOrCreate(
+                ['mahasiswa_id' => $submission->mahasiswa_id, 'date' => $submission->date],
+                ['status' => $submission->submission_type]
+            );
         }
+        return response()->json(['success' => true]);
     }
 
+    // ─── VERIFIKASI KEHADIRAN (TIMDIS & ADMIN) ───────────────────────────
     public function getKehadiranSubmissions(Request $request)
     {
-        $query = KehadiranSubmission::join('mahasiswa', 'kehadiran_submissions.mahasiswa_id', '=', 'mahasiswa.id')
-            ->select('kehadiran_submissions.*', 'mahasiswa.name as mahasiswa_name', 'mahasiswa.kelompok');
+        $khdTable = (new KehadiranSubmission)->getTable();
+        $mhsTable = (new Mahasiswa)->getTable();
 
-        if ($request->filled('status')) {
-            $query->where('kehadiran_submissions.status', $request->status);
+        $query = KehadiranSubmission::join($mhsTable, "$khdTable.mahasiswa_id", '=', "$mhsTable.id")
+            ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->orderBy("$khdTable.created_at", 'desc');
+
+        if ($request->has('status') && $request->status) {
+            $query->where("$khdTable.status", $request->status);
         }
 
-        if ($request->filled('search')) {
-            $query->where('mahasiswa.name', 'like', '%' . $request->search . '%');
-        }
-
-        if ($request->filled('kelompok')) {
-            $query->where('mahasiswa.kelompok', $request->kelompok);
-        }
-
-        $submissions = $query->orderBy('kehadiran_submissions.created_at', 'desc')->get();
-
+        $submissions = $query->get();
         $stats = [
             'pending' => KehadiranSubmission::where('status', 'pending')->count(),
             'approved' => KehadiranSubmission::where('status', 'approved')->count(),
             'rejected' => KehadiranSubmission::where('status', 'rejected')->count(),
         ];
 
-        return response()->json([
-            'success' => true,
-            'data' => $submissions,
-            'stats' => $stats
-        ]);
+        return response()->json(['success' => true, 'data' => ['submissions' => $submissions, 'stats' => $stats]]);
     }
 
-    public function verifyKehadiran(Request $request, $id)
+    public function verifyKehadiran(Request $request)
     {
-        $request->validate([
-            'status' => 'required|in:approved,rejected',
-            'reject_reason' => 'required_if:status,rejected'
+        $validated = $request->validate([
+            'submission_id' => 'required|integer',
+            'action' => 'required|in:approve,reject',
+            'verified_by' => 'required|string',
+            'reject_reason' => 'nullable|string'
         ]);
 
-        try {
-            $kehadiran = KehadiranSubmission::findOrFail($id);
-            $kehadiran->status = $request->status;
-            $kehadiran->verified_by = auth()->user()->full_name ?? auth()->user()->username;
-            $kehadiran->verified_at = now();
-            
-            if ($request->status === 'rejected') {
-                $kehadiran->rejection_reason = $request->reject_reason;
-            }
+        $submission = KehadiranSubmission::find($validated['submission_id']);
+        if (!$submission) return response()->json(['success' => false, 'message' => 'Data tidak ditemukan'], 404);
 
-            $kehadiran->save();
+        $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
+        $submission->verified_by = $validated['verified_by'];
+        $submission->verified_at = Carbon::now();
+        if ($validated['action'] === 'reject') $submission->rejection_reason = $validated['reject_reason'];
+        $submission->save();
 
-            if ($request->status === 'approved') {
-                Attendance::updateOrCreate(
-                    [
-                        'mahasiswa_id' => $kehadiran->mahasiswa_id,
-                        'date' => $kehadiran->date,
-                    ],
-                    [
-                        'check_in' => $kehadiran->date . ' ' . $kehadiran->check_in_time,
-                        'check_out' => $kehadiran->check_out_time ? $kehadiran->date . ' ' . $kehadiran->check_out_time : null,
-                        'status' => 'hadir',
-                        'notes' => 'Diinput via Pengajuan Kehadiran'
-                    ]
-                );
-            }
-
-            return response()->json(['success' => true, 'message' => 'Status pengajuan kehadiran berhasil diperbarui.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        if ($validated['action'] === 'approve') {
+            Attendance::updateOrCreate(
+                ['mahasiswa_id' => $submission->mahasiswa_id, 'date' => $submission->date],
+                ['check_in' => $submission->date . ' ' . $submission->check_in_time, 'check_out' => $submission->date . ' ' . $submission->check_out_time, 'status' => 'present']
+            );
         }
+        return response()->json(['success' => true]);
     }
 
-    public function getUsers(Request $request)
-    {
-        $query = User::query();
-
-        if ($request->filled('search')) {
-            $query->where(function($q) use ($request) {
-                $q->where('username', 'like', '%' . $request->search . '%')
-                  ->orWhere('full_name', 'like', '%' . $request->search . '%');
-            });
-        }
-
-        if ($request->filled('role')) {
-            $query->where('role', $request->role);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('is_active', $request->status);
-        }
-
-        $users = $query->orderBy('created_at', 'desc')->get();
-
-        $stats = [
-            'admin' => User::where('role', 'admin')->count(),
-            'timdis' => User::where('role', 'timdis')->count(),
-            'mahasiswa' => User::where('role', 'mahasiswa')->count(),
-            'total' => User::count(),
-        ];
-
-        return response()->json(['success' => true, 'data' => $users, 'stats' => $stats]);
+    // ─── CRUD KAMERA (STREAM) ─────────────────────────────────────
+    public function getCameras() { return response()->json(['success' => true, 'data' => CameraStream::all()]); }
+    public function storeCamera(Request $request) { 
+        $c = CameraStream::create($request->all()); 
+        return response()->json(['success' => true, 'data' => $c]); 
     }
-
-    public function getMahasiswaOptions()
-    {
-        $usedIds = User::whereNotNull('mahasiswa_id')->pluck('mahasiswa_id');
-        $mahasiswas = Mahasiswa::whereNotIn('id', $usedIds)->select('id', 'name', 'kelompok')->get();
-        
-        return response()->json(['success' => true, 'data' => $mahasiswas]);
+    public function updateCamera(Request $request, $id) { 
+        CameraStream::where('id', $id)->update($request->all()); 
+        return response()->json(['success' => true]); 
     }
-
-    public function storeUser(Request $request)
-    {
-        $request->validate([
-            'username' => 'required|string|unique:users,username',
-            'password' => 'required|string|min:6',
-            'full_name' => 'required|string',
-            'role' => 'required|in:admin,timdis,mahasiswa',
-            'mahasiswa_id' => 'required_if:role,mahasiswa',
-        ]);
-
-        try {
-            User::create([
-                'username' => $request->username,
-                'password_hash' => Hash::make($request->password), // model User Anda menggunakan password_hash
-                'full_name' => $request->full_name,
-                'email' => $request->email,
-                'role' => $request->role,
-                'mahasiswa_id' => $request->role === 'mahasiswa' ? $request->mahasiswa_id : null,
-                'is_active' => true,
-            ]);
-            return response()->json(['success' => true, 'message' => 'User berhasil ditambahkan.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
-        }
-    }
-
-    public function updateUser(Request $request, $id)
-    {
-        $request->validate([
-            'username' => 'required|string|unique:users,username,' . $id,
-            'full_name' => 'required|string',
-            'role' => 'required|in:admin,timdis,mahasiswa',
-            'mahasiswa_id' => 'required_if:role,mahasiswa',
-        ]);
-
-        try {
-            $user = User::findOrFail($id);
-            $user->update([
-                'username' => $request->username,
-                'full_name' => $request->full_name,
-                'email' => $request->email,
-                'role' => $request->role,
-                'mahasiswa_id' => $request->role === 'mahasiswa' ? $request->mahasiswa_id : null,
-            ]);
-            return response()->json(['success' => true, 'message' => 'User berhasil diperbarui.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
-        }
-    }
-
-    public function resetUserPassword(Request $request, $id)
-    {
-        $request->validate([
-            'password' => 'required|string|min:6|confirmed'
-        ]);
-
-        try {
-            $user = User::findOrFail($id);
-            $user->update([
-                'password_hash' => Hash::make($request->password)
-            ]);
-            return response()->json(['success' => true, 'message' => 'Password berhasil direset.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
-        }
-    }
-
-    public function toggleUserStatus(Request $request, $id)
-    {
-        try {
-            $user = User::findOrFail($id);
-            $user->is_active = !$user->is_active;
-            $user->save();
-            return response()->json(['success' => true, 'message' => 'Status user berhasil diperbarui.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
-        }
-    }
-
-    public function destroyUser($id)
-    {
-        try {
-            $user = User::findOrFail($id);
-            $user->delete();
-            return response()->json(['success' => true, 'message' => 'User berhasil dihapus.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
-        }
+    public function deleteCamera($id) { 
+        CameraStream::destroy($id); 
+        return response()->json(['success' => true]); 
     }
 }

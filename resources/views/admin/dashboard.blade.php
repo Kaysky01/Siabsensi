@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>SIABSEN — Sistem Absensi Cerdas</title>
   <link rel="stylesheet" href="{{ asset('static/css/style.css') }}">
   <link
@@ -58,7 +59,6 @@
           <span class="material-symbols-outlined icon">how_to_reg</span> Verifikasi Kehadiran
           <span class="badge badge-warning" id="sidebar-pending-kehadiran">0</span>
         </div>
-        @if(auth()->user()->role === 'admin')
         <div class="nav-section">Sistem</div>
         <div class="nav-item" onclick="showPage('users')">
           <span class="material-symbols-outlined icon">manage_accounts</span> User Management
@@ -66,7 +66,6 @@
         <div class="nav-item" onclick="showPage('settings')">
           <span class="material-symbols-outlined icon">settings</span> Pengaturan
         </div>
-        @endif
       </nav>
 
       <div class="sidebar-footer">
@@ -86,12 +85,6 @@
           </div>
           <div class="header-actions">
             <button class="btn btn-ghost btn-sm" onclick="refreshData()"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span> Refresh</button>
-            <form action="{{ route('logout') }}" method="get" style="display:inline;">
-              @csrf
-              <button type="submit" class="btn btn-ghost btn-sm">
-                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">logout</span> Logout
-              </button>
-            </form>
           </div>
         </div>
 
@@ -100,7 +93,7 @@
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">group</span>
             <div class="stat-label">Total Mahasiswa</div>
-            <div class="stat-value" id="s-total">{{ $totalMahasiswaAktif }}</div>
+            <div class="stat-value" id="s-total">—</div>
             <div class="stat-delta">Aktif terdaftar dalam sistem</div>
           </div>
           
@@ -108,19 +101,19 @@
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">task_alt</span>
             <div class="stat-label">Hadir Hari Ini</div>
-            <div class="stat-value" id="s-present">{{ $mahasiswaHadirHariIni }}</div>
-            <div class="stat-delta"><span class="up" id="s-pct">{{ $persentaseKehadiran }}</span>% kehadiran</div>
+            <div class="stat-value" id="s-present">—</div>
+            <div class="stat-delta"><span class="up" id="s-pct">—</span>% kehadiran</div>
           </div>
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">person_off</span>
             <div class="stat-label">Tidak Hadir</div>
-            <div class="stat-value" id="s-absent">{{ $mahasiswaTidakHadir }}</div>
+            <div class="stat-value" id="s-absent">—</div>
             <div class="stat-delta">Belum absen masuk</div>
           </div>
           <div class="stat-card">
             <span class="material-symbols-outlined stat-icon">schedule</span>
             <div class="stat-label">Masih di Kantor</div>
-            <div class="stat-value" id="s-inoffice">{{ $mahasiswaMasihDiKantor }}</div>
+            <div class="stat-value" id="s-inoffice">—</div>
             <div class="stat-delta">Belum absen keluar</div>
           </div>
         </div>
@@ -143,22 +136,9 @@
                 </tr>
               </thead>
               <tbody id="recent-tbody">
-                @forelse($absensiTerkini as $absen)
-                  <tr>
-                    <td>{{ $absen->name }}</td>
-                    <td>{{ $absen->jam_masuk }}</td>
-                    <td>{{ $absen->jam_keluar }}</td>
-                    <td>
-                        <span style="color:{{ $absen->status_color }};font-weight:600">
-                            {{ $absen->status_label }}
-                        </span>
-                    </td>
-                  </tr>
-                @empty
-                  <tr>
-                    <td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Belum ada absensi hari ini</td>
-                  </tr>
-                @endforelse
+                <tr>
+                  <td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Memuat data...</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -169,16 +149,8 @@
               <div class="section-header">
                 <div class="section-title">Tren 7 Hari</div>
               </div>
-              <div class="trend-chart" id="trend-chart" style="height:150px; display:flex; align-items:flex-end; gap:8px; padding-top:10px;">
-                @php $maxTren = collect($tren7Hari)->max('jumlah') ?: 1; @endphp
-                @foreach($tren7Hari as $tren)
-                  @php $height = ($tren['jumlah'] / $maxTren) * 100; @endphp
-                  <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%;">
-                    <div style="margin-top:auto; font-size:11px; color:var(--text-muted)">{{ $tren['jumlah'] }}</div>
-                    <div style="width:100%; background:var(--primary); border-radius:4px 4px 0 0; height:{{ $height }}%; min-height:4px;"></div>
-                    <div style="font-size:10px; color:var(--text-muted); text-align:center">{{ $tren['tanggal'] }}</div>
-                  </div>
-                @endforeach
+              <div class="trend-chart">
+                <div class="bar-chart" id="trend-chart"></div>
               </div>
             </div>
 
@@ -186,16 +158,7 @@
               <div class="section-header">
                 <div class="section-title">Per Kelompok</div>
               </div>
-              <div id="dept-list" style="display:flex; flex-direction:column; gap:8px;">
-                @forelse($perKelompok as $kelompok)
-                  <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border);">
-                    <span>{{ $kelompok->kelompok ?: 'Tidak Diketahui' }}</span>
-                    <span style="font-weight:600;">{{ $kelompok->total }} <span style="font-weight:normal;color:var(--text-muted);font-size:12px">Hadir</span></span>
-                  </div>
-                @empty
-                  <div style="text-align:center;color:var(--muted);padding:10px">Belum ada data</div>
-                @endforelse
-              </div>
+              <div id="dept-list"></div>
             </div>
           </div>
         </div>
@@ -205,7 +168,7 @@
         <div class="page-header">
           <div>
             <div class="page-title">Absensi Hari Ini</div>
-            <div class="page-sub" id="att-date-label">{{ \Carbon\Carbon::today()->translatedFormat('l, d F Y') }}</div>
+            <div class="page-sub" id="att-date-label">—</div>
           </div>
           <div class="header-actions">
             <input type="date" id="att-date-filter" class="form-input" style="width:160px;padding:7px 10px"
@@ -228,32 +191,9 @@
               </tr>
             </thead>
             <tbody id="full-att-tbody">
-              @forelse($seluruhAbsensiHariIni as $index => $absen)
-            <tr>
-              <td>{{ $index + 1 }}</td>
-              <td>{{ $absen->name }}</td>
-              <td>{{ $absen->kelompok ?? '-' }}</td>
-              <td>{{ $absen->jam_masuk }}</td>
-              <td>{{ $absen->jam_keluar }}</td>
-              <td>{{ $absen->durasi }}</td>
-              <td>Kamera Sistem</td>
-
-              <td>
-                  <span style="color:{{ $absen->status_color }};font-weight:600">
-                      {{ $absen->status_label }}
-                  </span>
-              </td>
-            </tr>
-
-            @empty
-
-            <tr>
-              <td colspan="8"
-                  style="text-align:center;color:var(--muted);padding:30px">
-                  Belum ada absensi hari ini
-              </td>
-            </tr>
-            @endforelse
+              <tr>
+                <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -279,18 +219,12 @@
               <label class="form-label">Kelompok</label>
               <select id="mhs-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterMahasiswa()">
                 <option value="">Semua</option>
-                @foreach($kelompokList as $klp)
-                  <option value="{{ $klp }}">{{ $klp }}</option>
-                @endforeach
               </select>
             </div>
             <div>
               <label class="form-label">Jurusan</label>
               <select id="mhs-filter-jurusan" class="form-input" style="width:180px;padding:7px 10px" onchange="filterMahasiswa()">
                 <option value="">Semua</option>
-                @foreach($jurusanList as $jur)
-                  <option value="{{ $jur }}">{{ $jur }}</option>
-                @endforeach
               </select>
             </div>
             <div style="align-self:flex-end">
@@ -317,47 +251,9 @@
               </tr>
             </thead>
             <tbody id="mhs-tbody">
-              @forelse($mahasiswas as $mhs)
-                <tr class="mhs-row" data-name="{{ strtolower($mhs->name) }}" data-kelompok="{{ $mhs->kelompok }}" data-jurusan="{{ $mhs->jurusan }}">
-                  <td>
-                    <div style="font-weight:600">{{ $mhs->name }}</div>
-                    <div style="font-size:12px;color:var(--text-muted)">{{ $mhs->id }}</div>
-                  </td>
-                  <td>{{ $mhs->kelompok ?? '-' }}</td>
-                  <td>{{ $mhs->jurusan ?? '-' }}</td>
-                  <td>{{ $mhs->email ?? '-' }}</td>
-                  <td>{{ $mhs->no_telp_mahasiswa ?? '-' }}</td>
-                  <td>{{ $mhs->no_telp_ortu ?? '-' }}</td>
-                  <td>{{ $mhs->qr_code_id ?? '-' }}</td>
-                  <td>
-                    <div style="display:flex;gap:6px">
-                      <!-- Tombol QR -->
-                      <button class="btn btn-secondary btn-sm"
-                              onclick="showQRCode('{{ $mhs->qr_code_id }}','{{ $mhs->name }}')"
-                              title="Lihat QR Code">
-                        <span class="material-symbols-outlined"
-                              style="font-size:16px;vertical-align:middle">
-                          qr_code
-                        </span>
-                      </button>
-                      
-                      <!-- Tombol Edit -->
-                      <button class="btn btn-ghost btn-sm"
-                              onclick="editMahasiswa('{{ $mhs->id }}')"
-                              title="Edit Mahasiswa">
-                        <span class="material-symbols-outlined"
-                              style="font-size:16px;vertical-align:middle">
-                          edit
-                        </span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              @empty
-                <tr>
-                  <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Belum ada data mahasiswa</td>
-                </tr>
-              @endforelse
+              <tr>
+                <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -377,11 +273,8 @@
               <label class="form-label">Sampai Tanggal</label>
               <input type="date" id="hist-end" class="form-input" style="width:150px;padding:7px 10px">
             </div>
-            <div style="align-self:flex-end;display:flex;gap:8px">
-              <button class="btn btn-primary btn-sm" onclick="filterHistory()">Cari</button>
-              <button class="btn btn-secondary btn-sm" onclick="resetHistoryFilter()">
-                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span> Reset
-              </button>
+            <div style="align-self:flex-end">
+              <button class="btn btn-primary btn-sm" onclick="loadHistory()">Cari</button>
             </div>
           </div>
         </div>
@@ -399,28 +292,10 @@
               </tr>
             </thead>
             <tbody id="hist-tbody">
-              @forelse($riwayatAbsensi as $absen)
-            <tr class="hist-row">
-                <td>{{ $absen->tanggal }}</td>
-                <td>{{ $absen->name }}</td>
-                <td>{{ $absen->kelompok ?? '-' }}</td>
-                <td>{{ $absen->jam_masuk }}</td>
-                <td>{{ $absen->jam_keluar }}</td>
-                <td>{{ $absen->durasi }}</td>
-                <td>
-                    <span style="color:{{ $absen->status_color }};font-weight:600">
-                        {{ $absen->status_label }}
-                    </span>
-                </td>
-            </tr>
-            @empty
-            <tr>
-                <td colspan="7"
-                    style="text-align:center;color:var(--muted);padding:30px">
-                    Belum ada riwayat absensi
-                </td>
-            </tr>
-            @endforelse
+              <tr>
+                <td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Pilih rentang tanggal dan
+                  tekan Cari</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -517,27 +392,29 @@
             <div class="page-sub">Kelola dan verifikasi pengajuan izin/sakit dari mahasiswa</div>
           </div>
           <div class="header-actions">
-            <button class="btn btn-ghost btn-sm" onclick="location.reload()">
+            <button class="btn btn-ghost btn-sm" onclick="loadIzinSubmissions()">
               <span class="material-symbols-outlined" style="font-size:16px">refresh</span> Refresh
             </button>
           </div>
         </div>
 
+        <!-- Stats Cards -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px">
           <div class="stat-card">
             <div class="stat-label">Pending</div>
-            <div class="stat-value" id="stat-pending-izin">{{ $totalPendingIzin }}</div>
+            <div class="stat-value" id="stat-pending-izin">0</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Disetujui</div>
-            <div class="stat-value" id="stat-approved-izin">{{ $totalApprovedIzin }}</div>
+            <div class="stat-value" id="stat-approved-izin">0</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Ditolak</div>
-            <div class="stat-value" id="stat-rejected-izin">{{ $totalRejectedIzin }}</div>
+            <div class="stat-value" id="stat-rejected-izin">0</div>
           </div>
         </div>
 
+        <!-- Filter dan Pencarian -->
         <div class="panel" style="margin-bottom:16px;padding:14px 20px">
           <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
             <div style="flex:1;min-width:200px">
@@ -548,16 +425,13 @@
               <label class="form-label">Kelompok</label>
               <select id="izin-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterIzinSubmissions()">
                 <option value="">Semua</option>
-                @foreach($kelompokList as $klp)
-                  <option value="{{ strtolower($klp) }}">{{ $klp }}</option>
-                @endforeach
               </select>
             </div>
             <div>
               <label class="form-label">Status</label>
               <select id="izin-filter-status" class="form-input" style="width:150px;padding:7px 10px" onchange="filterIzinSubmissions()">
-                <option value="" selected>Semua</option>
-                <option value="pending">Pending</option>
+                <option value="">Semua</option>
+                <option value="pending" selected>Pending</option>
                 <option value="approved">Disetujui</option>
                 <option value="rejected">Ditolak</option>
               </select>
@@ -571,6 +445,7 @@
           </div>
         </div>
 
+        <!-- Tabel Pengajuan -->
         <div class="panel">
           <div style="overflow-x:auto">
             <table class="att-table">
@@ -587,64 +462,16 @@
                 </tr>
               </thead>
               <tbody id="izin-submissions-table-body">
-                @forelse($izinSubmissions as $izin)
-                  <tr class="izin-row" 
-                      data-name="{{ strtolower($izin->mahasiswa->name ?? '') }}" 
-                      data-kelompok="{{ strtolower($izin->mahasiswa->kelompok ?? '') }}" 
-                      data-status="{{ strtolower($izin->status) }}">
-                    
-                    <td>{{ $izin->mahasiswa->name ?? 'Data Terhapus' }}</td>
-                    <td>{{ $izin->mahasiswa->kelompok ?? '-' }}</td>
-                    <td>
-                        <span style="font-weight: 600; color: {{ $izin->jenis == 'izin' ? '#f59e0b' : '#ef4444' }}">
-                            {{ ucfirst($izin->jenis) }}
-                        </span>
-                    </td>
-                    <td>{{ \Carbon\Carbon::parse($izin->tanggal)->format('d M Y') }}</td>
-                    <td>{{ $izin->keterangan }}</td>
-                    <td>
-                      @if($izin->bukti)
-                        <a href="{{ asset('storage/' . $izin->bukti) }}" target="_blank" style="color: var(--primary);">Lihat Bukti</a>
-                      @else
-                        -
-                      @endif
-                    </td>
-                    <td>
-                      @if($izin->status == 'pending')
-                        <span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px; font-size: 12px;">Pending</span>
-                      @elseif($izin->status == 'approved')
-                        <span style="background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; font-size: 12px;">Disetujui</span>
-                      @else
-                        <span style="background: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px; font-size: 12px;">Ditolak</span>
-                      @endif
-                    </td>
-                    <td>
-                      @if($izin->status == 'pending')
-                        <form action="{{ url('/admin/izin/'.$izin->id.'/approve') }}" method="POST" style="display:inline;">
-                            @csrf
-                            <button type="submit" class="btn btn-sm" style="background: #22c55e; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Terima</button>
-                        </form>
-                        <form action="{{ url('/admin/izin/'.$izin->id.'/reject') }}" method="POST" style="display:inline;">
-                            @csrf
-                            <button type="submit" class="btn btn-sm" style="background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer;">Tolak</button>
-                        </form>
-                      @else
-                        -
-                      @endif
-                    </td>
-                  </tr>
-                @empty
-                  <tr>
-                    <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
-                      Belum ada data pengajuan izin atau sakit.
-                    </td>
-                  </tr>
-                @endforelse
+                <tr>
+                  <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
+                    Loading...
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
         </div>
-    </section>
+      </section>
 
       <!-- ===== VERIFIKASI PENGAJUAN KEHADIRAN (TIMDIS) ===== -->
       <section id="page-kehadiran-timdis" style="display:none">
@@ -687,16 +514,13 @@
               <label class="form-label">Kelompok</label>
               <select id="kehadiran-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterKehadiranSubmissions()">
                 <option value="">Semua</option>
-                @foreach($kelompokList as $klp)
-                  <option value="{{ $klp }}">{{ $klp }}</option>
-                @endforeach
               </select>
             </div>
             <div>
               <label class="form-label">Status</label>
               <select id="kehadiran-filter-status" class="form-input" style="width:150px;padding:7px 10px" onchange="filterKehadiranSubmissions()">
-                <option value="" selected>Semua</option>
-                <option value="pending">Pending</option>
+                <option value="">Semua</option>
+                <option value="pending" selected>Pending</option>
                 <option value="approved">Disetujui</option>
                 <option value="rejected">Ditolak</option>
               </select>
@@ -805,7 +629,6 @@
       </section>
 
       <!-- ===== USER MANAGEMENT PAGE ===== -->
-      @if(auth()->user()->role === 'admin')
       <section id="page-users" style="display:none">
         <div class="page-header">
           <div>
@@ -897,7 +720,6 @@
           </table>
         </div>
       </section>
-      @endif
 
     </main>
   </div>
@@ -1170,26 +992,6 @@
     </div>
   </div>
 
-  <!-- Modal Reject Kehadiran -->
-  <div class="modal-backdrop" id="modal-reject-kehadiran">
-    <div class="modal" style="max-width:480px">
-      <div class="modal-title">Tolak Pengajuan Kehadiran</div>
-      <input type="hidden" id="reject-kehadiran-id">
-      <div class="form-row" style="margin-top:16px">
-        <label class="form-label">Alasan Penolakan *</label>
-        <textarea id="reject-kehadiran-reason" class="form-input" rows="4"
-                  placeholder="Jelaskan alasan penolakan..."></textarea>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-ghost" onclick="closeModal('modal-reject-kehadiran')">Batal</button>
-        <button class="btn btn-danger" onclick="confirmRejectKehadiran()">
-          <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">close</span>
-          Tolak Pengajuan
-        </button>
-      </div>
-    </div>
-  </div>
-
   <!-- Modal Detail Bukti -->
   <div class="modal-backdrop" id="modal-bukti">
     <div class="modal" style="max-width:700px">
@@ -1225,758 +1027,10 @@
     <div class="toast-msg" id="toast-msg"></div>
   </div>
 
+  <!-- Authentication Module -->
+  <script src="{{ asset('static/js/auth.js') }}"></script>
   <!-- Main Dashboard Script -->
   <script src="{{ asset('static/js/script.js?v=2.5') }}"></script>
-    <script>
-      const csrfToken = "{{ csrf_token() }}";
-  </script>
-
-  <script src="{{ asset('static/js/admin.js') }}"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <!-- <script>
-    // Fungsi untuk Export CSV data Absensi sisi Klien (Browser)
-    function exportCSV() {
-      const table = document.getElementById("full-att-table");
-      if (!table) return;
-
-      let csv = [];
-      const rows = table.querySelectorAll("tr");
-      
-      for (let i = 0; i < rows.length; i++) {
-        let row = [], cols = rows[i].querySelectorAll("td, th");
-        for (let j = 0; j < cols.length; j++) {
-          let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""');
-          row.push('"' + data + '"'); 
-        }
-        csv.push(row.join(","));
-      }
-
-      const csvString = csv.join("\n");
-      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      
-      const dateFilter = document.getElementById("att-date-filter")?.value || new Date().toISOString().split("T")[0];
-      link.href = URL.createObjectURL(blob);
-      link.download = "Data_Absensi_" + dateFilter + ".csv";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // Fungsi Filter Data Mahasiswa di sisi Klien
-    function filterMahasiswa() {
-      const search = document.getElementById('mhs-search').value.toLowerCase();
-      const kelompok = document.getElementById('mhs-filter-kelompok').value;
-      const jurusan = document.getElementById('mhs-filter-jurusan').value;
-      
-      const rows = document.querySelectorAll('.mhs-row');
-      rows.forEach(row => {
-        const rowName = row.getAttribute('data-name');
-        const rowKlp = row.getAttribute('data-kelompok');
-        const rowJur = row.getAttribute('data-jurusan');
-        
-        let match = true;
-        if (search && !rowName.includes(search)) match = false;
-        if (kelompok && rowKlp !== kelompok) match = false;
-        if (jurusan && rowJur !== jurusan) match = false;
-        
-        row.style.display = match ? '' : 'none';
-      });
-    }
-
-    function resetMahasiswaFilter() {
-      document.getElementById('mhs-search').value = '';
-      document.getElementById('mhs-filter-kelompok').value = '';
-      document.getElementById('mhs-filter-jurusan').value = '';
-      filterMahasiswa();
-    }
-
-    // Fungsi Filter Data Riwayat Absensi
-    function filterHistory() {
-      const start = document.getElementById('hist-start').value;
-      const end = document.getElementById('hist-end').value;
-      
-      const rows = document.querySelectorAll('.hist-row');
-      rows.forEach(row => {
-        const rowDate = row.getAttribute('data-date');
-        let match = true;
-        if (start && rowDate < start) match = false;
-        if (end && rowDate > end) match = false;
-        row.style.display = match ? '' : 'none';
-      });
-    }
-
-    function resetHistoryFilter() {
-      document.getElementById('hist-start').value = '';
-      document.getElementById('hist-end').value = '';
-      filterHistory();
-    }
-
-    // --- LOGIKA UPLOAD VIDEO MP4 ---
-    let selectedVideoFile = null;
-
-    function handleVideoFileSelect(event) {
-      const file = event.target.files[0];
-      if (file && file.type === 'video/mp4') {
-        selectedVideoFile = file;
-        const videoPlayer = document.getElementById('preview-video-player');
-        const fileURL = URL.createObjectURL(file);
-        videoPlayer.src = fileURL;
-        
-        document.getElementById('video-preview-section').style.display = 'block';
-        document.getElementById('preview-video-info').textContent = file.name + ' (' + (file.size / (1024 * 1024)).toFixed(2) + ' MB)';
-      } else {
-        alert('Silakan pilih file video MP4 yang valid.');
-        event.target.value = '';
-        selectedVideoFile = null;
-        document.getElementById('video-preview-section').style.display = 'none';
-      }
-    }
-
-    function cancelVideoUpload() {
-      document.getElementById('video-file-input').value = '';
-      selectedVideoFile = null;
-      document.getElementById('video-preview-section').style.display = 'none';
-      const videoPlayer = document.getElementById('preview-video-player');
-      videoPlayer.pause();
-      videoPlayer.src = '';
-    }
-
-    async function uploadAndProcessVideo() {
-      if (!selectedVideoFile) {
-        alert('Pilih video terlebih dahulu.');
-        return;
-      }
-
-      const action = document.getElementById('video-action-select').value;
-      const formData = new FormData();
-      formData.append('video', selectedVideoFile);
-      formData.append('action', action);
-      formData.append('_token', '{{ csrf_token() }}');
-
-      document.getElementById('video-preview-section').style.display = 'none';
-      document.getElementById('video-processing-panel').style.display = 'block';
-      document.getElementById('processing-progress').textContent = 'Mengupload video...';
-
-      try {
-        const response = await fetch('{{ url("/admin/upload-video") }}', {
-          method: 'POST',
-          body: formData
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          document.getElementById('video-processing-panel').style.display = 'none';
-          document.getElementById('video-success-panel').style.display = 'block';
-          document.getElementById('success-summary').textContent = 'Video ' + selectedVideoFile.name + ' (' + action + ') berhasil diunggah dan diproses.';
-          cancelVideoUpload();
-        } else {
-          alert('Gagal memproses video: ' + result.message);
-          document.getElementById('video-processing-panel').style.display = 'none';
-          document.getElementById('video-preview-section').style.display = 'block';
-        }
-      } catch (error) {
-        console.error('Error:', error);
-        alert('Terjadi kesalahan saat mengupload video.');
-        document.getElementById('video-processing-panel').style.display = 'none';
-        document.getElementById('video-preview-section').style.display = 'block';
-      }
-    }
-
-    // --- LOGIKA VERIFIKASI IZIN / SAKIT ---
-    async function loadIzinSubmissions() {
-      const search = document.getElementById('izin-search')?.value || '';
-      const kelompok = document.getElementById('izin-filter-kelompok')?.value || '';
-      const status = document.getElementById('izin-filter-status')?.value || '';
-      
-      const tbody = document.getElementById('izin-submissions-table-body');
-      if (!tbody) return;
-      
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat data...</td></tr>';
-      
-      try {
-        const queryParams = new URLSearchParams({ search, kelompok, status });
-        const response = await fetch('{{ url("/admin/izin-submissions") }}?' + queryParams.toString());
-        const result = await response.json();
-        
-        if (result.success) {
-          document.getElementById('stat-pending-izin').textContent = result.stats.pending;
-          document.getElementById('stat-approved-izin').textContent = result.stats.approved;
-          document.getElementById('stat-rejected-izin').textContent = result.stats.rejected;
-          
-          const sidebarIzin = document.getElementById('sidebar-pending-izin');
-          if (sidebarIzin) {
-            sidebarIzin.textContent = result.stats.pending;
-            sidebarIzin.style.display = result.stats.pending > 0 ? '' : 'none';
-          }
-
-          if (result.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Tidak ada pengajuan ditemukan</td></tr>';
-            return;
-          }
-          
-          let html = '';
-          result.data.forEach(item => {
-            let statusBadge = '';
-            if (item.status === 'pending') statusBadge = '<span class="badge badge-warning">Pending</span>';
-            else if (item.status === 'approved') statusBadge = '<span style="background:var(--success-light);color:var(--success);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Disetujui</span>';
-            else if (item.status === 'rejected') statusBadge = '<span style="background:var(--danger-light);color:var(--danger);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Ditolak</span>';
-            
-            let aksiBtns = '';
-            if (item.status === 'pending') {
-              aksiBtns = `
-                <button class="btn btn-primary btn-sm" onclick="approveIzin(${item.id})" title="Setujui">
-                  <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">check</span>
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="openRejectIzin(${item.id})" title="Tolak">
-                  <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">close</span>
-                </button>
-              `;
-            } else {
-              aksiBtns = '<span style="font-size:12px;color:var(--text-muted)">Selesai</span>';
-            }
-            
-            let tanggal = item.date || (item.created_at ? item.created_at.split('T')[0] : '-');
-            let jenis = item.submission_type ? item.submission_type.toUpperCase() : 'IZIN';
-
-            html += `
-              <tr>
-                <td><div style="font-weight:600">${item.mahasiswa_name}</div></td>
-                <td>${item.kelompok || '-'}</td>
-                <td><span style="font-size:12px;font-weight:600">${jenis}</span></td>
-                <td>${tanggal}</td>
-                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${item.keterangan || ''}">${item.keterangan || '-'}</td>
-                <td>
-                  ${item.bukti_path ? `<button class="btn btn-ghost btn-sm" onclick="viewBukti('${item.bukti_path}')">Lihat Bukti</button>` : '-'}
-                </td>
-                <td>${statusBadge}</td>
-                <td><div style="display:flex;gap:4px">${aksiBtns}</div></td>
-              </tr>
-            `;
-          });
-          tbody.innerHTML = html;
-        }
-      } catch (error) {
-        console.error('Error fetching izin:', error);
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:30px">Gagal memuat data</td></tr>';
-      }
-    }
-
-    function filterIzinSubmissions() { loadIzinSubmissions(); }
-
-    function resetIzinFilter() {
-      if(document.getElementById('izin-search')) document.getElementById('izin-search').value = '';
-      if(document.getElementById('izin-filter-kelompok')) document.getElementById('izin-filter-kelompok').value = '';
-      if(document.getElementById('izin-filter-status')) document.getElementById('izin-filter-status').value = '';
-      loadIzinSubmissions();
-    }
-
-    function viewBukti(url) {
-      const baseUrl = "{{ asset('storage') }}";
-      const fullUrl = url.startsWith('public/') ? baseUrl + '/' + url.substring(7) : url;
-      const ext = fullUrl.split('.').pop().toLowerCase();
-      const contentDiv = document.getElementById('bukti-content');
-      
-      if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
-        contentDiv.innerHTML = `<img src="${fullUrl}" style="max-width:100%;max-height:60vh;border-radius:8px">`;
-      } else if (ext === 'pdf') {
-        contentDiv.innerHTML = `<iframe src="${fullUrl}" style="width:100%;height:60vh;border:none"></iframe>`;
-      } else {
-        contentDiv.innerHTML = `<a href="${fullUrl}" target="_blank" class="btn btn-primary">Download File</a>`;
-      }
-      const modal = document.getElementById('modal-bukti');
-      if (modal) modal.style.display = 'flex';
-    }
-
-    async function approveIzin(id) {
-      if (!confirm('Anda yakin ingin menyetujui pengajuan ini?')) return;
-      try {
-        const response = await fetch('{{ url("/admin/izin-submissions") }}/' + id + '/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-          body: JSON.stringify({ status: 'approved' })
-        });
-        const result = await response.json();
-        if (result.success) {
-          loadIzinSubmissions();
-        } else {
-          alert('Gagal: ' + result.message);
-        }
-      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
-    }
-
-    function openRejectIzin(id) {
-      document.getElementById('reject-submission-id').value = id;
-      document.getElementById('reject-reason-input').value = '';
-      const modal = document.getElementById('modal-reject-izin');
-      if(modal) modal.style.display = 'flex';
-    }
-
-    async function confirmRejectIzin() {
-      const id = document.getElementById('reject-submission-id').value;
-      const reason = document.getElementById('reject-reason-input').value;
-      if (!reason.trim()) return alert('Alasan penolakan wajib diisi!');
-      
-      try {
-        const response = await fetch('{{ url("/admin/izin-submissions") }}/' + id + '/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-          body: JSON.stringify({ status: 'rejected', reject_reason: reason })
-        });
-        const result = await response.json();
-        if (result.success) {
-          const modal = document.getElementById('modal-reject-izin');
-          if(modal) modal.style.display = 'none';
-          loadIzinSubmissions();
-        } else {
-          alert('Gagal: ' + result.message);
-        }
-      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
-    }
-
-    // --- LOGIKA VERIFIKASI KEHADIRAN ---
-    async function loadKehadiranSubmissions() {
-      const search = document.getElementById('kehadiran-search')?.value || '';
-      const kelompok = document.getElementById('kehadiran-filter-kelompok')?.value || '';
-      const status = document.getElementById('kehadiran-filter-status')?.value || '';
-      
-      const tbody = document.getElementById('kehadiran-submissions-table-body');
-      if (!tbody) return;
-      
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Memuat data...</td></tr>';
-      
-      try {
-        const queryParams = new URLSearchParams({ search, kelompok, status });
-        const response = await fetch('{{ url("/admin/kehadiran-submissions") }}?' + queryParams.toString());
-        const result = await response.json();
-        
-        if (result.success) {
-          document.getElementById('stat-pending-kehadiran').textContent = result.stats.pending;
-          document.getElementById('stat-approved-kehadiran').textContent = result.stats.approved;
-          document.getElementById('stat-rejected-kehadiran').textContent = result.stats.rejected;
-          
-          const sidebarKehadiran = document.getElementById('sidebar-pending-kehadiran');
-          if (sidebarKehadiran) {
-             sidebarKehadiran.textContent = result.stats.pending;
-             sidebarKehadiran.style.display = result.stats.pending > 0 ? '' : 'none';
-          }
-
-          if (result.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Tidak ada pengajuan ditemukan</td></tr>';
-            return;
-          }
-          
-          let html = '';
-          result.data.forEach(item => {
-            let statusBadge = '';
-            if (item.status === 'pending') statusBadge = '<span class="badge badge-warning">Pending</span>';
-            else if (item.status === 'approved') statusBadge = '<span style="background:var(--success-light);color:var(--success);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Disetujui</span>';
-            else if (item.status === 'rejected') statusBadge = '<span style="background:var(--danger-light);color:var(--danger);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Ditolak</span>';
-            
-            let aksiBtns = '';
-            if (item.status === 'pending') {
-              aksiBtns = `
-                <button class="btn btn-primary btn-sm" onclick="approveKehadiran(${item.id})" title="Setujui">
-                  <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">check</span>
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="openRejectKehadiran(${item.id})" title="Tolak">
-                  <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">close</span>
-                </button>
-              `;
-            } else {
-              aksiBtns = '<span style="font-size:12px;color:var(--text-muted)">Selesai</span>';
-            }
-            
-            let tanggal = item.date || (item.created_at ? item.created_at.split('T')[0] : '-');
-
-            html += `
-              <tr>
-                <td><div style="font-weight:600">${item.mahasiswa_name}</div></td>
-                <td>${item.kelompok || '-'}</td>
-                <td>${tanggal}</td>
-                <td>${item.check_in_time || '-'}</td>
-                <td>${item.check_out_time || '-'}</td>
-                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${item.keterangan || ''}">${item.keterangan || '-'}</td>
-                <td>
-                  ${item.bukti_path ? `<button class="btn btn-ghost btn-sm" onclick="viewBukti('${item.bukti_path}')">Lihat Bukti</button>` : '-'}
-                </td>
-                <td>${statusBadge}</td>
-                <td><div style="display:flex;gap:4px">${aksiBtns}</div></td>
-              </tr>
-            `;
-          });
-          tbody.innerHTML = html;
-        }
-      } catch (error) {
-        console.error('Error fetching kehadiran:', error);
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:30px">Gagal memuat data</td></tr>';
-      }
-    }
-
-    function filterKehadiranSubmissions() { loadKehadiranSubmissions(); }
-
-    function resetKehadiranFilter() {
-      if(document.getElementById('kehadiran-search')) document.getElementById('kehadiran-search').value = '';
-      if(document.getElementById('kehadiran-filter-kelompok')) document.getElementById('kehadiran-filter-kelompok').value = '';
-      if(document.getElementById('kehadiran-filter-status')) document.getElementById('kehadiran-filter-status').value = '';
-      loadKehadiranSubmissions();
-    }
-
-    async function approveKehadiran(id) {
-      if (!confirm('Anda yakin ingin menyetujui pengajuan kehadiran ini? Data absensi akan otomatis diperbarui.')) return;
-      try {
-        const response = await fetch('{{ url("/admin/kehadiran-submissions") }}/' + id + '/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-          body: JSON.stringify({ status: 'approved' })
-        });
-        const result = await response.json();
-        if (result.success) {
-          loadKehadiranSubmissions();
-        } else {
-          alert('Gagal: ' + result.message);
-        }
-      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
-    }
-
-    function openRejectKehadiran(id) {
-      document.getElementById('reject-kehadiran-id').value = id;
-      document.getElementById('reject-kehadiran-reason').value = '';
-      const modal = document.getElementById('modal-reject-kehadiran');
-      if(modal) modal.style.display = 'flex';
-    }
-
-    async function confirmRejectKehadiran() {
-      const id = document.getElementById('reject-kehadiran-id').value;
-      const reason = document.getElementById('reject-kehadiran-reason').value;
-      if (!reason.trim()) return alert('Alasan penolakan wajib diisi!');
-      
-      try {
-        const response = await fetch('{{ url("/admin/kehadiran-submissions") }}/' + id + '/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-          body: JSON.stringify({ status: 'rejected', reject_reason: reason })
-        });
-        const result = await response.json();
-        if (result.success) {
-          const modal = document.getElementById('modal-reject-kehadiran');
-          if(modal) modal.style.display = 'none';
-          loadKehadiranSubmissions();
-        } else {
-          alert('Gagal: ' + result.message);
-        }
-      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
-    }
-
-    // --- LOGIKA USER MANAGEMENT ---
-    async function loadUsers() {
-      const search = document.getElementById('user-search')?.value || '';
-      const role = document.getElementById('user-filter-role')?.value || '';
-      const status = document.getElementById('user-filter-status')?.value || '';
-
-      const tbody = document.getElementById('users-tbody');
-      if (!tbody) return;
-
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Memuat data...</td></tr>';
-
-      try {
-        const queryParams = new URLSearchParams({ search, role, status });
-        const response = await fetch('{{ url("/admin/users") }}?' + queryParams.toString());
-        const result = await response.json();
-
-        if (result.success) {
-          document.getElementById('stat-admin-count').textContent = result.stats.admin;
-          document.getElementById('stat-timdis-count').textContent = result.stats.timdis;
-          document.getElementById('stat-mahasiswa-count').textContent = result.stats.mahasiswa;
-          document.getElementById('stat-total-users').textContent = result.stats.total;
-
-          if (result.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Tidak ada user ditemukan</td></tr>';
-            return;
-          }
-
-          let html = '';
-          result.data.forEach(user => {
-            const initials = (user.full_name || 'U').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
-            const colors = ['#4f7cff', '#22d3a0', '#f5a623', '#ff6b6b', '#a78bfa'];
-            const colorIndex = user.id % colors.length;
-            const color = colors[colorIndex];
-            
-            let statusBadge = user.is_active ? '<span class="badge badge-success" style="background:var(--success-light);color:var(--success);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Aktif</span>' : '<span class="badge badge-danger" style="background:var(--danger-light);color:var(--danger);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:600">Nonaktif</span>';
-            let lastLogin = user.last_login ? user.last_login.split('T').join(' ').substring(0, 16) : '-';
-            let mhsId = user.mahasiswa_id || '-';
-
-            let toggleBtn = user.is_active 
-              ? `<button class="btn btn-danger btn-sm" onclick="toggleUserStatus(${user.id}, false)" title="Nonaktifkan">
-                  <span class="material-symbols-outlined" style="font-size:16px">block</span>
-                </button>`
-              : `<button class="btn btn-primary btn-sm" onclick="toggleUserStatus(${user.id}, true)" title="Aktifkan">
-                  <span class="material-symbols-outlined" style="font-size:16px">check_circle</span>
-                </button>`;
-
-            let deleteBtn = `
-                <button class="btn btn-danger btn-sm" onclick="deleteUser(${user.id})" title="Hapus">
-                  <span class="material-symbols-outlined" style="font-size:16px">delete</span>
-                </button>
-            `;
-
-            html += `
-              <tr>
-                <td>
-                  <div class="mahasiswa-cell" style="display:flex;gap:12px;align-items:center">
-                    <div class="avatar" style="background:${color}22;color:${color};width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:600;font-size:14px">${initials}</div>
-                    <div>
-                      <div class="mhs-name" style="font-weight:600">${user.full_name}</div>
-                      <div class="mhs-dept" style="font-family:var(--mono);font-size:12px;color:var(--text-muted)">@${user.username}</div>
-                    </div>
-                  </div>
-                </td>
-                <td>${user.email || '-'}</td>
-                <td><span style="text-transform:capitalize">${user.role}</span></td>
-                <td><span style="font-family:var(--font-mono);font-size:12px">${mhsId}</span></td>
-                <td>${statusBadge}</td>
-                <td>${lastLogin}</td>
-                <td>
-                  <div style="display:flex;gap:4px">
-                    <button class="btn btn-ghost btn-sm" onclick='editUser(${JSON.stringify(user).replace(/'/g, "&apos;").replace(/"/g, "&quot;")})' title="Edit">
-                      <span class="material-symbols-outlined" style="font-size:16px">edit</span>
-                    </button>
-                    <button class="btn btn-ghost btn-sm" onclick="openResetPassword(${user.id}, '${user.username}')" title="Reset Password">
-                      <span class="material-symbols-outlined" style="font-size:16px">lock_reset</span>
-                    </button>
-                    ${toggleBtn}
-                    ${deleteBtn}
-                  </div>
-                </td>
-              </tr>
-            `;
-          });
-          tbody.innerHTML = html;
-        }
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:30px">Gagal memuat data</td></tr>';
-      }
-    }
-
-    function filterUsers() { loadUsers(); }
-
-    function resetUserFilter() {
-      if(document.getElementById('user-search')) document.getElementById('user-search').value = '';
-      if(document.getElementById('user-filter-role')) document.getElementById('user-filter-role').value = '';
-      if(document.getElementById('user-filter-status')) document.getElementById('user-filter-status').value = '';
-      loadUsers();
-    }
-
-    async function loadMahasiswaOptions() {
-      const select = document.getElementById('user-mahasiswa-id');
-      select.innerHTML = '<option value="">Memuat...</option>';
-      try {
-        const response = await fetch('{{ url("/admin/mahasiswa-options") }}');
-        const result = await response.json();
-        if (result.success) {
-          let html = '<option value="">-- Pilih Mahasiswa --</option>';
-          result.data.forEach(mhs => {
-            html += `<option value="${mhs.id}">${mhs.id} - ${mhs.name} (${mhs.kelompok || '-'})</option>`;
-          });
-          select.innerHTML = html;
-        }
-      } catch (error) {
-        console.error('Error fetching mhs options:', error);
-      }
-    }
-
-    function toggleMahasiswaField() {
-      const role = document.getElementById('user-role').value;
-      const mhsRow = document.getElementById('mahasiswa-id-row');
-      const mhsSelect = document.getElementById('user-mahasiswa-id');
-      if (role === 'mahasiswa') {
-        mhsRow.style.display = 'block';
-        mhsSelect.required = true;
-        if(mhsSelect.options.length <= 1) loadMahasiswaOptions();
-      } else {
-        mhsRow.style.display = 'none';
-        mhsSelect.required = false;
-        mhsSelect.value = '';
-      }
-    }
-
-    function openAddUserModal() {
-      document.getElementById('user-id').value = '';
-      document.getElementById('user-form').reset();
-      document.getElementById('modal-user-title').textContent = 'Tambah User';
-      document.getElementById('password-row').style.display = 'block';
-      document.getElementById('user-password').required = true;
-      toggleMahasiswaField();
-      const modal = document.getElementById('modal-user');
-      if(modal) modal.style.display = 'flex';
-    }
-
-    function editUser(user) {
-      document.getElementById('user-id').value = user.id;
-      document.getElementById('user-username').value = user.username;
-      document.getElementById('user-fullname').value = user.full_name;
-      document.getElementById('user-email').value = user.email || '';
-      document.getElementById('user-role').value = user.role;
-      
-      document.getElementById('modal-user-title').textContent = 'Edit User';
-      document.getElementById('password-row').style.display = 'none';
-      document.getElementById('user-password').required = false;
-      
-      toggleMahasiswaField();
-      
-      if (user.role === 'mahasiswa') {
-        const mhsSelect = document.getElementById('user-mahasiswa-id');
-        const optionExists = Array.from(mhsSelect.options).some(opt => opt.value === user.mahasiswa_id);
-        if (!optionExists && user.mahasiswa_id) {
-          mhsSelect.innerHTML += `<option value="${user.mahasiswa_id}">${user.mahasiswa_id} (Saat ini)</option>`;
-        }
-        mhsSelect.value = user.mahasiswa_id;
-      }
-      
-      const modal = document.getElementById('modal-user');
-      if(modal) modal.style.display = 'flex';
-    }
-
-    async function submitUser(event) {
-      event.preventDefault();
-      const id = document.getElementById('user-id').value;
-      const data = {
-        username: document.getElementById('user-username').value,
-        full_name: document.getElementById('user-fullname').value,
-        email: document.getElementById('user-email').value,
-        role: document.getElementById('user-role').value,
-        mahasiswa_id: document.getElementById('user-mahasiswa-id').value
-      };
-      if (!id) data.password = document.getElementById('user-password').value;
-      
-      const url = id ? `{{ url("/admin/users") }}/${id}` : '{{ url("/admin/users") }}';
-      const method = id ? 'PUT' : 'POST';
-      
-      try {
-        const response = await fetch(url, {
-          method: method,
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-          body: JSON.stringify(data)
-        });
-        const result = await response.json();
-        if (result.success) {
-          closeModal('modal-user');
-          loadUsers();
-        } else {
-          alert(result.message);
-        }
-      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan'); }
-    }
-
-    function openResetPassword(id, username) {
-      document.getElementById('reset-user-id').value = id;
-      document.getElementById('reset-username').textContent = username;
-      document.getElementById('reset-password-form').reset();
-      const modal = document.getElementById('modal-reset-password');
-      if(modal) modal.style.display = 'flex';
-    }
-
-    async function submitResetPassword(event) {
-      event.preventDefault();
-      const id = document.getElementById('reset-user-id').value;
-      const password = document.getElementById('reset-new-password').value;
-      const confirm = document.getElementById('reset-confirm-password').value;
-      
-      if (password !== confirm) return alert('Konfirmasi password tidak cocok!');
-      
-      try {
-        const response = await fetch(`{{ url("/admin/users") }}/${id}/reset-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-          body: JSON.stringify({ password: password, password_confirmation: confirm })
-        });
-        const result = await response.json();
-        if (result.success) {
-          closeModal('modal-reset-password');
-          alert('Password berhasil direset!');
-        } else {
-          alert(result.message);
-        }
-      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan'); }
-    }
-
-    async function toggleUserStatus(id, activate) {
-      const action = activate ? 'Aktifkan' : 'Nonaktifkan';
-      if (!confirm(`Anda yakin ingin ${action.toLowerCase()} user ini?`)) return;
-      try {
-        const response = await fetch(`{{ url("/admin/users") }}/${id}/toggle-status`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-        });
-        const result = await response.json();
-        if (result.success) {
-          loadUsers();
-        } else {
-          alert(result.message);
-        }
-      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
-    }
-
-    async function deleteUser(id) {
-      if (!confirm('Anda yakin ingin menghapus user ini secara permanen?')) return;
-      try {
-        const response = await fetch(`{{ url("/admin/users") }}/${id}`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-        });
-        const result = await response.json();
-        if (result.success) {
-          loadUsers();
-        } else {
-          alert(result.message);
-        }
-      } catch (error) { console.error('Error:', error); alert('Terjadi kesalahan.'); }
-    }
-
-    // Otomatis load data ketika halaman ini dibuka atau dijalankan pertama kali
-    document.addEventListener('DOMContentLoaded', () => {
-      loadIzinSubmissions();
-      loadKehadiranSubmissions();
-      @if(auth()->user()->role === 'admin')
-      loadUsers();
-      @endif
-    });
-  </script> -->
-
-  <!-- MODAL QR CODE -->
-   <div id="modal-qr"
-        style="
-            display:none;
-            position:fixed;
-            inset:0;
-            background:rgba(0,0,0,.6);
-            z-index:99999;
-            align-items:center;
-            justify-content:center;
-        ">
-
-        <div style="
-            background:white;
-            padding:24px;
-            border-radius:16px;
-            width:340px;
-            text-align:center;
-        ">
-
-            <h3 id="qr-title">QR Code</h3>
-
-            <canvas id="qr-canvas"></canvas>
-
-            <button class="btn btn-primary"
-                    style="margin-top:16px"
-                    onclick="closeQRModal()">
-                Tutup
-            </button>
-
-        </div>
-
-    </div>
 </body>
+
 </html>

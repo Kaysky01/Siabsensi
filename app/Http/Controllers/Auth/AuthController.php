@@ -77,7 +77,13 @@ class AuthController extends Controller
         return response() -> json([
             'success' => true,
             'data' => [
-                'mahasiswa' => $user->mahasiswa
+                'user' => $user,
+                'mahasiswa' => $user->mahasiswa,
+                'permissions' => [
+                    'can_manage_users' => $user->role === 'admin',
+                    'can_edit_settings' => $user->role === 'admin',
+                    'can_manage_mahasiswa' => $user->role === 'admin',
+                ]
             ]
         ]);
     }
