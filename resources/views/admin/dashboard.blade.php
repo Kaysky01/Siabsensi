@@ -66,6 +66,10 @@
         <div class="nav-item" onclick="showPage('settings')">
           <span class="material-symbols-outlined icon">settings</span> Pengaturan
         </div>
+        <div class="nav-section">Akun</div>
+        <div class="nav-item" onclick="window.location.href='/logout'" style="color: #ff6b6b;">
+          <span class="material-symbols-outlined icon" style="color: #ff6b6b;">logout</span> Logout
+        </div>
       </nav>
 
       <div class="sidebar-footer">
@@ -742,7 +746,7 @@
 
         <div class="form-row" id="password-row">
           <label class="form-label">Password *</label>
-          <input type="password" id="user-password" class="form-input" placeholder="Password" required>
+          <input type="password" id="user-password" class="form-input" placeholder="Password" autocomplete="new-password" required>
           <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
             Minimal 6 karakter
           </small>
@@ -803,7 +807,7 @@
 
         <div class="form-row">
           <label class="form-label">Password Baru *</label>
-          <input type="password" id="reset-new-password" class="form-input" placeholder="Password baru" required>
+          <input type="password" id="reset-new-password" class="form-input" placeholder="Password baru" autocomplete="new-password" required>
           <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
             Minimal 6 karakter
           </small>
@@ -811,7 +815,7 @@
 
         <div class="form-row">
           <label class="form-label">Konfirmasi Password *</label>
-          <input type="password" id="reset-confirm-password" class="form-input" placeholder="Ketik ulang password" required>
+          <input type="password" id="reset-confirm-password" class="form-input" placeholder="Ketik ulang password" autocomplete="new-password" required>
         </div>
 
         <div class="modal-actions">

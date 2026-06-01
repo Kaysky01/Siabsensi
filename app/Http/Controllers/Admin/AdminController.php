@@ -341,9 +341,16 @@ class AdminController extends Controller
         $submission->save();
 
         if ($validated['action'] === 'approve') {
+            // Ambil format Y-m-d saja agar tidak terjadi penumpukan dengan waktu bawaan (00:00:00)
+            $dateOnly = Carbon::parse($submission->date)->format('Y-m-d');
+            
             Attendance::updateOrCreate(
-                ['mahasiswa_id' => $submission->mahasiswa_id, 'date' => $submission->date],
-                ['check_in' => $submission->date . ' ' . $submission->check_in_time, 'check_out' => $submission->date . ' ' . $submission->check_out_time, 'status' => 'present']
+                ['mahasiswa_id' => $submission->mahasiswa_id, 'date' => $dateOnly],
+                [
+                    'check_in' => $dateOnly . ' ' . $submission->check_in_time, 
+                    'check_out' => $submission->check_out_time ? $dateOnly . ' ' . $submission->check_out_time : null, 
+                    'status' => 'present'
+                ]
             );
         }
         return response()->json(['success' => true]);

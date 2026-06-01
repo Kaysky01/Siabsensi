@@ -149,21 +149,42 @@ function showPage(page) {
           ...(opts.headers || {})
         };
         
+        if (opts.method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(opts.method.toUpperCase())) {
+          const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+          if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta.content;
+        }
+        
         const r = await fetch(API + path, {
           ...opts,
           headers,
           credentials: 'include'  // Include cookies
         });
         
-        if (!r.ok) {
-          console.error(`[API Error] ${r.status} ${r.statusText} pada rute ${path}`);
-          return null;
+        const text = await r.text();
+        let jsonData = null;
+        
+        if (text) {
+          try {
+            jsonData = JSON.parse(text);
+          } catch (e) {
+            console.error('[API JSON Parse Error] pada rute', path, 'Response:', text.substring(0, 150));
+            // Jika berhasil (status HTTP 2xx) tapi mengembalikan HTML (contoh: redirect back Laravel), anggap success
+            if (r.ok) {
+              return { success: true, message: 'Operasi berhasil (Non-JSON response)' };
+            }
+          }
         }
         
-        return await r.json();
+        if (!r.ok) {
+          console.error(`[API Error] ${r.status} ${r.statusText} pada rute ${path}`);
+          if (jsonData) return { success: false, ...jsonData };
+          return { success: false, message: `Error server HTTP ${r.status}` };
+        }
+        
+        return jsonData ? { success: true, ...jsonData } : { success: true };
       } catch (e) {
         console.error('[API Fetch Exception]', e);
-        return null;
+        return { success: false, message: 'Gagal menghubungi server' };
       }
     }
 
@@ -260,17 +281,54 @@ function showPage(page) {
     function renderTrend(data) {
       const chart = document.getElementById('trend-chart');
       if (!data.length) return;
+
       const max = Math.max(...data.map(d => d.present), 1);
       const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
       chart.innerHTML = data.map(d => {
-        const pct = Math.round(d.present / max * 100);
         const day = new Date(d.date).getDay();
-        return `<div class="bar-item">
-      <div class="bar-fill" style="height:${pct}%" title="${d.date}: ${d.present} hadir">
-        <span class="bar-val">${d.present}</span>
-      </div>
-      <div class="bar-label">${days[day] || ''}</div>
-    </div>`;
+
+        // Tinggi batang
+        const pct = d.present === 0
+          ? 2 // hanya sedikit timbul
+          : Math.max(Math.round((d.present / max) * 100), 8);
+
+        const fillStyle = d.present === 0
+          ? `
+              height: ${pct}%;
+              min-height: 4px;
+              background: #e2e8f0;
+              box-shadow: none;
+              border-radius: 8px 8px 0 0;
+            `
+          : `
+              height: ${pct}%;
+              background: linear-gradient(
+                180deg,
+                #7c9cff 0%,
+                #5b7fff 100%
+              );
+              border-radius: 8px 8px 0 0;
+              box-shadow: 0 4px 12px rgba(91,127,255,.25);
+            `;
+
+        return `
+          <div class="bar-item">
+            <div
+              class="bar-fill"
+              style="${fillStyle}"
+              title="${d.date}: ${d.present} hadir"
+            >
+              <span class="bar-val">
+                ${d.present}
+              </span>
+            </div>
+
+            <div class="bar-label">
+              ${days[day] || ''}
+            </div>
+          </div>
+        `;
       }).join('');
     }
 
@@ -863,9 +921,14 @@ async function removeMahasiswa(id) {
       document.getElementById('processing-progress').textContent = `Memproses video untuk ${actionLabel}...`;
 
       try {
+        const headers = {};
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta.content;
+
         const response = await fetch(API + '/video/process', {
           method: 'POST',
-          body: formData
+          body: formData,
+          headers: headers
         });
 
         const result = await response.json();
@@ -1422,9 +1485,13 @@ async function removeMahasiswa(id) {
       };
       
       try {
+        const headers = { 'Content-Type': 'application/json' };
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta.content;
+
         const res = await fetch('/api/settings/yolo', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
           body: JSON.stringify(settings)
         });
         
@@ -1445,9 +1512,13 @@ async function removeMahasiswa(id) {
       };
       
       try {
+        const headers = { 'Content-Type': 'application/json' };
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta.content;
+
         const res = await fetch('/api/settings/rtsp', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
           body: JSON.stringify(settings)
         });
         
@@ -1606,9 +1677,14 @@ async function previewExcelData(file) {
   formData.append('excel_file', file);
   
   try {
+    const headers = {};
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta.content;
+
     const res = await fetch(API + '/mahasiswa/excel-preview', {
       method: 'POST',
-      body: formData
+      body: formData,
+      headers: headers
     });
     
     const result = await res.json();
@@ -1714,9 +1790,14 @@ async function submitExcelMahasiswa() {
       statusText.textContent = `Memproses... ${Math.round(progress)}%`;
     }, 200);
     
+    const headers = {};
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta.content;
+
     const res = await fetch(API + '/mahasiswa/excel-upload', {
       method: 'POST',
-      body: formData
+      body: formData,
+      headers: headers
     });
     
     clearInterval(progressInterval);

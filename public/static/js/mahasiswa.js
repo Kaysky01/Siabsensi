@@ -207,15 +207,6 @@ async function submitIzin() {
   formData.append('bukti', buktiFile);
   formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
 
-  // header saat fetch
-  const res = await fetch(API + '/izin/submit', { 
-    method: 'POST', 
-    headers: { 
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content 
-    },
-    body: formData 
-});
-
   // Disable button
   const btn = document.querySelector('.btn-primary');
   const originalHTML = btn.innerHTML;
@@ -223,7 +214,11 @@ async function submitIzin() {
   btn.innerHTML = '<span class="material-symbols-outlined icon-md" style="animation:spin 1s linear infinite">sync</span> Mengirim...';
 
   try {
-    const res = await fetch(API + '/izin/submit', { method: 'POST', body: formData });
+    const res = await fetch(API + '/izin/submit', { 
+      method: 'POST', 
+      headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+      body: formData 
+    });
     const result = await res.json();
 
     if (result.success) {
