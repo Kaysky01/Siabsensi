@@ -15,43 +15,49 @@ class AuthController extends Controller
 
     public function auth(Request $request)
     {
-        // Validasi input dari form
-        $credentials = $request->validate([
-            'username' => ['required', 'string'],
-            'password' => ['required', 'string'],
+        $request->validate([
+            'username' => 'required|string',
+            'password' => 'required|string',
         ]);
 
-        // Cek apakah user menceklis "Ingat Saya"
-        $remember = $request->has('remember');
+        $remember = $request->boolean('remember');
 
-        // Coba melakukan autentikasi ke database
-        if (Auth::attempt($credentials, $remember)) {
-            
-            // Hindari serangan Session Fixation
-            $request->session()->regenerate();
+        if (Auth::attempt([
+            'username' => $request->username,
+            'password' => $request->password,
+        ], $remember)) {
 
-            // Ambil data user yang berhasil login
+            /** @var \App\Models\User $user */
             $user = Auth::user();
 
-            // dd('Login Berhasil! Role user ini adalah: ' . $user->role);
+            // Cek apakah akun pengguna berstatus aktif
+            if (!$user->is_active) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
 
-            // Redirect berdasarkan role
-            if ($user->role === 'admin') {
-                // Arahkan admin secara spesifik ke route 'admin.dashboard' (/admin)
-                return redirect()->route('admin.dashboard'); 
-            } else if ($user->role === 'timdis') {
-                // Arahkan timdis ke rute dashboard timdis
-                return redirect()->route('timdis.dashboard'); 
-            } else if ($user->role === 'mahasiswa') {
-                // Arahkan mahasiswa ke portal mahasiswa
-                return redirect()->route('mahasiswa.dashboard'); 
+                return back()->withErrors([
+                    'username' => 'Akun Anda telah dinonaktifkan. Silakan hubungi Administrator.',
+                ])->onlyInput('username');
             }
+
+            $request->session()->regenerate();
+
+            $user->update([
+                'last_login' => now(),
+            ]);
+
+            return match ($user->role) {
+                'admin' => redirect()->route('admin.dashboard'),
+                'timdis' => redirect()->route('timdis.dashboard'),
+                'mahasiswa' => redirect()->route('mahasiswa.dashboard'),
+                default => redirect('/login'),
+            };
         }
 
-        // Jika login gagal (username/password salah)
         return back()->withErrors([
             'username' => 'Username atau password yang Anda masukkan salah.',
-        ])->onlyInput('username'); // Kembalikan username agar user tidak perlu mengetik ulang
+        ])->onlyInput('username');
     }
 
     public function logout(Request $request)
@@ -71,7 +77,16 @@ class AuthController extends Controller
     public function me()
     {
         // Ambil user yang sedang login
+        /** @var \App\Models\User $user */
         $user = Auth::user();
+
+        // Kondisi jika user belum login atau sesi telah kadaluwarsa
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sesi tidak valid atau belum login.'
+            ], 401);
+        }
 
         // Kembalikan data user dalam format JSON
         return response() -> json([

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Mahasiswa; // Pastikan Model di-import
 use Carbon\Carbon;        // Import Carbon untuk manipulasi tanggal
+use Illuminate\Support\Facades\Auth; // Import Auth untuk otorisasi
 use App\Exports\RiwayatAbsensiExport;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -95,8 +96,18 @@ class MahasiswaController extends Controller
     // Mengambil Data Profil Mahasiswa
     public function getProfile($id)
     {
+        $user = Auth::user();
+        // Pastikan hanya admin atau pemilik profil yang bisa mengambil data
+        if ($user->role !== 'admin' && $user->mahasiswa_id != $id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak: Anda tidak memiliki akses ke data ini'
+            ], 403);
+        }
+
         // Cari data mahasiswa di tabel Mahasiswa berdasarkan ID
         $mahasiswa = Mahasiswa:: find($id);
+        $mahasiswa = Mahasiswa::find($id);
 
         if (!$mahasiswa) {
             return response()->json([
@@ -171,6 +182,15 @@ class MahasiswaController extends Controller
 
     public function updateProfile(Request $request, $id)
     {
+        $user = Auth::user();
+        // Pastikan hanya admin atau pemilik profil yang bisa mengupdate
+        if ($user->role !== 'admin' && $user->mahasiswa_id != $id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak: Anda tidak diizinkan mengubah profil ini'
+            ], 403);
+        }
+
         // Mencari mahasiswa dahulu
         $mahasiswa = Mahasiswa::find($id);
 

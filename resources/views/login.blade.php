@@ -4,17 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login — SIABSEN</title>
-  <link rel="stylesheet" href="static/css/style.css">
+  <link rel="icon" type="image/png" href="{{ asset('static/img/logo.png') }}">
+  <link rel="stylesheet" href="{{ asset('static/css/style.css') }}">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700" rel="stylesheet">
-  <link rel="stylesheet" href="static/css/login.css">
+  <link rel="stylesheet" href="{{ asset('static/css/login.css') }}">
 </head>
 <body>
   <div class="login-container">
     <div class="login-card">
       <div class="login-header">
         <div class="login-logo">
-          <img src="static/img/logo.png" alt="Logo">
+          <img src="{{ asset('static/img/logo.png') }}?v={{ time() }}" alt="Logo">
           <div class="login-logo-text">SIABSEN</div>
         </div>
         <div class="login-title">Selamat Datang</div>

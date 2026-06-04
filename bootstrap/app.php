@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         
+        // Sangat penting untuk hosting: Percayai SSL/Proxy agar sesi tidak terputus
+        $middleware->trustProxies(at: '*');
+        
         // 1. Redirect untuk Guest (Belum Login) jika mencoba akses halaman yang diproteksi
         $middleware->redirectGuestsTo('/login'); 
         
@@ -22,7 +25,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectUsersTo(function (Request $request) {
             // Asumsi kamu punya kolom 'role' di tabel users. 
             // Sesuaikan '$request->user()->role' dengan nama kolom database kamu.
-            $role = $request->user()->role;
+            /** @var \App\Models\User $user */
+            $user = $request->user();
+            $role = $user->role;
 
             if ($role === 'admin') {
                 return route('admin.dashboard'); // Sesuaikan dengan rute dashboard admin
