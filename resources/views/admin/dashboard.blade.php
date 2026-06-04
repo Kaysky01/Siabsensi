@@ -61,13 +61,15 @@
           <span class="badge badge-warning" id="sidebar-pending-kehadiran">0</span>
         </div>
         <div class="nav-section">Sistem</div>
+        <div class="nav-item" onclick="showPage('camera')">
+          <span class="material-symbols-outlined icon">camera</span> Kelola Kamera
+        </div>
         <div class="nav-item" onclick="showPage('users')">
           <span class="material-symbols-outlined icon">manage_accounts</span> User Management
         </div>
         <div class="nav-item" onclick="showPage('settings')">
           <span class="material-symbols-outlined icon">settings</span> Pengaturan
         </div>
-        <div class="nav-section">Akun</div>
         <div class="nav-item" onclick="window.location.href='/logout'" style="color: #ff6b6b;">
           <span class="material-symbols-outlined icon" style="color: #ff6b6b;">logout</span> Logout
         </div>
@@ -568,6 +570,23 @@
         </div>
       </section>
 
+      <!-- ===== CAMERA MANAGEMENT PAGE ===== -->
+      <section id="page-camera" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Kelola Kamera</div>
+            <div class="page-sub">Manajemen kamera webcam untuk deteksi absensi</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openAddCamera()">
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">add</span> Tambah Kamera
+          </button>
+        </div>
+
+        <div class="camera-grid" id="camera-grid">
+          <div style="color:var(--muted);padding:30px;text-align:center;grid-column:1/-1">Memuat kamera...</div>
+        </div>
+      </section>
+
       <section id="page-settings" style="display:none">
         <div class="page-title" style="margin-bottom:20px">Pengaturan Sistem</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
@@ -974,6 +993,51 @@
           Upload Data Excel
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal Camera -->
+  <div class="modal-backdrop" id="modal-camera">
+    <div class="modal">
+      <div class="modal-title" id="camera-modal-title">Tambah Webcam</div>
+      
+      <form id="camera-form" onsubmit="submitCamera(event)">
+        <div class="form-row">
+          <label class="form-label">ID Kamera *</label>
+          <input type="text" id="c-id" class="form-input" placeholder="CAM-01" required>
+          <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
+            ID unik untuk kamera (contoh: CAM-01, CAM-02)
+          </small>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Nama Kamera *</label>
+          <input type="text" id="c-name" class="form-input" placeholder="Kamera Pintu Masuk" required>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Index Webcam *</label>
+          <select id="c-webcam-index" class="form-input" required>
+            <option value="">-- Pilih Webcam --</option>
+          </select>
+          <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
+            Index webcam yang terdeteksi oleh sistem (0, 1, 2, dst)
+          </small>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Lokasi</label>
+          <input type="text" id="c-loc" class="form-input" placeholder="Pintu Masuk Utama">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-camera')">Batal</button>
+          <button type="button" class="btn btn-primary" id="camera-submit-btn" onclick="submitCamera(event)">
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">save</span>
+            Tambah Kamera
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 

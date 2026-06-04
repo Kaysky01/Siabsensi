@@ -20,8 +20,27 @@ class CekRole
             return $next($request);
         }
 
-        // JIKA ROLE TIDAK SESUAI: 
-        // Kembalikan user ke halaman sebelumnya (previous URL) dengan membawa pesan error
-        return back()->with('error', 'Akses ditolak: Anda tidak memiliki izin untuk mengakses halaman tersebut.');
+        // JIKA ROLE TIDAK SESUAI:
+        // Cek apakah request mengharapkan JSON response (API call)
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak: Anda tidak memiliki izin untuk mengakses resource ini.'
+            ], 403);
+        }
+
+        // Jika request biasa (web page), redirect ke dashboard sesuai role
+        $user = $request->user();
+        if ($user) {
+            return match ($user->role) {
+                'admin' => redirect()->route('admin.dashboard')->with('error', 'Akses ditolak: Anda tidak memiliki izin untuk halaman tersebut.'),
+                'timdis' => redirect()->route('timdis.dashboard')->with('error', 'Akses ditolak: Anda tidak memiliki izin untuk halaman tersebut.'),
+                'mahasiswa' => redirect()->route('mahasiswa.dashboard')->with('error', 'Akses ditolak: Anda tidak memiliki izin untuk halaman tersebut.'),
+                default => redirect()->route('login')->with('error', 'Role tidak dikenali.'),
+            };
+        }
+
+        // Jika tidak ada user, redirect ke login
+        return redirect()->route('login')->with('error', 'Silakan login terlebih dahulu.');
     }
 }

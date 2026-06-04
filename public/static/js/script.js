@@ -92,6 +92,14 @@ function applyRoleBasedUI() {
         sistemSection.style.display = 'none';
       }
     }
+    
+    // Also try to find and hide any "Sistem" section by text content
+    const allNavSections = document.querySelectorAll('.nav-section');
+    allNavSections.forEach(section => {
+      if (section.textContent.includes('Sistem')) {
+        section.style.display = 'none';
+      }
+    });
   }
   
   console.log('User permissions loaded:', userPermissions);
@@ -103,7 +111,7 @@ function showPage(page) {
       document.getElementById('page-' + page).style.display = '';
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(n => {
-        if (n.textContent.toLowerCase().includes(page === 'dashboard' ? 'dash' : page === 'attendance' ? 'absensi' : page === 'users' ? 'user management' : page === 'cameras' ? 'kamera' : page === 'mahasiswa' ? 'mahasiswa' : page === 'history' ? 'riwayat' : page === 'video-upload' ? 'upload video' : page === 'izin-mahasiswa' ? 'form pengajuan' : page === 'izin-timdis' ? 'verifikasi izin' : page === 'kehadiran-timdis' ? 'verifikasi kehadiran' : 'pengaturan'))
+        if (n.textContent.toLowerCase().includes(page === 'dashboard' ? 'dash' : page === 'attendance' ? 'absensi' : page === 'users' ? 'user management' : page === 'camera' ? 'kelola kamera' : page === 'cameras' ? 'kamera' : page === 'mahasiswa' ? 'mahasiswa' : page === 'history' ? 'riwayat' : page === 'video-upload' ? 'upload video' : page === 'izin-mahasiswa' ? 'form pengajuan' : page === 'izin-timdis' ? 'verifikasi izin' : page === 'kehadiran-timdis' ? 'verifikasi kehadiran' : 'pengaturan'))
           n.classList.add('active');
       });
       currentPage = page;
@@ -114,7 +122,7 @@ function showPage(page) {
       if (page === 'attendance') loadFullAttendance();
       if (page === 'users') loadUsers();
       if (page === 'mahasiswa') loadMahasiswa();
-      if (page === 'cameras') loadCameras();
+      if (page === 'camera' || page === 'cameras') loadCameras();
       if (page === 'izin-timdis') loadIzinSubmissions();
       if (page === 'kehadiran-timdis') loadKehadiranSubmissions();
     }
@@ -406,25 +414,45 @@ function showPage(page) {
 
     function filterAttendance(d) { loadFullAttendance(d); }
 
-    function exportCSV() {
+    async function exportCSV() {
       if (!attendanceData.length) return toast('Tidak ada data', '', true);
-      const header = 'Nama,Kelompok,Masuk,Keluar,Status,Kamera\n';
-      const rows = attendanceData.map(r => {
-        // Map status to readable text for CSV
-        let statusText = r.status;
-        if (r.status === 'izin') statusText = 'Izin';
-        else if (r.status === 'sakit') statusText = 'Sakit';
-        else if (r.check_out) statusText = 'Lengkap';
-        else if (r.check_in) statusText = 'Hadir';
-        else statusText = 'Absen';
+      
+      try {
+        // Get date range from filter inputs if they exist
+        const startDate = document.getElementById('hist-start')?.value || '';
+        const endDate = document.getElementById('hist-end')?.value || '';
         
-        return `${r.name},${r.kelompok},${r.check_in || ''},${r.check_out || ''},${statusText},${r.camera_id || ''}`;
-      }).join('\n');
-      const a = document.createElement('a');
-      a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(header + rows);
-      a.download = `absensi_${new Date().toISOString().slice(0, 10)}.csv`;
-      a.click();
-      toast('Export Berhasil', `${attendanceData.length} data diunduh`);
+        // Build query parameters
+        const params = new URLSearchParams();
+        if (startDate) params.append('start', startDate);
+        if (endDate) params.append('end', endDate);
+        
+        const url = `${API}/attendance/export${params.toString() ? '?' + params.toString() : ''}`;
+        
+        // Download Excel file
+        const res = await fetch(url, {
+          credentials: 'include'
+        });
+        
+        if (res.ok) {
+          const blob = await res.blob();
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = `absensi_${new Date().toISOString().slice(0, 10)}.xlsx`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(downloadUrl);
+          
+          toast('Export Berhasil', 'File Excel telah diunduh');
+        } else {
+          toast('Export gagal', 'Terjadi kesalahan saat mengunduh file', true);
+        }
+      } catch (e) {
+        console.error('Error exporting Excel:', e);
+        toast('Export gagal', 'Pastikan server berjalan', true);
+      }
     }
 
     // ─── Mahasiswa ──────────────────────────────────────────────────────────────
@@ -594,6 +622,7 @@ async function removeMahasiswa(id) {
       grid.innerHTML = list.map(cam => {
         const online = cam.is_active;
         const lastSeen = cam.last_seen ? new Date(cam.last_seen).toLocaleTimeString('id-ID') : '—';
+        const webcamIndex = cam.rtsp_url; // rtsp_url field now stores webcam index
         return `<div class="camera-card">
       <div class="camera-feed">
         ${online ? `<img src="/api/stream/${cam.id}" style="position:absolute; width:100%; height:100%; object-fit:cover; z-index:2;" onerror="this.style.display='none'">` : ''}
@@ -601,7 +630,7 @@ async function removeMahasiswa(id) {
         <div class="feed-placeholder">
           <span class="material-symbols-outlined feed-icon">videocam</span>
           <div class="feed-text">${cam.name}</div>
-          <div class="feed-rtsp">${cam.rtsp_url}</div>
+          <div class="feed-rtsp">Webcam Index: ${webcamIndex}</div>
           ${online ? `<div style="margin-top:8px"><span class="badge badge-green" style="font-size:11px">● LIVE</span></div>` : `<div style="margin-top:8px"><span class="badge badge-gray" style="font-size:11px">OFFLINE</span></div>`}
         </div>
       </div>
@@ -623,6 +652,146 @@ async function removeMahasiswa(id) {
       </div>
     </div>`;
       }).join('');
+    }
+
+    function openAddCamera() {
+      editingCameraId = null;
+      document.getElementById('camera-modal-title').textContent = 'Tambah Webcam';
+      document.getElementById('camera-submit-btn').textContent = 'Tambah Kamera';
+      document.getElementById('c-id').disabled = false;
+      ['c-id', 'c-name', 'c-webcam-index', 'c-loc'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      
+      // Load available webcams
+      detectAvailableWebcams();
+      
+      document.getElementById('modal-camera').classList.add('show');
+    }
+
+    async function detectAvailableWebcams() {
+      try {
+        const res = await apiFetch('/cameras/available');
+        if (res?.success) {
+          const select = document.getElementById('c-webcam-index');
+          
+          if (!select) return;
+          
+          // Handle both array of objects and array of integers
+          if (res.data.length > 0) {
+            select.innerHTML = res.data.map(webcam => {
+              // If webcam is an object with index property
+              if (typeof webcam === 'object' && webcam.index !== undefined) {
+                const label = webcam.name || `Webcam ${webcam.index}`;
+                const info = webcam.resolution ? ` (${webcam.resolution})` : '';
+                return `<option value="${webcam.index}">${label}${info}</option>`;
+              }
+              // If webcam is just a number
+              else {
+                return `<option value="${webcam}">Webcam ${webcam}</option>`;
+              }
+            }).join('');
+          } else {
+            select.innerHTML = '<option value="">Tidak ada webcam terdeteksi</option>';
+          }
+        }
+      } catch (e) {
+        console.error('Error detecting webcams:', e);
+        const select = document.getElementById('c-webcam-index');
+        if (select) {
+          select.innerHTML = '<option value="">Gagal mendeteksi webcam</option>';
+        }
+      }
+    }
+
+    async function editCamera(cameraId) {
+      const cam = cameraData.find(c => c.id === cameraId);
+      if (!cam) return;
+      
+      editingCameraId = cameraId;
+      document.getElementById('camera-modal-title').textContent = 'Edit Webcam';
+      document.getElementById('camera-submit-btn').textContent = 'Simpan Perubahan';
+      document.getElementById('c-id').value = cam.id;
+      document.getElementById('c-id').disabled = true;
+      document.getElementById('c-name').value = cam.name;
+      document.getElementById('c-loc').value = cam.location || '';
+      
+      // Load available webcams for edit mode
+      await detectAvailableWebcams();
+      
+      // Set webcam index value after loading options
+      document.getElementById('c-webcam-index').value = cam.rtsp_url; // rtsp_url stores webcam index
+      
+      document.getElementById('modal-camera').classList.add('show');
+    }
+
+    async function deleteCamera(cameraId) {
+      if (!confirm('Hapus kamera ini? Tindakan ini tidak dapat dibatalkan.')) return;
+      
+      const res = await apiFetch(`/cameras/${cameraId}`, { method: 'DELETE' });
+      if (res?.success) {
+        toast('Kamera dihapus', cameraId);
+        loadCameras();
+      } else {
+        toast('Gagal menghapus kamera', res?.message || 'Cek API server', true);
+      }
+    }
+
+    async function submitCamera(event) {
+      try {
+        const cIdEl = document.getElementById('c-id');
+        const cNameEl = document.getElementById('c-name');
+        const cWebcamIndexEl = document.getElementById('c-webcam-index');
+        const cLocEl = document.getElementById('c-loc');
+        
+        if (!cIdEl || !cNameEl || !cWebcamIndexEl || !cLocEl) {
+          toast('Form tidak ditemukan', 'Silakan buka modal kamera', true);
+          return;
+        }
+        
+        const body = {
+          id: cIdEl.value.trim(),
+          name: cNameEl.value.trim(),
+          camera_index: parseInt(cWebcamIndexEl.value),
+          location: cLocEl.value.trim(),
+        };
+        
+        if (!body.name || isNaN(body.camera_index)) {
+          toast('Lengkapi field wajib', '', true); return;
+        }
+        
+        if (editingCameraId) {
+          // Update mode
+          const res = await apiFetch(`/cameras/${editingCameraId}`, { 
+            method: 'PUT', 
+            body: JSON.stringify(body) 
+          });
+          if (res?.success) {
+            closeModal('modal-camera');
+            toast('Kamera diperbarui!', body.name);
+            loadCameras();
+          } else {
+            toast('Gagal memperbarui kamera', res?.message || 'Cek API server', true);
+          }
+        } else {
+          // Add mode
+          if (!body.id) {
+            toast('ID kamera wajib diisi', '', true); return;
+          }
+          const res = await apiFetch('/cameras', { method: 'POST', body: JSON.stringify(body) });
+          if (res?.success) {
+            closeModal('modal-camera');
+            toast('Kamera ditambahkan!', body.name);
+            loadCameras();
+          } else {
+            toast('Gagal menambah kamera', res?.message || 'Cek API server', true);
+          }
+        }
+      } catch (error) {
+        console.error('Error submitting camera:', error);
+        toast('Terjadi kesalahan', error.message || 'Cek koneksi server', true);
+      }
     }
 
     // ─── History ─────────────────────────────────────────────────────────────────
@@ -1009,42 +1178,7 @@ async function removeMahasiswa(id) {
 
     // ─── Modals ─────────────────────────────────────────────────────────────────
     // Note: openAddMahasiswa() is defined at line 1695 (enhanced version)
-
-    function openAddCamera() {
-      editingCameraId = null;
-      document.getElementById('camera-modal-title').textContent = 'Tambah Kamera CCTV';
-      document.getElementById('camera-submit-btn').textContent = 'Tambah Kamera';
-      document.getElementById('c-id').disabled = false;
-      ['c-id', 'c-name', 'c-rtsp', 'c-loc'].forEach(id => document.getElementById(id).value = '');
-      document.getElementById('modal-camera').classList.add('show');
-    }
-
-    function editCamera(cameraId) {
-      const cam = cameraData.find(c => c.id === cameraId);
-      if (!cam) return;
-      
-      editingCameraId = cameraId;
-      document.getElementById('camera-modal-title').textContent = 'Edit Kamera CCTV';
-      document.getElementById('camera-submit-btn').textContent = 'Simpan Perubahan';
-      document.getElementById('c-id').value = cam.id;
-      document.getElementById('c-id').disabled = true;
-      document.getElementById('c-name').value = cam.name;
-      document.getElementById('c-rtsp').value = cam.rtsp_url;
-      document.getElementById('c-loc').value = cam.location || '';
-      document.getElementById('modal-camera').classList.add('show');
-    }
-
-    async function deleteCamera(cameraId) {
-      if (!confirm('Hapus kamera ini? Tindakan ini tidak dapat dibatalkan.')) return;
-      
-      const res = await apiFetch(`/cameras/${cameraId}`, { method: 'DELETE' });
-      if (res?.success) {
-        toast('Kamera dihapus', cameraId);
-        loadCameras();
-      } else {
-        toast('Gagal menghapus kamera', res?.message || 'Cek API server', true);
-      }
-    }
+    // Note: Camera functions (openAddCamera, editCamera, deleteCamera, submitCamera) are defined in the Cameras section
 
     function closeModal(id) {
       document.getElementById(id).classList.remove('show');
@@ -1078,46 +1212,7 @@ async function removeMahasiswa(id) {
       }
     }
 
-    async function submitCamera() {
-      const body = {
-        id: document.getElementById('c-id').value.trim(),
-        name: document.getElementById('c-name').value.trim(),
-        rtsp_url: document.getElementById('c-rtsp').value.trim(),
-        location: document.getElementById('c-loc').value.trim(),
-      };
-      
-      if (!body.name || !body.rtsp_url) {
-        toast('Lengkapi field wajib', '', true); return;
-      }
-      
-      if (editingCameraId) {
-        // Update mode
-        const res = await apiFetch(`/cameras/${editingCameraId}`, { 
-          method: 'PUT', 
-          body: JSON.stringify(body) 
-        });
-        if (res?.success) {
-          closeModal('modal-camera');
-          toast('Kamera diperbarui!', body.name);
-          loadCameras();
-        } else {
-          toast('Gagal memperbarui kamera', res?.message || 'Cek API server', true);
-        }
-      } else {
-        // Add mode
-        if (!body.id) {
-          toast('ID kamera wajib diisi', '', true); return;
-        }
-        const res = await apiFetch('/cameras', { method: 'POST', body: JSON.stringify(body) });
-        if (res?.success) {
-          closeModal('modal-camera');
-          toast('Kamera ditambahkan!', body.name);
-          loadCameras();
-        } else {
-          toast('Gagal menambah kamera', res?.message || 'Cek API server', true);
-        }
-      }
-    }
+    // Note: submitCamera function is defined in the Cameras section (line 739)
 
     function downloadQR() {
       if (!currentQRBase64) return;
@@ -2059,13 +2154,16 @@ function renderKehadiranSubmissions(submissions) {
          </div>`
       : `<span style="font-size:12px;color:var(--text-muted)">${s.verified_by || '—'}<br>${s.verified_at ? new Date(s.verified_at).toLocaleDateString('id-ID') : ''}</span>`;
 
+    // Format tanggal untuk menghilangkan T00:00:00.000000Z
+    const formattedDate = s.date ? s.date.split('T')[0] : '-';
+    
     return `<tr>
       <td>
         <div style="font-weight:600">${s.name}</div>
         <div style="font-size:12px;color:var(--text-muted)">${s.mahasiswa_id}</div>
       </td>
       <td><span class="badge badge-blue">${s.kelompok}</span></td>
-      <td style="font-family:var(--font-mono);font-size:13px">${s.date}</td>
+      <td style="font-family:var(--font-mono);font-size:13px">${formattedDate}</td>
       <td style="font-family:var(--font-mono);font-size:13px">${s.check_in_time || '—'}</td>
       <td style="font-family:var(--font-mono);font-size:13px">${s.check_out_time || '—'}</td>
       <td style="max-width:180px;white-space:normal;font-size:13px">${s.keterangan}</td>

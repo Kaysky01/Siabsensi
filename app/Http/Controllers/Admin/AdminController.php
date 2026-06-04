@@ -10,9 +10,11 @@ use App\Models\IzinSubmission;
 use App\Models\KehadiranSubmission;
 use App\Models\CameraStream;
 use App\Models\User;
+use App\Exports\AttendanceExport;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB; // <-- untuk query builder relasi tabel
+use Maatwebsite\Excel\Facades\Excel;
 
 class AdminController extends Controller
 {
@@ -131,6 +133,15 @@ class AdminController extends Controller
             'success' => true,
             'data' => $query->get()
         ]);
+    }
+
+    // Export Absensi ke Excel
+    public function exportAttendance(Request $request)
+    {
+        $start = $request->query('start');
+        $end = $request->query('end');
+
+        return Excel::download(new AttendanceExport($start, $end), 'absensi_' . date('Y-m-d') . '.xlsx');
     }
 
     // Mengambil Semua Data Mahasiswa
@@ -358,13 +369,51 @@ class AdminController extends Controller
 
     // ─── CRUD KAMERA (STREAM) ─────────────────────────────────────
     public function getCameras() { return response()->json(['success' => true, 'data' => CameraStream::all()]); }
-    public function storeCamera(Request $request) { 
-        $c = CameraStream::create($request->all()); 
-        return response()->json(['success' => true, 'data' => $c]); 
+    
+    public function getAvailableWebcams()
+    {
+        // Return available webcam indices (0, 1, 2, etc.)
+        // In a real implementation, this would detect actual webcams connected to the server
+        // For now, return a list of common webcam indices
+        $webcams = [
+            ['index' => 0, 'name' => 'Webcam 0', 'resolution' => '640x480'],
+            ['index' => 1, 'name' => 'Webcam 1', 'resolution' => '640x480'],
+            ['index' => 2, 'name' => 'Webcam 2', 'resolution' => '640x480'],
+        ];
+        
+        return response()->json(['success' => true, 'data' => $webcams]);
     }
+    
+    public function storeCamera(Request $request) { 
+        try {
+            $data = $request->all();
+            // Store camera_index in rtsp_url field for compatibility
+            if (isset($data['camera_index'])) {
+                $data['rtsp_url'] = (string)$data['camera_index'];
+                unset($data['camera_index']);
+            }
+            // Set default values if not provided
+            $data['is_active'] = $data['is_active'] ?? 0;
+            $c = CameraStream::create($data); 
+            return response()->json(['success' => true, 'data' => $c]); 
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+    
     public function updateCamera(Request $request, $id) { 
-        CameraStream::where('id', $id)->update($request->all()); 
-        return response()->json(['success' => true]); 
+        try {
+            $data = $request->all();
+            // Store camera_index in rtsp_url field for compatibility
+            if (isset($data['camera_index'])) {
+                $data['rtsp_url'] = (string)$data['camera_index'];
+                unset($data['camera_index']);
+            }
+            CameraStream::where('id', $id)->update($data); 
+            return response()->json(['success' => true]); 
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
     public function deleteCamera($id) { 
         CameraStream::destroy($id); 

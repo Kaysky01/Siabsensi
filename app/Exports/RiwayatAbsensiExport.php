@@ -3,17 +3,22 @@
 namespace App\Exports;
 
 use App\Models\Attendance;
+use App\Models\Mahasiswa;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
-// 👇 2. Tambahkan implement WithMapping
-class RiwayatAbsensiExport implements FromCollection, WithHeadings, WithStyles, WithMapping 
+class RiwayatAbsensiExport implements FromCollection, WithHeadings, WithStyles, WithMapping, WithColumnWidths, WithTitle
 {
     protected $mahasiswaId;
-    private $rowNumber = 0; // 👇 3. Buat variabel untuk menghitung baris
+    private $rowNumber = 0;
 
     public function __construct($mahasiswaId)
     {
@@ -31,28 +36,95 @@ class RiwayatAbsensiExport implements FromCollection, WithHeadings, WithStyles, 
     {
         return [
             ++$this->rowNumber,
-            
-            // Format Tanggal: mengambil (Tahun-Bulan-Tanggal) tanpa jam
-            $attendance->date ? date('Y-m-d', strtotime($attendance->date)) : '-',
-            
-            // Format Jam Masuk: mengambil (Jam:Menit) tanpa detik
+            $attendance->date ? date('d/m/Y', strtotime($attendance->date)) : '-',
             $attendance->check_in ? date('H:i', strtotime($attendance->check_in)) : '-',
-            
-            // Format Jam Keluar: mengambil (Jam:Menit) tanpa detik
             $attendance->check_out ? date('H:i', strtotime($attendance->check_out)) : '-',
-            
-            $attendance->status,
+            ucfirst($attendance->status),
         ];
     }
 
     public function headings(): array
     {
-        return ['No', 'Tanggal', 'Jam Masuk', 'Jam Keluar', 'Status'];
+        return [
+            ['LAPORAN RIWAYAT ABSENSI'],
+            [''],
+            ['No', 'Tanggal', 'Jam Masuk', 'Jam Keluar', 'Status'],
+        ];
     }
 
-    // Mengatur agar header tebal dan rapi
+    public function columnWidths(): array
+    {
+        return [
+            'A' => 8,
+            'B' => 15,
+            'C' => 12,
+            'D' => 12,
+            'E' => 15,
+        ];
+    }
+
     public function styles(Worksheet $sheet)
     {
-        return [1 => ['font' => ['bold' => true]]];
+        $sheet->mergeCells('A1:E1');
+        
+        return [
+            // Title row styling
+            1 => [
+                'font' => [
+                    'bold' => true,
+                    'size' => 14,
+                    'color' => ['rgb' => 'FFFFFF'],
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '2D5BFF'],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ],
+            // Header row styling
+            3 => [
+                'font' => [
+                    'bold' => true,
+                    'size' => 11,
+                    'color' => ['rgb' => 'FFFFFF'],
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '06D6A0'],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => '000000'],
+                    ],
+                ],
+            ],
+            // Data rows styling
+            'A4:E1000' => [
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => 'E0E0E0'],
+                    ],
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ],
+        ];
+    }
+
+    public function title(): string
+    {
+        $mahasiswa = Mahasiswa::find($this->mahasiswaId);
+        return $mahasiswa ? 'Riwayat - ' . $mahasiswa->name : 'Riwayat Absensi';
     }
 }
