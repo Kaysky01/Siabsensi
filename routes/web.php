@@ -36,7 +36,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Rute API untuk mengambil data user yang sedang login
     Route::get('/api/auth/me', [AuthController::class, 'me'])->name('api.auth.me');
+});
 
+// Routes untuk Mahasiswa (hanya role mahasiswa)
+Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
     Route::get('/mahasiswa/dashboard', [MahasiswaController::class, 'dashboard'])->name('mahasiswa.dashboard');
 
     // Rute API Data Mahasiswa
@@ -60,7 +63,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/api/kehadiran/submit', [KehadiranController::class, 'submit']);
     Route::get('/api/kehadiran/mahasiswa/{id}', [KehadiranController::class, 'history']);
     Route::get('/api/kehadiran/bukti/{filename}', [App\Http\Controllers\Mahasiswa\KehadiranController::class, 'getBukti']);
+});
 
+// Routes untuk Admin & Timdis
+Route::middleware(['auth', 'role:admin,timdis'])->group(function () {
     Route::get('/admin/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
     
     // Perbaikan: Daftarkan route untuk timdis agar redirect saat login tidak error 500
@@ -72,6 +78,7 @@ Route::middleware(['auth'])->group(function () {
     // Rute API Data Tabel (Absensi & Mahasiswa)
     Route::get('/api/attendance/today', [AdminController::class, 'getAttendanceToday']);
     Route::get('/api/attendance/history', [AdminController::class, 'getAttendanceHistory']);
+    Route::get('/api/attendance/export', [AdminController::class, 'exportAttendance']);
     Route::get('/api/mahasiswa', [AdminController::class, 'getAllMahasiswa']);
     
     // Rute API Verifikasi Pengajuan Izin dan Kehadiran (Admin & Timdis)
@@ -95,9 +102,11 @@ Route::middleware(['auth'])->group(function () {
 
     // CRUD Kamera RTSP (Admin)
     Route::get('/api/cameras', [AdminController::class, 'getCameras']);
+    Route::get('/api/cameras/available', [AdminController::class, 'getAvailableWebcams']);
     Route::post('/api/cameras', [AdminController::class, 'storeCamera']);
     Route::put('/api/cameras/{id}', [AdminController::class, 'updateCamera']);
     Route::delete('/api/cameras/{id}', [AdminController::class, 'deleteCamera']);
+<<<<<<< HEAD
 
     // Sertifikat (Mahasiswa & Admin)
     Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview', [SertifikatController::class, 'preview']);
@@ -106,4 +115,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/mahasiswa/{mahasiswaId}/sertifikat/history', [SertifikatController::class, 'history']);
     Route::get('/api/sertifikat/download/{historyId}', [SertifikatController::class, 'download']);
 
+=======
+>>>>>>> 20a364874d07570826e339a6e332bd7b73e7f536
 });
