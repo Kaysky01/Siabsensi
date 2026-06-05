@@ -64,6 +64,13 @@ Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
     Route::post('/api/kehadiran/submit', [KehadiranController::class, 'submit']);
     Route::get('/api/kehadiran/mahasiswa/{id}', [KehadiranController::class, 'history']);
     Route::get('/api/kehadiran/bukti/{filename}', [App\Http\Controllers\Mahasiswa\KehadiranController::class, 'getBukti']);
+
+    // Sertifikat (Mahasiswa)
+    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview', [SertifikatController::class, 'preview']);
+    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview-image', [SertifikatController::class, 'previewImage']);
+    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/generate', [SertifikatController::class, 'generate']);
+    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview-pdf', [SertifikatController::class, 'previewPdf']);
+    Route::get('/api/mahasiswa/{mahasiswaId}/sertifikat/history', [SertifikatController::class, 'history']);
 });
 
 // Routes untuk Admin & Timdis
@@ -108,12 +115,7 @@ Route::middleware(['auth', 'role:admin,timdis'])->group(function () {
     Route::put('/api/cameras/{id}', [AdminController::class, 'updateCamera']);
     Route::delete('/api/cameras/{id}', [AdminController::class, 'deleteCamera']);
 
-    // Sertifikat (Mahasiswa & Admin)
-    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview', [SertifikatController::class, 'preview']);
-    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview-image', [SertifikatController::class, 'previewImage']);
-    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/generate', [SertifikatController::class, 'generate']);
-    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview-pdf', [SertifikatController::class, 'previewPdf']);
-    Route::get('/api/mahasiswa/{mahasiswaId}/sertifikat/history', [SertifikatController::class, 'history']);
+    // Sertifikat (Admin - untuk download)
     Route::get('/api/sertifikat/download/{historyId}', [SertifikatController::class, 'download']);
 
 });
