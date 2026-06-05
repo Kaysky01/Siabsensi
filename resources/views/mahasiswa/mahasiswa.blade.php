@@ -561,52 +561,16 @@
             <div class="form-row">
               <label class="form-label">Periode Sertifikat *</label>
               <select id="sertifikat-periode" class="form-input">
-                <option value="monthly">Bulanan</option>
-                <option value="semester">Semester</option>
-                <option value="yearly">Tahunan</option>
-                <option value="custom">Periode Kustom</option>
+                <option value="weekly">Mingguan (1 Minggu)</option>
               </select>
             </div>
 
-            <div class="form-row" id="periode-monthly" style="display:none">
-              <label class="form-label">Pilih Bulan</label>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                <select id="sertifikat-bulan" class="form-input">
-                  <option value="01">Januari</option>
-                  <option value="02">Februari</option>
-                  <option value="03">Maret</option>
-                  <option value="04">April</option>
-                  <option value="05">Mei</option>
-                  <option value="06">Juni</option>
-                  <option value="07">Juli</option>
-                  <option value="08">Agustus</option>
-                  <option value="09">September</option>
-                  <option value="10">Oktober</option>
-                  <option value="11">November</option>
-                  <option value="12">Desember</option>
-                </select>
-                <select id="sertifikat-tahun-monthly" class="form-input">
-                  <!-- Will be populated by JS -->
-                </select>
+            <div class="form-row" id="periode-weekly" style="display:block">
+              <label class="form-label">Periode</label>
+              <div style="background:var(--bg);padding:12px;border-radius:var(--radius-md);border:1px solid var(--border)">
+                Sertifikat akan digenerate untuk periode 1 minggu (Senin - Minggu)
               </div>
             </div>
-
-            <div class="form-row" id="periode-semester" style="display:none">
-              <label class="form-label">Pilih Semester</label>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                <select id="sertifikat-semester" class="form-input">
-                  <option value="ganjil">Ganjil (Sep - Jan)</option>
-                  <option value="genap">Genap (Feb - Jun)</option>
-                </select>
-                <select id="sertifikat-tahun-semester" class="form-input">
-                  <!-- Will be populated by JS -->
-                </select>
-              </div>
-            </div>
-
-            <div class="form-row" id="periode-yearly" style="display:none">
-              <label class="form-label">Pilih Tahun</label>
-              <select id="sertifikat-tahun-yearly" class="form-input">
                 <!-- Will be populated by JS -->
               </select>
             </div>

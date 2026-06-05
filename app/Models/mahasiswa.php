@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Carbon\Carbon;
 
 class Mahasiswa extends Model
 {
@@ -54,5 +55,38 @@ class Mahasiswa extends Model
     public function kehadiranSubmissions()
     {
         return $this->hasMany(KehadiranSubmission::class, 'mahasiswa_id', 'id');
+    }
+
+    public function sertifikatHistories()
+    {
+        return $this->hasMany(SertifikatHistory::class, 'mahasiswa_id', 'id');
+    }
+
+    public function calculateAlphaCount($startDate, $endDate)
+    {
+        $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+        
+        $attendanceCount = $this->attendances()
+            ->whereBetween('date', [$startDate, $endDate])
+            ->whereIn('status', ['present', 'izin'])
+            ->count();
+        
+        $alphaCount = $totalDays - $attendanceCount;
+        
+        return max(0, $alphaCount);
+    }
+
+    public function canGetCertificate($startDate, $endDate)
+    {
+        $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+        
+        $attendanceCount = $this->attendances()
+            ->whereBetween('date', [$startDate, $endDate])
+            ->whereIn('status', ['present', 'izin', 'hadir'])
+            ->count();
+        
+        $persentase = $totalDays > 0 ? ($attendanceCount / $totalDays) * 100 : 0;
+        
+        return $persentase >= 80;
     }
 }

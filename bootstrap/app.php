@@ -56,7 +56,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // 4. Pengecualian CSRF kamu yang sudah ada
         $middleware->validateCsrfTokens(except: [
             'api/hardware-absensi', 
-            'api/sensor/*'
+            'api/sensor/*',
+            'api/mahasiswa/*/sertifikat/*',
+            'api/sertifikat/*'
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

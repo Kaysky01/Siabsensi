@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Mahasiswa\IzinController;
 use App\Http\Controllers\Mahasiswa\KehadiranController;
 use App\Http\Controllers\Mahasiswa\MahasiswaController;
+use App\Http\Controllers\SertifikatController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
@@ -97,5 +98,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/api/cameras', [AdminController::class, 'storeCamera']);
     Route::put('/api/cameras/{id}', [AdminController::class, 'updateCamera']);
     Route::delete('/api/cameras/{id}', [AdminController::class, 'deleteCamera']);
+
+    // Sertifikat (Mahasiswa & Admin)
+    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview', [SertifikatController::class, 'preview']);
+    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/generate', [SertifikatController::class, 'generate']);
+    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview-pdf', [SertifikatController::class, 'previewPdf']);
+    Route::get('/api/mahasiswa/{mahasiswaId}/sertifikat/history', [SertifikatController::class, 'history']);
+    Route::get('/api/sertifikat/download/{historyId}', [SertifikatController::class, 'download']);
 
 });
