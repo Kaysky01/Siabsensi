@@ -415,8 +415,59 @@ class AdminController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
-    public function deleteCamera($id) { 
-        CameraStream::destroy($id); 
-        return response()->json(['success' => true]); 
+    public function deleteCamera($id) {
+        CameraStream::destroy($id);
+        return response()->json(['success' => true]);
+    }
+
+    public function saveRtspSettings(Request $request) {
+        try {
+            $settings = $request->only([
+                'frame_width',
+                'frame_height',
+                'frame_fps',
+                'reconnect_delay',
+                'confidence_threshold',
+                'qr_cooldown'
+            ]);
+
+            // Save settings to a JSON file or database
+            $settingsFile = base_path('rtsp_settings.json');
+            file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengaturan RTSP disimpan'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function saveYoloSettings(Request $request) {
+        try {
+            $settings = $request->only([
+                'model_path',
+                'confidence',
+                'qr_cooldown'
+            ]);
+
+            // Save settings to a JSON file or database
+            $settingsFile = base_path('yolo_settings.json');
+            file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengaturan YOLO disimpan'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 }

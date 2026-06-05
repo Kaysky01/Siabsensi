@@ -1,4 +1,5 @@
-const API_URL = '/api';
+const API_URL = '/api/monitor';
+const PYTHON_API_URL = '/api/python';
 const COOLDOWN_MS = 60 * 60 * 1000; // 1 jam dalam milidetik
 const beepSound = new Audio('/static/sounds/beep.mp3'); // File harus ada di: static/sounds/beep.mp3
 
@@ -19,14 +20,116 @@ updateClock();
 // ===== INISIALISASI KAMERA =====
 async function initCamera() {
     try {
-        const res = await fetch(`${API_URL}/cameras`);
-        const data = await res.json();
-        if (data.success && data.data.length > 0) {
-            const cam = data.data.find(c => c.is_active === 1) || data.data[0];
-            document.getElementById('live-feed').src = `${API_URL}/stream/${cam.id}`;
+        // Check if Python backend is available
+        const statusRes = await fetch(`${PYTHON_API_URL}/status`);
+        if (!statusRes.ok) {
+            throw new Error('Python backend tidak tersedia');
+        }
+
+        // Request camera access using WebRTC
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: 'environment'
+            } 
+        });
+        
+        const videoElement = document.getElementById('camera-video');
+        if (videoElement) {
+            videoElement.srcObject = stream;
+            videoElement.play();
+            
+            // Start QR detection loop
+            startQRDetection(videoElement);
         }
     } catch (err) {
         console.warn('Kamera tidak tersedia:', err);
+        // Show error message to user
+        const videoContainer = document.querySelector('.video-container');
+        if (videoContainer) {
+            videoContainer.innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#fff;text-align:center;padding:20px;">
+                    <span class="material-symbols-outlined" style="font-size:48px;margin-bottom:16px;">videocam_off</span>
+                    <p style="font-size:16px;margin-bottom:8px;">Kamera tidak dapat diakses</p>
+                    <p style="font-size:12px;opacity:0.7;">Pastikan izin kamera diberikan, kamera tersedia, dan Python backend berjalan</p>
+                    <button onclick="initCamera()" style="margin-top:16px;padding:10px 20px;background:#3b82f6;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
+                        Coba Lagi
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+// ===== QR DETECTION LOOP =====
+function startQRDetection(videoElement) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    async function detectFrame() {
+        if (videoElement.paused || videoElement.ended) {
+            requestAnimationFrame(detectFrame);
+            return;
+        }
+        
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+        ctx.drawImage(videoElement, 0, 0);
+        
+        // Convert to base64
+        const imageData = canvas.toDataURL('image/jpeg');
+        
+        try {
+            const res = await fetch(`${PYTHON_API_URL}/detect`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageData })
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.results && data.results.length > 0) {
+                    // QR code detected
+                    const qrData = data.results[0].data;
+                    console.log('QR detected:', qrData);
+                    
+                    // Record attendance
+                    await recordAttendance(qrData);
+                }
+            }
+        } catch (err) {
+            console.warn('QR detection error:', err);
+        }
+        
+        requestAnimationFrame(detectFrame);
+    }
+    
+    detectFrame();
+}
+
+// ===== RECORD ATTENDANCE =====
+async function recordAttendance(mahasiswaId) {
+    try {
+        const res = await fetch(`${PYTHON_API_URL}/attendance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                mahasiswa_id: mahasiswaId,
+                status: 'present'
+            })
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            if (data.success) {
+                console.log('Attendance recorded:', mahasiswaId);
+                // Refresh attendance data
+                fetchLatestAttendance();
+            }
+        }
+    } catch (err) {
+        console.warn('Attendance recording error:', err);
     }
 }
 

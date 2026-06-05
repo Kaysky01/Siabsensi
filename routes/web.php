@@ -9,6 +9,16 @@ use App\Http\Controllers\SertifikatController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
+// Helper function to format bytes
+function formatBytes($bytes, $precision = 2) {
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    $bytes = max($bytes, 0);
+    $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+    $pow = min($pow, count($units) - 1);
+    $bytes /= pow(1024, $pow);
+    return round($bytes, $precision) . ' ' . $units[$pow];
+}
+
 // Menangani path kosong (/) dengan kondisi pengecekan login
 Route::get('/', function () {
     // Jika pengguna sudah login, arahkan ke dashboard masing-masing
@@ -31,11 +41,81 @@ Route::middleware(['guest'])->group(function () {
     Route::post('/auth/login', [AuthController::class, 'auth'])->name('auth');
 });
 
+// Monitor Absensi (Public - untuk display di layar besar)
+Route::get('/monitor', function () {
+    return view('monitor');
+});
+
+// API untuk Monitor (Public - tanpa auth) - menggunakan endpoint khusus monitor
+Route::get('/api/monitor/cameras', [AdminController::class, 'getCameras']);
+Route::get('/api/monitor/attendance/today', [AdminController::class, 'getAttendanceToday']);
+
+// API untuk Python Backend (Proxy ke port 5000)
+Route::get('/api/python/status', function () {
+    try {
+        $response = \Illuminate\Support\Facades\Http::get('http://127.0.0.1:5000/api/python/status');
+        return response()->json($response->json(), $response->status());
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia'], 503);
+    }
+});
+
+Route::post('/api/python/detect', function (\Illuminate\Http\Request $request) {
+    try {
+        $response = \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/detect', $request->all());
+        return response()->json($response->json(), $response->status());
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia'], 503);
+    }
+});
+
+Route::post('/api/python/attendance', function (\Illuminate\Http\Request $request) {
+    try {
+        $response = \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/attendance', $request->all());
+        return response()->json($response->json(), $response->status());
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia'], 503);
+    }
+});
+
+// API untuk Models (Public - untuk browse models folder)
+Route::get('/api/models/list', function () {
+    $modelsDir = base_path('models');
+    $models = [];
+
+    if (is_dir($modelsDir)) {
+        $files = scandir($modelsDir);
+        foreach ($files as $file) {
+            if (pathinfo($file, PATHINFO_EXTENSION) === 'pt') {
+                $filePath = $modelsDir . '/' . $file;
+                $models[] = [
+                    'name' => $file,
+                    'path' => 'models/' . $file,
+                    'size' => formatBytes(filesize($filePath))
+                ];
+            }
+        }
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $models
+    ]);
+});
+
 Route::middleware(['auth'])->group(function () {
     Route::get('/logout', [AuthController::class, 'logout'])->name('logout');
 
     // Rute API untuk mengambil data user yang sedang login
     Route::get('/api/auth/me', [AuthController::class, 'me'])->name('api.auth.me');
+});
+
+// Routes untuk Admin Only (bukan timdis)
+Route::middleware(['auth', 'role:admin'])->group(function () {
+    // Settings RTSP (Admin Only)
+    Route::post('/api/settings/rtsp', [AdminController::class, 'saveRtspSettings']);
+    // Settings YOLO (Admin Only)
+    Route::post('/api/settings/yolo', [AdminController::class, 'saveYoloSettings']);
 });
 
 // Routes untuk Mahasiswa (hanya role mahasiswa)
