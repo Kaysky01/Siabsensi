@@ -101,7 +101,7 @@ class Mahasiswa extends Model
         if (!$attendance) {
             return [
                 'status' => 'pending',
-                'message' => 'Belum absen hari ini',
+                'message' => 'Belum diabsen oleh admin',
                 'has_attended' => false
             ];
         }
@@ -111,7 +111,7 @@ class Mahasiswa extends Model
             'message' => $attendance->status === 'alpha' 
                 ? 'Alpha (tidak hadir)' 
                 : ($attendance->status === 'hadir' || $attendance->status === 'present' 
-                    ? 'Hadir' 
+                    ? 'Hadir via QR Scan' 
                     : 'Izin/Sakit'),
             'has_attended' => in_array($attendance->status, ['hadir', 'present', 'izin']),
             'check_in' => $attendance->check_in,

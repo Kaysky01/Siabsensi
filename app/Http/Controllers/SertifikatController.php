@@ -308,41 +308,55 @@ class SertifikatController extends Controller
         $imagePath = public_path('static/img/sertifikat.png');
 
         if (!is_file($imagePath)) {
-            abort(500, 'Template sertifikat tidak ditemukan');
+            abort(500, 'Template sertifikat tidak ditemukan di: ' . $imagePath);
         }
 
-        $image = imagecreatefrompng($imagePath);
+        // Bersihkan buffer yang ada sebelum mulai
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        $image = @imagecreatefrompng($imagePath); // @ untuk suppress warning ke buffer
         if (!$image) {
-            abort(500, 'Template sertifikat tidak dapat dibaca');
+            abort(500, 'Gagal membaca template PNG. Pastikan file valid.');
         }
 
         imagesavealpha($image, true);
 
-        $width = imagesx($image);
+        $width  = imagesx($image);
         $height = imagesy($image);
-        $name = mb_strtoupper($rawStudentName, 'UTF-8');
+        $name   = mb_strtoupper($rawStudentName, 'UTF-8');
+
         $fontPath = $this->getCertificateFontPath();
         $fontSize = strlen($rawStudentName) > 32 ? 48 : (strlen($rawStudentName) > 24 ? 58 : 68);
-        $color = imagecolorallocate($image, 13, 59, 102);
+        $color    = imagecolorallocate($image, 13, 59, 102);
 
         if ($fontPath) {
-            $box = imagettfbbox($fontSize, 0, $fontPath, $name);
+            $box       = imagettfbbox($fontSize, 0, $fontPath, $name);
             $textWidth = abs($box[2] - $box[0]);
-            $x = (int) (($width - $textWidth) / 2);
-            $y = (int) ($height * 0.49);
+            $x         = (int)(($width - $textWidth) / 2);
+            $y         = (int)($height * 0.49);
             imagettftext($image, $fontSize, 0, $x, $y, $color, $fontPath, $name);
         } else {
-            $font = 5;
+            // Fallback: gunakan font bawaan GD
+            $font      = 5;
             $textWidth = imagefontwidth($font) * strlen($name);
-            $x = (int) (($width - $textWidth) / 2);
-            $y = (int) ($height * 0.46);
+            $x         = (int)(($width - $textWidth) / 2);
+            $y         = (int)($height * 0.46);
             imagestring($image, $font, $x, $y, $name, $color);
         }
 
-        ob_start();
-        imagepng($image);
-        $pngContent = ob_get_clean();
+        // Tulis langsung ke file temp, hindari ob conflict
+        $tmpFile = tempnam(sys_get_temp_dir(), 'sertifikat_') . '.png';
+        imagepng($image, $tmpFile);
         imagedestroy($image);
+
+        $pngContent = file_get_contents($tmpFile);
+        @unlink($tmpFile); // Hapus file temp
+
+        if (!$pngContent || strlen($pngContent) < 100) {
+            abort(500, 'Gagal menghasilkan PNG. Output kosong atau terlalu kecil.');
+        }
 
         return $pngContent;
     }
