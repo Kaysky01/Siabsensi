@@ -865,7 +865,7 @@
   </div>
 
   <!-- Mahasiswa Portal Script -->
-  <script src="{{ asset('static/js/mahasiswa.js?v=8') }}"></script>
+  <script src="{{ asset('static/js/mahasiswa.js?v=9') }}"></script>
 
 </body>
 

@@ -640,8 +640,8 @@ async function loadTodayAttendanceStatus(mahasiswaId) {
             <div style="display:flex;align-items:center;gap:8px;padding:12px;background:var(--warning-light);border:1px solid var(--warning);border-radius:var(--radius-md)">
               <span class="material-symbols-outlined" style="color:var(--warning);font-size:20px">schedule</span>
               <div>
-                <div style="font-weight:600;color:var(--text)">Belum Absen</div>
-                <div style="font-size:12px;color:var(--text-muted)">Silakan absen hari ini</div>
+                <div style="font-weight:600;color:var(--text)">Belum Diabsen</div>
+                <div style="font-size:12px;color:var(--text-muted)">Menunggu admin scan QR</div>
               </div>
             </div>
           `;
@@ -661,7 +661,7 @@ async function loadTodayAttendanceStatus(mahasiswaId) {
               <span class="material-symbols-outlined" style="color:var(--success);font-size:20px">check_circle</span>
               <div>
                 <div style="font-weight:600;color:var(--text)">Hadir</div>
-                <div style="font-size:12px;color:var(--text-muted)">Sudah absen hari ini</div>
+                <div style="font-size:12px;color:var(--text-muted)">Sudah diabsen oleh admin</div>
               </div>
             </div>
           `;
