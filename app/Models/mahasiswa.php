@@ -89,4 +89,33 @@ class Mahasiswa extends Model
         
         return $persentase >= 80;
     }
+
+    public function getTodayAttendanceStatus()
+    {
+        $today = Carbon::today()->format('Y-m-d');
+        
+        $attendance = $this->attendances()
+            ->where('date', $today)
+            ->first();
+        
+        if (!$attendance) {
+            return [
+                'status' => 'pending',
+                'message' => 'Belum absen hari ini',
+                'has_attended' => false
+            ];
+        }
+        
+        return [
+            'status' => $attendance->status,
+            'message' => $attendance->status === 'alpha' 
+                ? 'Alpha (tidak hadir)' 
+                : ($attendance->status === 'hadir' || $attendance->status === 'present' 
+                    ? 'Hadir' 
+                    : 'Izin/Sakit'),
+            'has_attended' => in_array($attendance->status, ['hadir', 'present', 'izin']),
+            'check_in' => $attendance->check_in,
+            'check_out' => $attendance->check_out
+        ];
+    }
 }

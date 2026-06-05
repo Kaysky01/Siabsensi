@@ -105,6 +105,9 @@
       <!-- ===== SECTION: DASHBOARD ===== -->
       <section id="section-dashboard">
         
+        <!-- Today's Attendance Status -->
+        <div id="today-attendance-status" style="margin-bottom:20px"></div>
+        
         <!-- Dashboard Statistics -->
         <div id="dashboard-stats" style="display:none">
           <!-- Stats Cards Grid -->
@@ -571,9 +574,6 @@
                 Sertifikat akan digenerate untuk periode 1 minggu (Senin - Minggu)
               </div>
             </div>
-                <!-- Will be populated by JS -->
-              </select>
-            </div>
 
             <div id="periode-custom" style="display:none">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -586,15 +586,6 @@
                   <input type="date" id="sertifikat-end-date" class="form-input">
                 </div>
               </div>
-            </div>
-
-            <div class="form-row">
-              <label class="form-label">Template Sertifikat</label>
-              <select id="sertifikat-template" class="form-input">
-                <option value="formal">Formal - Resmi</option>
-                <option value="modern">Modern - Minimalis</option>
-                <option value="classic">Klasik - Tradisional</option>
-              </select>
             </div>
 
             <!-- Preview Statistik -->
@@ -626,20 +617,16 @@
             </div>
 
             <div class="btn-group" style="margin-top:20px">
-              <button class="btn btn-primary" onclick="generateSertifikat()">
-                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span>
-                Generate & Download Sertifikat
-              </button>
-              <button class="btn btn-ghost" onclick="previewSertifikat()">
+              <button class="btn btn-primary" onclick="openSertifikatPreviewModal(event)">
                 <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">preview</span>
-                Preview
+                Preview Sertifikat
               </button>
             </div>
           </div>
         </div>
 
         <!-- Riwayat Sertifikat -->
-        <div class="panel">
+        <div class="panel" id="sertifikat-history-panel" style="display:none">
           <div class="section-header">
             <div class="section-title">
               <span class="material-symbols-outlined">history</span>
@@ -652,7 +639,6 @@
               <tr>
                 <th>Tanggal Generate</th>
                 <th>Periode</th>
-                <th>Template</th>
                 <th>Total Hadir</th>
                 <th>Persentase</th>
                 <th>Aksi</th>
@@ -660,7 +646,7 @@
             </thead>
             <tbody id="sertifikat-history-table">
               <tr>
-                <td colspan="6" style="text-align:center;color:var(--muted);padding:30px">
+                <td colspan="5" style="text-align:center;color:var(--muted);padding:30px">
                   Pilih mahasiswa untuk melihat riwayat
                 </td>
               </tr>
@@ -680,6 +666,22 @@
       </div>
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="closeModal('modal-bukti')">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal-sertifikat-preview">
+    <div class="modal" style="max-width:1100px">
+      <div class="modal-title">Preview Sertifikat</div>
+      <div style="margin-top:16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;overflow:auto">
+        <img id="sertifikat-preview-image" src="" alt="Preview Sertifikat" style="width:100%;display:block;border-radius:var(--radius-sm)">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btn-download-sertifikat-preview" onclick="downloadSertifikatFromPreview(event)">
+          <span class="material-symbols-outlined" style="font-size:16px">download</span>
+          Download PNG
+        </button>
+        <button class="btn btn-ghost" onclick="closeSertifikatPreviewModal()">Close</button>
       </div>
     </div>
   </div>
@@ -863,71 +865,7 @@
   </div>
 
   <!-- Mahasiswa Portal Script -->
-  <script src="{{ asset('static/js/mahasiswa.js?v=4') }}"></script>
-  <script>
-    // Handle sertifikat periode changes
-    document.getElementById('sertifikat-periode').addEventListener('change', function() {
-      const periode = this.value;
-      
-      // Hide all periode options
-      document.getElementById('periode-monthly').style.display = 'none';
-      document.getElementById('periode-semester').style.display = 'none';
-      document.getElementById('periode-yearly').style.display = 'none';
-      document.getElementById('periode-custom').style.display = 'none';
-      
-      // Show selected periode option
-      if (periode === 'monthly') {
-        document.getElementById('periode-monthly').style.display = 'block';
-      } else if (periode === 'semester') {
-        document.getElementById('periode-semester').style.display = 'block';
-      } else if (periode === 'yearly') {
-        document.getElementById('periode-yearly').style.display = 'block';
-      } else if (periode === 'custom') {
-        document.getElementById('periode-custom').style.display = 'block';
-      }
-      
-      // Update preview if mahasiswa selected
-      if (document.getElementById('sertifikat-mahasiswa-select').value) {
-        updateSertifikatPreview();
-      }
-    });
-
-    // Populate year dropdowns
-    function populateYearDropdowns() {
-      const currentYear = new Date().getFullYear();
-      const years = [];
-      for (let i = currentYear; i >= currentYear - 5; i--) {
-        years.push(i);
-      }
-      
-      const yearSelects = [
-        'sertifikat-tahun-monthly',
-        'sertifikat-tahun-semester', 
-        'sertifikat-tahun-yearly'
-      ];
-      
-      yearSelects.forEach(selectId => {
-        const select = document.getElementById(selectId);
-        select.innerHTML = '';
-        years.forEach(year => {
-          const option = document.createElement('option');
-          option.value = year;
-          option.textContent = year;
-          if (year === currentYear) option.selected = true;
-          select.appendChild(option);
-        });
-      });
-    }
-
-    // Initialize on page load
-    document.addEventListener('DOMContentLoaded', function() {
-      populateYearDropdowns();
-      
-      // Set current month as default
-      const currentMonth = String(new Date().getMonth() + 1).padStart(2, '0');
-      document.getElementById('sertifikat-bulan').value = currentMonth;
-    });
-  </script>
+  <script src="{{ asset('static/js/mahasiswa.js?v=8') }}"></script>
 
 </body>
 

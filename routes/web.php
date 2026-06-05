@@ -47,6 +47,7 @@ Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
     Route::get('/api/mahasiswa/{id}/chart/weekly', [MahasiswaController::class, 'getWeeklyChart']);
     Route::get('/api/mahasiswa/{id}/chart/monthly', [MahasiswaController::class, 'getMonthlyChart']);
     Route::get('/api/mahasiswa/{id}/activity', [MahasiswaController::class, 'getRecentActivity']);
+    Route::get('/api/mahasiswa/{id}/today-attendance', [MahasiswaController::class, 'getTodayAttendanceStatus']);
 
     // Rute untuk data mahasiswa
     Route::get('/api/mahasiswa/{id}', [MahasiswaController::class, 'getProfile']);
@@ -106,15 +107,13 @@ Route::middleware(['auth', 'role:admin,timdis'])->group(function () {
     Route::post('/api/cameras', [AdminController::class, 'storeCamera']);
     Route::put('/api/cameras/{id}', [AdminController::class, 'updateCamera']);
     Route::delete('/api/cameras/{id}', [AdminController::class, 'deleteCamera']);
-<<<<<<< HEAD
 
     // Sertifikat (Mahasiswa & Admin)
     Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview', [SertifikatController::class, 'preview']);
+    Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview-image', [SertifikatController::class, 'previewImage']);
     Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/generate', [SertifikatController::class, 'generate']);
     Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview-pdf', [SertifikatController::class, 'previewPdf']);
     Route::get('/api/mahasiswa/{mahasiswaId}/sertifikat/history', [SertifikatController::class, 'history']);
     Route::get('/api/sertifikat/download/{historyId}', [SertifikatController::class, 'download']);
 
-=======
->>>>>>> 20a364874d07570826e339a6e332bd7b73e7f536
 });

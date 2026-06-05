@@ -587,7 +587,9 @@ async function loadDashboardData() {
   const mahasiswaId = currentMahasiswa.id;
 
   try {
-    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/statistics`);
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/statistics`, {
+      credentials: 'include'
+    });
     
     // PENGAMAN: Jika API belum dibuat di Laravel (404), hentikan eksekusi chart di sini
     if (!res.ok) {
@@ -611,11 +613,64 @@ async function loadDashboardData() {
       loadAttendanceChart(mahasiswaId);
       loadMonthlyChart(mahasiswaId);
       loadRecentActivity(mahasiswaId);
+      loadTodayAttendanceStatus(mahasiswaId);
       
       document.getElementById('dashboard-stats').style.display = 'block';
     }
   } catch (e) {
     console.error('Error loading dashboard data:', e);
+  }
+}
+
+async function loadTodayAttendanceStatus(mahasiswaId) {
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/today-attendance`, {
+      credentials: 'include'
+    });
+    
+    const result = await res.json();
+    if (result.success) {
+      const status = result.data;
+      const statusElement = document.getElementById('today-attendance-status');
+      
+      if (statusElement) {
+        let statusHtml = '';
+        if (status.status === 'pending') {
+          statusHtml = `
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:var(--warning-light);border:1px solid var(--warning);border-radius:var(--radius-md)">
+              <span class="material-symbols-outlined" style="color:var(--warning);font-size:20px">schedule</span>
+              <div>
+                <div style="font-weight:600;color:var(--text)">Belum Absen</div>
+                <div style="font-size:12px;color:var(--text-muted)">Silakan absen hari ini</div>
+              </div>
+            </div>
+          `;
+        } else if (status.status === 'alpha') {
+          statusHtml = `
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:var(--danger-light);border:1px solid var(--danger);border-radius:var(--radius-md)">
+              <span class="material-symbols-outlined" style="color:var(--danger);font-size:20px">cancel</span>
+              <div>
+                <div style="font-weight:600;color:var(--text)">Alpha</div>
+                <div style="font-size:12px;color:var(--text-muted)">Tidak hadir hari ini</div>
+              </div>
+            </div>
+          `;
+        } else {
+          statusHtml = `
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:var(--success-light);border:1px solid var(--success);border-radius:var(--radius-md)">
+              <span class="material-symbols-outlined" style="color:var(--success);font-size:20px">check_circle</span>
+              <div>
+                <div style="font-weight:600;color:var(--text)">Hadir</div>
+                <div style="font-size:12px;color:var(--text-muted)">Sudah absen hari ini</div>
+              </div>
+            </div>
+          `;
+        }
+        statusElement.innerHTML = statusHtml;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading today attendance status:', e);
   }
 }
 
@@ -774,12 +829,37 @@ function getActivityIcon(type) {
 }
 
 // ─── Sertifikat Functions ────────────────────────────────────────────────
+function isSertifikatWeekend(date = new Date()) {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function setSertifikatHistoryVisibility() {
+  const panel = document.getElementById('sertifikat-history-panel');
+  if (!panel) return;
+
+  panel.style.display = isSertifikatWeekend() ? 'block' : 'none';
+}
+
+function toggleSertifikatPeriodeFields(selected) {
+  ['weekly', 'monthly', 'semester', 'yearly', 'custom'].forEach(type => {
+    const element = document.getElementById(`periode-${type}`);
+    if (element) {
+      element.style.display = selected === type ? 'block' : 'none';
+    }
+  });
+}
+
 async function loadSertifikatData() {
   if (!currentMahasiswa) return;
   
   document.getElementById('sertifikat-options').style.display = 'block';
+  setSertifikatHistoryVisibility();
   updateSertifikatPreview();
-  loadSertifikatHistory(currentMahasiswa.id);
+
+  if (isSertifikatWeekend()) {
+    loadSertifikatHistory(currentMahasiswa.id);
+  }
 }
 
 async function updateSertifikatPreview() {
@@ -793,12 +873,13 @@ async function updateSertifikatPreview() {
     const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(periode)
     });
     
     const result = await res.json();
     if (result.success) {
-      const stats = result.data;
+      const stats = result.data || result.stats || {};
       document.getElementById('preview-total-hadir').textContent = stats.totalHadir || 0;
       document.getElementById('preview-persentase').textContent = `${stats.persentase || 0}%`;
       document.getElementById('preview-total-izin').textContent = stats.totalIzin || 0;
@@ -815,6 +896,10 @@ function getSertifikatPeriode() {
   const periodeType = document.getElementById('sertifikat-periode').value;
   
   switch (periodeType) {
+    case 'weekly':
+      return {
+        type: 'weekly'
+      };
     case 'monthly':
       return {
         type: 'monthly',
@@ -843,94 +928,133 @@ function getSertifikatPeriode() {
   }
 }
 
-async function generateSertifikat() {
+let sertifikatPreviewObjectUrl = null;
+
+function getSertifikatPayload() {
+  const periode = getSertifikatPeriode();
+  return periode ? { ...periode } : null;
+}
+
+async function openSertifikatPreviewModal(event) {
   if (!currentMahasiswa) {
     toast('Error: Data mahasiswa tidak ditemukan', '', true);
     return;
   }
   
   const mahasiswaId = currentMahasiswa.id;
-  const template = document.getElementById('sertifikat-template').value;
-  const periode = getSertifikatPeriode();
+  const payload = getSertifikatPayload();
   
-  if (!periode) {
+  if (!payload) {
     toast('Lengkapi periode', 'Pilih periode sertifikat', true);
     return;
   }
   
-  const btn = event.target;
+  const btn = event.currentTarget || event.target;
   btn.classList.add('btn-loading');
   btn.disabled = true;
   
   try {
-    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/generate`, {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/preview-image`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...periode, template })
+      credentials: 'include',
+      body: JSON.stringify(payload)
     });
     
     if (res.ok) {
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `sertifikat_${mahasiswaId}_${Date.now()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      toast('Sertifikat berhasil diunduh', 'File PDF telah disimpan');
-      loadSertifikatHistory(mahasiswaId);
+      if (sertifikatPreviewObjectUrl) {
+        window.URL.revokeObjectURL(sertifikatPreviewObjectUrl);
+      }
+      sertifikatPreviewObjectUrl = window.URL.createObjectURL(blob);
+      document.getElementById('sertifikat-preview-image').src = sertifikatPreviewObjectUrl;
+      document.getElementById('modal-sertifikat-preview').classList.add('show');
     } else {
       const result = await res.json();
-      toast('Gagal generate sertifikat', result.message || 'Terjadi kesalahan', true);
+      toast('Gagal memuat preview sertifikat', result.message || 'Terjadi kesalahan', true);
     }
   } catch (e) {
-    console.error('Error generating sertifikat:', e);
-    toast('Gagal generate sertifikat', 'Pastikan server berjalan', true);
+    console.error('Error previewing sertifikat:', e);
+    toast('Gagal memuat preview sertifikat', 'Pastikan server berjalan', true);
   } finally {
     btn.classList.remove('btn-loading');
     btn.disabled = false;
   }
 }
 
-async function previewSertifikat() {
-  if (!currentMahasiswa) return;
-  
-  const mahasiswaId = currentMahasiswa.id;
-  const template = document.getElementById('sertifikat-template').value;
-  const periode = getSertifikatPeriode();
-  
-  if (!periode) {
-    toast('Lengkapi semua field', 'Pilih mahasiswa dan periode', true);
+function closeSertifikatPreviewModal() {
+  document.getElementById('modal-sertifikat-preview').classList.remove('show');
+  document.getElementById('sertifikat-preview-image').src = '';
+
+  if (sertifikatPreviewObjectUrl) {
+    window.URL.revokeObjectURL(sertifikatPreviewObjectUrl);
+    sertifikatPreviewObjectUrl = null;
+  }
+}
+
+async function downloadSertifikatFromPreview(event) {
+  if (!currentMahasiswa) {
+    toast('Error: Data mahasiswa tidak ditemukan', '', true);
     return;
   }
-  
+
+  const mahasiswaId = currentMahasiswa.id;
+  const payload = getSertifikatPayload();
+
+  if (!payload) {
+    toast('Lengkapi periode', 'Pilih periode sertifikat', true);
+    return;
+  }
+
+  const btn = event.currentTarget || event.target;
+  btn.classList.add('btn-loading');
+  btn.disabled = true;
+
   try {
-    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/preview-pdf`, {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...periode, template })
+      credentials: 'include',
+      body: JSON.stringify(payload)
     });
-    
+
     if (res.ok) {
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sertifikat_${mahasiswaId}_${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast('Sertifikat berhasil diunduh', 'File PNG telah disimpan');
+      closeSertifikatPreviewModal();
+      loadSertifikatHistory(mahasiswaId);
     } else {
       const result = await res.json();
-      toast('Gagal preview sertifikat', result.message || 'Terjadi kesalahan', true);
+      toast('Gagal download sertifikat', result.message || 'Terjadi kesalahan', true);
     }
   } catch (e) {
-    console.error('Error previewing sertifikat:', e);
-    toast('Gagal preview sertifikat', 'Pastikan server berjalan', true);
+    console.error('Error downloading sertifikat:', e);
+    toast('Gagal download sertifikat', 'Pastikan server berjalan', true);
+  } finally {
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
   }
 }
 
 async function loadSertifikatHistory(mahasiswaId) {
+  if (!isSertifikatWeekend()) {
+    setSertifikatHistoryVisibility();
+    return;
+  }
+
   try {
-    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/history`);
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/history`, {
+      credentials: 'include'
+    });
     const result = await res.json();
     
     if (result.success) {
@@ -945,7 +1069,7 @@ function renderSertifikatHistory(history) {
   const tbody = document.getElementById('sertifikat-history-table');
   
   if (history.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Belum ada sertifikat yang diunduh</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada sertifikat yang diunduh</td></tr>';
     return;
   }
   
@@ -953,7 +1077,6 @@ function renderSertifikatHistory(history) {
     <tr>
       <td>${formatDateTime(item.created_at)}</td>
       <td>${formatPeriode(item.periode)}</td>
-      <td><span class="badge">${item.template}</span></td>
       <td>${item.total_hadir}</td>
       <td>${item.persentase}%</td>
       <td>
@@ -966,8 +1089,18 @@ function renderSertifikatHistory(history) {
 }
 
 function formatPeriode(periode) {
-  const p = JSON.parse(periode);
+  if (!periode) return '-';
+
+  let p = null;
+  try {
+    p = JSON.parse(periode);
+  } catch (e) {
+    return periode;
+  }
+
   switch (p.type) {
+    case 'weekly':
+      return 'Mingguan';
     case 'monthly':
       return `${getMonthName(p.month)} ${p.year}`;
     case 'semester':
@@ -992,13 +1125,15 @@ function getMonthName(month) {
 
 async function downloadSertifikatHistory(historyId) {
   try {
-    const res = await fetch(`${API}/sertifikat/download/${historyId}`);
+    const res = await fetch(`${API}/sertifikat/download/${historyId}`, {
+      credentials: 'include'
+    });
     if (res.ok) {
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `sertifikat_${historyId}.pdf`;
+      a.download = `sertifikat_${historyId}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1315,6 +1450,13 @@ function showSection(sectionName) {
       element.style.display = 'none';
     }
   });
+
+  if (sectionName !== 'sertifikat') {
+    const sertifikatHistoryPanel = document.getElementById('sertifikat-history-panel');
+    if (sertifikatHistoryPanel) {
+      sertifikatHistoryPanel.style.display = 'none';
+    }
+  }
   
   // Remove active class from all nav items
   document.querySelectorAll('.nav-item').forEach(item => {
@@ -1517,24 +1659,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const periodeSelect = document.getElementById('sertifikat-periode');
   if (periodeSelect) {
     periodeSelect.addEventListener('change', function() {
-      // Hide all periode options
-      document.getElementById('periode-monthly').style.display = 'none';
-      document.getElementById('periode-semester').style.display = 'none';
-      document.getElementById('periode-yearly').style.display = 'none';
-      document.getElementById('periode-custom').style.display = 'none';
-      
-      // Show selected periode option
-      const selected = this.value;
-      if (selected === 'monthly') {
-        document.getElementById('periode-monthly').style.display = 'block';
-      } else if (selected === 'semester') {
-        document.getElementById('periode-semester').style.display = 'block';
-      } else if (selected === 'yearly') {
-        document.getElementById('periode-yearly').style.display = 'block';
-      } else if (selected === 'custom') {
-        document.getElementById('periode-custom').style.display = 'block';
-      }
-      
+      toggleSertifikatPeriodeFields(this.value);
       updateSertifikatPreview();
     });
     

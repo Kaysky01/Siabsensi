@@ -69,12 +69,15 @@ class SertifikatController extends Controller
             ->where('status', 'izin')
             ->count();
 
+        $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
+
         return response()->json([
             'success' => true,
-            'stats' => [
+            'data' => [
                 'totalHadir' => $attendanceCount,
                 'totalIzin' => $izinCount,
                 'totalHari' => $totalDays,
+                'persentase' => $persentase,
                 'alphaCount' => $alphaCount,
                 'canGetCertificate' => $canGetCertificate
             ]
@@ -102,7 +105,6 @@ class SertifikatController extends Controller
         }
 
         $periode = $request->input();
-        $template = $request->input('template', 'default');
         $startDate = null;
         $endDate = null;
 
@@ -162,20 +164,19 @@ class SertifikatController extends Controller
         $sertifikat = SertifikatHistory::create([
             'mahasiswa_id' => $mahasiswa->id,
             'periode' => "{$startDate} s/d {$endDate}",
-            'template' => $template,
+            'template' => 'sertifikat',
             'total_hadir' => $attendanceCount,
             'persentase' => $persentase
         ]);
 
-        // Generate simple PDF content (placeholder)
-        $htmlContent = $this->generateCertificateHtml($mahasiswa, $startDate, $endDate, $attendanceCount, $persentase, $template);
+        $pngContent = $this->generateCertificatePng($mahasiswa);
 
-        return response($htmlContent)
-            ->header('Content-Type', 'text/html')
-            ->header('Content-Disposition', 'attachment; filename="sertifikat_' . $mahasiswa->id . '_' . time() . '.html"');
+        return response($pngContent)
+            ->header('Content-Type', 'image/png')
+            ->header('Content-Disposition', 'attachment; filename="sertifikat_' . $mahasiswa->id . '_' . time() . '.png"');
     }
 
-    public function previewPdf(Request $request, $mahasiswaId)
+    public function previewImage(Request $request, $mahasiswaId)
     {
         $user = Auth::user();
         
@@ -196,7 +197,6 @@ class SertifikatController extends Controller
         }
 
         $periode = $request->input();
-        $template = $request->input('template', 'default');
         $startDate = null;
         $endDate = null;
 
@@ -237,11 +237,16 @@ class SertifikatController extends Controller
         
         $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
 
-        $htmlContent = $this->generateCertificateHtml($mahasiswa, $startDate, $endDate, $attendanceCount, $persentase, $template);
+        $pngContent = $this->generateCertificatePng($mahasiswa);
 
-        return response($htmlContent)
-            ->header('Content-Type', 'text/html')
-            ->header('Content-Disposition', 'inline; filename="sertifikat_preview.html"');
+        return response($pngContent)
+            ->header('Content-Type', 'image/png')
+            ->header('Content-Disposition', 'inline; filename="sertifikat_preview.png"');
+    }
+
+    public function previewPdf(Request $request, $mahasiswaId)
+    {
+        return $this->previewImage($request, $mahasiswaId);
     }
 
     public function history(Request $request, $mahasiswaId)
@@ -290,125 +295,74 @@ class SertifikatController extends Controller
         $startDate = $matches[1] ?? null;
         $endDate = $matches[2] ?? null;
 
-        $htmlContent = $this->generateCertificateHtml($mahasiswa, $startDate, $endDate, $sertifikat->total_hadir, $sertifikat->persentase, $sertifikat->template);
+        $pngContent = $this->generateCertificatePng($mahasiswa);
 
-        return response($htmlContent)
-            ->header('Content-Type', 'text/html')
-            ->header('Content-Disposition', 'attachment; filename="sertifikat_' . $historyId . '.html"');
+        return response($pngContent)
+            ->header('Content-Type', 'image/png')
+            ->header('Content-Disposition', 'attachment; filename="sertifikat_' . $historyId . '.png"');
     }
 
-    private function generateCertificateHtml($mahasiswa, $startDate, $endDate, $attendanceCount, $persentase, $template)
+    private function generateCertificatePng($mahasiswa)
     {
-        // Format dates for display
-        $startDateFormatted = date('d F Y', strtotime($startDate));
-        $endDateFormatted = date('d F Y', strtotime($endDate));
-        
-        // Get the full URL for the background image
-        $imageUrl = asset('static/img/serifikat.png');
+        $rawStudentName = trim($mahasiswa->name ?? '');
+        $imagePath = public_path('static/img/sertifikat.png');
 
-        $html = "
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset='UTF-8'>
-            <title>Sertifikat Kehadiran</title>
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: 'Times New Roman', serif; 
-                    background: #f0f0f0; 
-                    display: flex; 
-                    justify-content: center; 
-                    align-items: center; 
-                    min-height: 100vh;
-                    padding: 20px;
-                }
-                .certificate-container {
-                    position: relative;
-                    width: 100%;
-                    max-width: 1123px;
-                    aspect-ratio: 1.414;
-                    background-image: url('{$imageUrl}');
-                    background-size: cover;
-                    background-position: center;
-                    background-repeat: no-repeat;
-                }
-                .certificate-content {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    align-items: center;
-                    padding: 40px;
-                }
-                .student-name {
-                    font-size: 32px;
-                    font-weight: bold;
-                    text-align: center;
-                    margin: 20px 0;
-                    text-transform: uppercase;
-                    letter-spacing: 2px;
-                }
-                .student-details {
-                    font-size: 18px;
-                    text-align: center;
-                    margin: 10px 0;
-                    line-height: 1.8;
-                }
-                .student-details strong {
-                    font-weight: bold;
-                }
-                .attendance-info {
-                    font-size: 20px;
-                    text-align: center;
-                    margin: 30px 0;
-                    font-weight: bold;
-                }
-                .signature-section {
-                    position: absolute;
-                    bottom: 80px;
-                    right: 100px;
-                    text-align: center;
-                }
-                .signature-line {
-                    border-top: 2px solid #000;
-                    width: 200px;
-                    margin-top: 60px;
-                }
-                @media print {
-                    body { background: white; }
-                    .certificate-container { box-shadow: none; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class='certificate-container'>
-                <div class='certificate-content'>
-                    <div class='student-name'>{$mahasiswa->name}</div>
-                    <div class='student-details'>
-                        <strong>NIM:</strong> {$mahasiswa->id}<br>
-                        <strong>Kelompok:</strong> {$mahasiswa->kelompok}<br>
-                        <strong>Jurusan:</strong> {$mahasiswa->jurusan}
-                    </div>
-                    <div class='attendance-info'>
-                        Telah mengikuti kegiatan PKKMB 2026<br>
-                        Periode: {$startDateFormatted} s/d {$endDateFormatted}<br>
-                        Total Kehadiran: {$attendanceCount} hari ({$persentase}%)
-                    </div>
-                </div>
-                <div class='signature-section'>
-                    <p>Panitia PKKMB 2026</p>
-                    <div class='signature-line'></div>
-                </div>
-            </div>
-        </body>
-        </html>
-        ";
+        if (!is_file($imagePath)) {
+            abort(500, 'Template sertifikat tidak ditemukan');
+        }
 
-        return $html;
+        $image = imagecreatefrompng($imagePath);
+        if (!$image) {
+            abort(500, 'Template sertifikat tidak dapat dibaca');
+        }
+
+        imagesavealpha($image, true);
+
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $name = mb_strtoupper($rawStudentName, 'UTF-8');
+        $fontPath = $this->getCertificateFontPath();
+        $fontSize = strlen($rawStudentName) > 32 ? 48 : (strlen($rawStudentName) > 24 ? 58 : 68);
+        $color = imagecolorallocate($image, 13, 59, 102);
+
+        if ($fontPath) {
+            $box = imagettfbbox($fontSize, 0, $fontPath, $name);
+            $textWidth = abs($box[2] - $box[0]);
+            $x = (int) (($width - $textWidth) / 2);
+            $y = (int) ($height * 0.49);
+            imagettftext($image, $fontSize, 0, $x, $y, $color, $fontPath, $name);
+        } else {
+            $font = 5;
+            $textWidth = imagefontwidth($font) * strlen($name);
+            $x = (int) (($width - $textWidth) / 2);
+            $y = (int) ($height * 0.46);
+            imagestring($image, $font, $x, $y, $name, $color);
+        }
+
+        ob_start();
+        imagepng($image);
+        $pngContent = ob_get_clean();
+        imagedestroy($image);
+
+        return $pngContent;
+    }
+
+    private function getCertificateFontPath()
+    {
+        $candidates = [
+            public_path('static/fonts/Georgia-Bold.ttf'),
+            'C:\\Windows\\Fonts\\georgiab.ttf',
+            'C:\\Windows\\Fonts\\georgia.ttf',
+            'C:\\Windows\\Fonts\\timesbd.ttf',
+            'C:\\Windows\\Fonts\\times.ttf',
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 }

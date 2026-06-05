@@ -216,6 +216,24 @@ class MahasiswaController extends Controller
             'message' => 'Profil berhasil diperbarui'
         ]);
 
-        
+    }
+
+    public function getTodayAttendanceStatus($id)
+    {
+        $mahasiswa = Mahasiswa::find($id);
+
+        if (!$mahasiswa) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mahasiswa tidak ditemukan'
+            ], 404);
+        }
+
+        $status = $mahasiswa->getTodayAttendanceStatus();
+
+        return response()->json([
+            'success' => true,
+            'data' => $status
+        ]);
     }
 }
