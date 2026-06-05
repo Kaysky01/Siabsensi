@@ -178,70 +178,77 @@ class SertifikatController extends Controller
 
     public function previewImage(Request $request, $mahasiswaId)
     {
-        $user = Auth::user();
-        
-        if ($user->role !== 'admin' && $user->mahasiswa_id != $mahasiswaId) {
+        try {
+            $user = Auth::user();
+            
+            if ($user->role !== 'admin' && $user->mahasiswa_id != $mahasiswaId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak'
+                ], 403);
+            }
+
+            $mahasiswa = Mahasiswa::find($mahasiswaId);
+            
+            if (!$mahasiswa) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mahasiswa tidak ditemukan'
+                ], 404);
+            }
+
+            $periode = $request->input();
+            $startDate = null;
+            $endDate = null;
+
+            // Default to weekly period (1 week)
+            if (isset($periode['type']) && $periode['type'] === 'weekly') {
+                $startDate = Carbon::now()->startOfWeek()->format('Y-m-d');
+                $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
+            } elseif (isset($periode['type']) && $periode['type'] === 'custom') {
+                $startDate = $periode['startDate'];
+                $endDate = $periode['endDate'];
+            } elseif (isset($periode['type']) && $periode['type'] === 'monthly') {
+                $month = $periode['month'];
+                $year = $periode['year'];
+                $startDate = Carbon::create($year, $month, 1)->format('Y-m-d');
+                $endDate = Carbon::create($year, $month, 1)->endOfMonth()->format('Y-m-d');
+            } elseif (isset($periode['type']) && $periode['type'] === 'yearly') {
+                $year = $periode['year'];
+                $startDate = Carbon::create($year, 1, 1)->format('Y-m-d');
+                $endDate = Carbon::create($year, 12, 31)->format('Y-m-d');
+            } else {
+                // Default to weekly if no type specified
+                $startDate = Carbon::now()->startOfWeek()->format('Y-m-d');
+                $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
+            }
+
+            if (!$startDate || !$endDate) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Periode tidak valid'
+                ], 400);
+            }
+
+            $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+            $attendanceCount = $mahasiswa->attendances()
+                ->whereBetween('date', [$startDate, $endDate])
+                ->whereIn('status', ['present', 'izin', 'hadir'])
+                ->count();
+            
+            $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
+
+            $pngContent = $this->generateCertificatePng($mahasiswa);
+
+            return response($pngContent)
+                ->header('Content-Type', 'image/png')
+                ->header('Content-Disposition', 'inline; filename="sertifikat_preview.png"');
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akses ditolak'
-            ], 403);
+                'message' => 'Gagal generate sertifikat: ' . $e->getMessage()
+            ], 500);
         }
-
-        $mahasiswa = Mahasiswa::find($mahasiswaId);
-        
-        if (!$mahasiswa) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Mahasiswa tidak ditemukan'
-            ], 404);
-        }
-
-        $periode = $request->input();
-        $startDate = null;
-        $endDate = null;
-
-        // Default to weekly period (1 week)
-        if (isset($periode['type']) && $periode['type'] === 'weekly') {
-            $startDate = Carbon::now()->startOfWeek()->format('Y-m-d');
-            $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
-        } elseif (isset($periode['type']) && $periode['type'] === 'custom') {
-            $startDate = $periode['startDate'];
-            $endDate = $periode['endDate'];
-        } elseif (isset($periode['type']) && $periode['type'] === 'monthly') {
-            $month = $periode['month'];
-            $year = $periode['year'];
-            $startDate = Carbon::create($year, $month, 1)->format('Y-m-d');
-            $endDate = Carbon::create($year, $month, 1)->endOfMonth()->format('Y-m-d');
-        } elseif (isset($periode['type']) && $periode['type'] === 'yearly') {
-            $year = $periode['year'];
-            $startDate = Carbon::create($year, 1, 1)->format('Y-m-d');
-            $endDate = Carbon::create($year, 12, 31)->format('Y-m-d');
-        } else {
-            // Default to weekly if no type specified
-            $startDate = Carbon::now()->startOfWeek()->format('Y-m-d');
-            $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
-        }
-
-        if (!$startDate || !$endDate) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Periode tidak valid'
-            ], 400);
-        }
-
-        $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
-        $attendanceCount = $mahasiswa->attendances()
-            ->whereBetween('date', [$startDate, $endDate])
-            ->whereIn('status', ['present', 'izin', 'hadir'])
-            ->count();
-        
-        $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
-
-        $pngContent = $this->generateCertificatePng($mahasiswa);
-
-        return response($pngContent)
-            ->header('Content-Type', 'image/png')
-            ->header('Content-Disposition', 'inline; filename="sertifikat_preview.png"');
     }
 
     public function previewPdf(Request $request, $mahasiswaId)
@@ -304,8 +311,9 @@ class SertifikatController extends Controller
 
     private function generateCertificatePng($mahasiswa)
     {
-        $rawStudentName = trim($mahasiswa->name ?? '');
-        $imagePath = public_path('static/img/sertifikat.png');
+        try {
+            $rawStudentName = trim($mahasiswa->name ?? '');
+            $imagePath = public_path('static/img/sertifikat.png');
 
         if (!is_file($imagePath)) {
             abort(500, 'Template sertifikat tidak ditemukan di: ' . $imagePath);
