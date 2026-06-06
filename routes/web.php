@@ -62,19 +62,25 @@ Route::get('/api/python/status', function () {
 
 Route::post('/api/python/detect', function (\Illuminate\Http\Request $request) {
     try {
-        $response = \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/detect', $request->all());
+        $response = \Illuminate\Support\Facades\Http::withHeaders([
+            'Content-Type' => 'application/json',
+            'X-CSRF-TOKEN' => $request->header('X-CSRF-TOKEN')
+        ])->post('http://127.0.0.1:5000/api/python/detect', $request->all());
         return response()->json($response->json(), $response->status());
     } catch (\Exception $e) {
-        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia'], 503);
+        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia: ' . $e->getMessage()], 503);
     }
 });
 
 Route::post('/api/python/attendance', function (\Illuminate\Http\Request $request) {
     try {
-        $response = \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/attendance', $request->all());
+        $response = \Illuminate\Support\Facades\Http::withHeaders([
+            'Content-Type' => 'application/json',
+            'X-CSRF-TOKEN' => $request->header('X-CSRF-TOKEN')
+        ])->post('http://127.0.0.1:5000/api/python/attendance', $request->all());
         return response()->json($response->json(), $response->status());
     } catch (\Exception $e) {
-        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia'], 503);
+        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia: ' . $e->getMessage()], 503);
     }
 });
 
@@ -116,6 +122,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/api/settings/rtsp', [AdminController::class, 'saveRtspSettings']);
     // Settings YOLO (Admin Only)
     Route::post('/api/settings/yolo', [AdminController::class, 'saveYoloSettings']);
+    Route::get('/api/settings/yolo', [AdminController::class, 'getYoloSettings']);
 });
 
 // Routes untuk Mahasiswa (hanya role mahasiswa)

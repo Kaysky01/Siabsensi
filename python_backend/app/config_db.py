@@ -8,7 +8,7 @@ MYSQL_CONFIG = {
     'port': int(os.getenv('DB_PORT', 3306)),
     'user': os.getenv('DB_USERNAME', 'root'),
     'password': os.getenv('DB_PASSWORD', ''),
-    'database': os.getenv('DB_DATABASE', 'siabsensi'),  # Default ke siabsen bukan laravel
+    'database': os.getenv('DB_DATABASE', 'siabsensi'),  # Default ke laravel
     'charset': 'utf8mb4',
     'collation': 'utf8mb4_unicode_ci'
 }
@@ -40,4 +40,14 @@ def load_rtsp_settings():
 
 YOLO_SETTINGS = load_yolo_settings()
 RTSP_SETTINGS = load_rtsp_settings()
+
+def reload_settings():
+    """Reload settings from JSON files"""
+    global YOLO_SETTINGS, RTSP_SETTINGS
+    YOLO_SETTINGS = load_yolo_settings()
+    RTSP_SETTINGS = load_rtsp_settings()
+    return {
+        'yolo_settings': YOLO_SETTINGS,
+        'rtsp_settings': RTSP_SETTINGS
+    }
 

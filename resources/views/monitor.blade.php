@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Monitor Absensi</title>
     <link rel="stylesheet" href="/static/css/monitor.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined">
@@ -51,7 +52,8 @@
                 <div class="stat-card">
                     <div class="stat-icon green">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 1 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
                         </svg>
                     </div>
                     <div>
@@ -62,7 +64,12 @@
                 <div class="stat-card">
                     <div class="stat-icon amber">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                            <path d="M3 3h6v6H3z"></path>
+                            <path d="M15 3h6v6h-6z"></path>
+                            <path d="M3 15h6v6H3z"></path>
+                            <path d="M15 15h3"></path>
+                            <path d="M18 18h3"></path>
+                            <path d="M15 21h6"></path>
                         </svg>
                     </div>
                     <div>
@@ -134,6 +141,17 @@
         </div>
     </div>
 
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="toast-notification">
+        <div class="toast-content">
+            <span class="material-symbols-outlined toast-icon">check_circle</span>
+            <div class="toast-message">
+                <div class="toast-title">Absensi Berhasil</div>
+                <div class="toast-text" id="toast-text">Mahasiswa berhasil check-in</div>
+            </div>
+        </div>
+    </div>
+
     <style>
         .audio-alert {
             position: fixed;
@@ -170,6 +188,47 @@
             border-radius: 8px;
             font-size: 16px;
             cursor: pointer;
+        }
+
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        }
+        .toast-notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .toast-content {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+        }
+        .toast-icon {
+            font-size: 24px;
+            color: #10b981;
+        }
+        .toast-message {
+            flex: 1;
+        }
+        .toast-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #1f2937;
+        }
+        .toast-text {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 2px;
         }
     </style>
 
