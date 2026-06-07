@@ -1,5 +1,5 @@
 {
     "model_path": "models\/yolov8n.pt",
     "confidence": 0.45,
-    "qr_cooldown": 30
+    "qr_cooldown": 15
 }

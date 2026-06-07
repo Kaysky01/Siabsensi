@@ -58,7 +58,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/hardware-absensi', 
             'api/sensor/*',
             'api/mahasiswa/*/sertifikat/*',
-            'api/sertifikat/*'
+            'api/sertifikat/*',
+            'api/python/detect',
+            'api/python/attendance'
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

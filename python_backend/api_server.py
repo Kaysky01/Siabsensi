@@ -84,40 +84,107 @@ def stream_camera(camera_id):
 def detect_qr():
     """Detect QR code from image"""
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            data = {}
         image_data = data.get('image')
         
         if not image_data:
             return jsonify({'success': False, 'message': 'No image data'}), 400
         
+        # Ekstrak base64 string dengan aman
+        if ',' in image_data:
+            image_str = image_data.split(',')[1]
+        else:
+            image_str = image_data
+            
         # Decode base64 image
-        image_bytes = base64.b64decode(image_data.split(',')[1])
+        import binascii
+        try:
+            image_bytes = base64.b64decode(image_str)
+        except binascii.Error:
+            return jsonify({'success': False, 'message': 'Invalid base64 encoding'}), 400
+            
         nparr = np.frombuffer(image_bytes, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
+        if frame is None:
+            return jsonify({'success': False, 'message': 'Failed to decode image into frame'}), 400
+            
         # QR detection
-        from pyzbar.pyzbar import decode as qr_decode
-        decoded_objects = qr_decode(frame)
-        
         results = []
-        for obj in decoded_objects:
-            results.append({
-                'data': obj.data.decode('utf-8'),
-                'type': obj.type,
-                'rect': {
-                    'left': obj.rect.left,
-                    'top': obj.rect.top,
-                    'width': obj.rect.width,
-                    'height': obj.rect.height
-                }
-            })
+        try:
+            from pyzbar.pyzbar import decode as qr_decode
+            
+            decoded_objects = qr_decode(frame)
+            
+            for obj in decoded_objects:
+                try:
+                    qr_text = obj.data.decode('utf-8')
+                except UnicodeDecodeError:
+                    qr_text = obj.data.decode('latin-1', errors='ignore')
+                    
+                results.append({
+                    'data': qr_text,
+                    'type': str(obj.type),
+                    'rect': {
+                        'left': obj.rect.left,
+                        'top': obj.rect.top,
+                        'width': obj.rect.width,
+                        'height': obj.rect.height
+                    }
+                })
+        except Exception as e_zbar:
+            # Fallback (Cadangan) ke OpenCV bawaan jika pyzbar bermasalah di Windows
+            try:
+                detector = cv2.QRCodeDetector()
+                
+                # Strategi 1: Coba dengan Frame Asli
+                data_qr, bbox, _ = detector.detectAndDecode(frame)
+                
+                # Strategi 2: Grayscale (meningkatkan kontras)
+                if not data_qr:
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    data_qr, bbox, _ = detector.detectAndDecode(gray)
+                    
+                # Strategi 3: Thresholding / Hitam-Putih Tegas (menghapus silau cahaya HP)
+                if not data_qr:
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+                    data_qr, bbox, _ = detector.detectAndDecode(thresh)
+                    
+                # Strategi 4: Upscaling / Diperbesar (jika jarak QR jauh atau resolusi webcame kecil)
+                if not data_qr:
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    resized = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_LINEAR)
+                    data_qr, bbox_res, _ = detector.detectAndDecode(resized)
+                    if data_qr and bbox_res is not None and len(bbox_res) > 0:
+                        bbox = bbox_res / 2.0  # Sesuaikan kembali skala bounding-box
+                
+                if data_qr and bbox is not None and len(bbox) > 0:
+                    pts = bbox[0]
+                    x_coords = [pt[0] for pt in pts]
+                    y_coords = [pt[1] for pt in pts]
+                    
+                    results.append({
+                        'data': data_qr,
+                        'type': 'QRCODE',
+                        'rect': {
+                            'left': int(min(x_coords)),
+                            'top': int(min(y_coords)),
+                            'width': int(max(x_coords) - min(x_coords)),
+                            'height': int(max(y_coords) - min(y_coords))
+                        }
+                    })
+            except Exception as e_cv2:
+                return jsonify({'success': False, 'message': f'QR Engine Error. zbar: {str(e_zbar)}, cv2: {str(e_cv2)}'}), 200
         
         return jsonify({
             'success': True,
             'results': results
         })
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({'success': False, 'message': str(e)}), 200
 
 @app.route('/api/python/attendance', methods=['POST'])
 def record_attendance():

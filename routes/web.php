@@ -62,7 +62,8 @@ Route::get('/api/python/status', function () {
 
 Route::post('/api/python/detect', function (\Illuminate\Http\Request $request) {
     try {
-        $response = \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/detect', $request->all());
+        // Forward raw body (mencegah memory limit pada base64 payload besar)
+        $response = \Illuminate\Support\Facades\Http::withBody($request->getContent(), 'application/json')->post('http://127.0.0.1:5000/api/python/detect');
         return response()->json($response->json(), $response->status());
     } catch (\Exception $e) {
         return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia'], 503);
@@ -71,10 +72,52 @@ Route::post('/api/python/detect', function (\Illuminate\Http\Request $request) {
 
 Route::post('/api/python/attendance', function (\Illuminate\Http\Request $request) {
     try {
-        $response = \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/attendance', $request->all());
-        return response()->json($response->json(), $response->status());
+        $mahasiswaId = $request->input('mahasiswa_id');
+        $status = $request->input('status', 'present');
+        
+        if (!$mahasiswaId) {
+            return response()->json(['success' => false, 'message' => 'Data mahasiswa_id tidak boleh kosong.'], 400);
+        }
+
+        // Cek apakah mahasiswa valid untuk menghindari Database Constraint Error (500)
+        $mahasiswa = \App\Models\Mahasiswa::find($mahasiswaId);
+        if (!$mahasiswa) {
+            return response()->json(['success' => false, 'message' => 'Mahasiswa tidak ditemukan di database.'], 404);
+        }
+
+        // Record attendance directly in Laravel
+        $attendance = \App\Models\Attendance::where('mahasiswa_id', $mahasiswaId)
+            ->where('date', \Carbon\Carbon::today()->format('Y-m-d'))
+            ->first();
+        
+        if ($attendance) {
+            // Update existing attendance
+            $attendance->update([
+                'status' => $status,
+                'check_in' => $attendance->check_in ?? \Carbon\Carbon::now()->toDateTimeString(),
+                'check_out' => $status === 'present' ? \Carbon\Carbon::now()->toDateTimeString() : null,
+            ]);
+        } else {
+            // Create new attendance
+            \App\Models\Attendance::create([
+                'mahasiswa_id' => $mahasiswaId,
+                'date' => \Carbon\Carbon::today()->format('Y-m-d'),
+                'status' => $status,
+                'check_in' => \Carbon\Carbon::now()->toDateTimeString(),
+                'check_out' => null,
+                'created_at' => \Carbon\Carbon::now()->toDateTimeString(),
+            ]);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Attendance recorded successfully'
+        ]);
     } catch (\Exception $e) {
-        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia'], 503);
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to record attendance: ' . $e->getMessage()
+        ], 500);
     }
 });
 
