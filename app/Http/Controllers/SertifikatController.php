@@ -367,6 +367,9 @@ class SertifikatController extends Controller
         }
 
         return $pngContent;
+        } catch (\Exception $e) {
+            abort(500, 'Gagal generate sertifikat: ' . $e->getMessage());
+        }
     }
 
     private function getCertificateFontPath()
