@@ -1,5 +1,5 @@
 const API_URL = '/api/monitor';
-const PYTHON_API_URL = '/api/python';
+const PYTHON_API_URL = 'http://127.0.0.1:5000/api/python';
 const COOLDOWN_MS = 60 * 60 * 1000; // 1 jam dalam milidetik
 const beepSound = new Audio('/static/sounds/beep.mp3'); // File harus ada di: static/sounds/beep.mp3
 
@@ -72,28 +72,40 @@ function startQRDetection(videoElement) {
             requestAnimationFrame(detectFrame);
             return;
         }
-        
+
+        // Check if video has valid dimensions
+        if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
+            requestAnimationFrame(detectFrame);
+            return;
+        }
+
         canvas.width = videoElement.videoWidth;
         canvas.height = videoElement.videoHeight;
         ctx.drawImage(videoElement, 0, 0);
-        
+
         // Convert to base64
-        const imageData = canvas.toDataURL('image/jpeg');
-        
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+        // Check if image data is valid
+        if (!imageData || imageData === 'data:,') {
+            requestAnimationFrame(detectFrame);
+            return;
+        }
+
         try {
             const res = await fetch(`${PYTHON_API_URL}/detect`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ image: imageData })
             });
-            
+
             if (res.ok) {
                 const data = await res.json();
                 if (data.success && data.results && data.results.length > 0) {
                     // QR code detected
                     const qrData = data.results[0].data;
                     console.log('QR detected:', qrData);
-                    
+
                     // Record attendance
                     await recordAttendance(qrData);
                 }
@@ -101,7 +113,7 @@ function startQRDetection(videoElement) {
         } catch (err) {
             console.warn('QR detection error:', err);
         }
-        
+
         requestAnimationFrame(detectFrame);
     }
     
@@ -114,16 +126,25 @@ async function recordAttendance(mahasiswaId) {
         const res = await fetch(`${PYTHON_API_URL}/attendance`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 mahasiswa_id: mahasiswaId,
                 status: 'present'
             })
         });
-        
+
         if (res.ok) {
             const data = await res.json();
             if (data.success) {
-                console.log('Attendance recorded:', mahasiswaId);
+                console.log('Attendance recorded:', mahasiswaId, data);
+                // Play beep only for new check-in or check-out
+                // Don't beep if already checked-in or checked-out today
+                if (data.result && (data.result.status === 'checked_in' || data.result.status === 'checked_out')) {
+                    playBeep();
+                    // Show toast notification
+                    const actionText = data.result.status === 'checked_in' ? 'absen masuk' : 'absen pulang';
+                    const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
+                    showToast(`${mahasiswaName} berhasil ${actionText}`);
+                }
                 // Refresh attendance data
                 fetchLatestAttendance();
             }
@@ -311,11 +332,8 @@ async function fetchLatestAttendance() {
                 if (record.check_out) currentActionCount++;
             });
 
-            // Deteksi jika ada aktivitas baru (masuk maupun keluar)
-            if (currentActionCount > lastActionCount && lastActionCount !== 0) {
-                playBeep();
-            }
-            lastActionCount = currentActionCount; // Simpan jumlah aktivitas terakhir
+            // Update last action count
+            lastActionCount = currentActionCount;
 
             renderRecentScans(data.data);
             updateStats(data.data);
@@ -357,13 +375,29 @@ function aktifkanSuara() {
 // 3. Fungsi playBeep yang dipanggil HANYA saat ada absen baru
 function playBeep() {
     // Jangan lakukan apa-apa jika user belum klik OK di alert
-    if (!isAudioUnlocked) return; 
+    if (!isAudioUnlocked) return;
 
     try {
         beepSound.currentTime = 0; // Pastikan suara diputar dari awal
         beepSound.play().catch(err => console.warn('Gagal memutar beep absensi:', err));
-    } catch (err) { 
+    } catch (err) {
         console.warn('Error audio:', err);
+    }
+}
+
+// ===== TOAST NOTIFICATION =====
+function showToast(message) {
+    const toast = document.getElementById('toast-notification');
+    const toastText = document.getElementById('toast-text');
+    
+    if (toast && toastText) {
+        toastText.textContent = message;
+        toast.classList.add('show');
+        
+        // Hide after 3 seconds
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
     }
 }
 

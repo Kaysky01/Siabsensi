@@ -50,6 +50,11 @@
           Riwayat Kehadiran
         </div>
         
+        <div class="nav-item" onclick="showSection('qr-code')" id="nav-qr-code">
+          <span class="material-symbols-outlined icon">qr_code</span>
+          QR Code Saya
+        </div>
+        
         <div class="nav-section">Pengajuan</div>
         
         <div class="nav-item" onclick="showSection('izin')" id="nav-izin">
@@ -320,9 +325,10 @@
                 <label class="form-label">Status</label>
                 <select id="filter-status" class="form-input" onchange="filterRiwayat()">
                   <option value="">Semua</option>
-                  <option value="present">Hadir</option>
+                  <option value="hadir">Hadir</option>
                   <option value="izin">Izin</option>
                   <option value="sakit">Sakit</option>
+                  <option value="alpha">Alpha</option>
                 </select>
               </div>
             </div>
@@ -540,6 +546,33 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: QR CODE SAYA ===== -->
+      <section id="section-qr-code" style="display:none">
+        <div class="panel">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="material-symbols-outlined">qr_code</span>
+              QR Code Saya
+            </div>
+          </div>
+          
+          <div style="text-align:center;padding:40px">
+            <div id="qr-code-container" style="display:inline-block;background:white;padding:20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
+              <img id="qr-code-image" src="" alt="QR Code" style="width:200px;height:200px;display:block">
+            </div>
+            <div style="margin-top:20px">
+              <button class="btn btn-primary" onclick="downloadQRCode()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span>
+                Download QR Code
+              </button>
+            </div>
+            <div style="margin-top:16px;color:var(--text-muted);font-size:14px">
+              Gunakan QR Code ini untuk absen saat scan oleh admin
+            </div>
+          </div>
         </div>
       </section>
 
@@ -865,7 +898,7 @@
   </div>
 
   <!-- Mahasiswa Portal Script -->
-  <script src="{{ asset('static/js/mahasiswa.js?v=9') }}"></script>
+  <script src="{{ asset('static/js/mahasiswa.js?v=10') }}"></script>
 
 </body>
 

@@ -833,7 +833,7 @@ async function removeMahasiswa(id) {
         }
         
         return `<tr>
-      <td style="font-family:var(--mono);font-size:12px">${r.date || r.check_in?.slice(0, 10) || '—'}</td>
+      <td style="font-family:var(--mono);font-size:12px">${r.date ? r.date.split('T')[0] : (r.check_in?.slice(0, 10) || '—')}</td>
       <td class="mhs-name">${r.name}</td>
       <td><span class="badge badge-blue">${r.kelompok}</span></td>
       <td><span class="time-val">${ci}</span></td>
@@ -1525,16 +1525,13 @@ async function removeMahasiswa(id) {
     // ─── Settings Management ─────────────────────────────────────────────────────
     async function loadSettings() {
       try {
+        // Load YOLO settings from JSON file
+        await loadYoloSettings();
+        
+        // Load RTSP settings if needed
         const res = await fetch('/api/settings');
         if (!res.ok) throw new Error('Failed to load settings');
         const data = await res.json();
-        
-        // Populate YOLO settings
-        if (data.yolo) {
-          document.getElementById('setting-model-path').value = data.yolo.model_path || 'models/yolov8n.pt';
-          document.getElementById('setting-yolo-conf').value = data.yolo.confidence || 0.45;
-          document.getElementById('setting-qr-cooldown').value = data.yolo.qr_cooldown || 30;
-        }
         
         // Populate RTSP settings
         if (data.rtsp) {
@@ -1595,6 +1592,23 @@ async function removeMahasiswa(id) {
         toast('Pengaturan YOLO disimpan', 'Restart engine untuk menerapkan perubahan');
       } catch (e) {
         toast('Gagal menyimpan', e.message, true);
+      }
+    }
+
+    async function loadYoloSettings() {
+      try {
+        const res = await fetch('/api/settings/yolo');
+        if (!res.ok) throw new Error('Failed to load settings');
+        const data = await res.json();
+        
+        if (data.success && data.data) {
+          const settings = data.data;
+          if (settings.model_path) document.getElementById('setting-model-path').value = settings.model_path;
+          if (settings.confidence) document.getElementById('setting-yolo-conf').value = settings.confidence;
+          if (settings.qr_cooldown) document.getElementById('setting-qr-cooldown').value = settings.qr_cooldown;
+        }
+      } catch (e) {
+        console.warn('Failed to load YOLO settings:', e);
       }
     }
 
@@ -2069,7 +2083,7 @@ function renderIzinSubmissions(submissions) {
       </td>
       <td><span class="badge badge-blue">${s.kelompok}</span></td>
       <td>${typeBadge}</td>
-      <td style="font-family:var(--font-mono);font-size:13px">${s.date}</td>
+      <td style="font-family:var(--font-mono);font-size:13px">${s.date ? s.date.split('T')[0] : '-'}</td>
       <td style="max-width:180px;white-space:normal;font-size:13px">${s.keterangan}</td>
       <td>${buktiBtn}</td>
       <td>${statusBadge}</td>

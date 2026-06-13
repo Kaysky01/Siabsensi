@@ -252,16 +252,20 @@ class DatabaseManager:
             fetch_one=True
         )
 
+        # Format waktu yang standar dan kompatibel dengan Laravel
+        time_str = now.strftime('%Y-%m-%d %H:%M:%S')
+        just_time_str = now.strftime('%H:%M:%S')
+
         if action == 'check_in':
             if existing:
                 logger.info(f"[{mahasiswa_id}] Sudah absen masuk hari ini.")
                 return {'status': 'already_checked_in', 'time': existing['check_in']}
             
             self._execute("""
-                INSERT INTO attendance (mahasiswa_id, check_in, date, status, camera_id, snapshot_path, yolo_confidence)
-                VALUES (%s, %s, %s, 'present', %s, %s, %s)
-            """, (mahasiswa_id, now.isoformat(), today, camera_id, snapshot_path, confidence))
-            return {'status': 'checked_in', 'time': now.isoformat()}
+                INSERT INTO attendance (mahasiswa_id, check_in, check_in_time, date, status, camera_id, snapshot_path, yolo_confidence)
+                VALUES (%s, %s, %s, %s, 'hadir', %s, %s, %s)
+            """, (mahasiswa_id, time_str, just_time_str, today, camera_id, snapshot_path, confidence))
+            return {'status': 'checked_in', 'time': time_str}
 
         elif action == 'check_out':
             if not existing:
@@ -271,10 +275,10 @@ class DatabaseManager:
                 return {'status': 'already_checked_out', 'time': existing['check_out']}
             
             self._execute("""
-                UPDATE attendance SET check_out = %s, snapshot_path = %s
+                UPDATE attendance SET check_out = %s, check_out_time = %s, snapshot_path = %s
                 WHERE mahasiswa_id = %s AND date = %s
-            """, (now.isoformat(), snapshot_path, mahasiswa_id, today))
-            return {'status': 'checked_out', 'time': now.isoformat()}
+            """, (time_str, just_time_str, snapshot_path, mahasiswa_id, today))
+            return {'status': 'checked_out', 'time': time_str}
 
     def get_today_attendance(self):
         """Ambil data absensi hari ini"""

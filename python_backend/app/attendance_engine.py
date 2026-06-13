@@ -338,7 +338,15 @@ class AttendanceProcessor:
             return 'check_in'
         if row['check_in'] and not row['check_out']:
             # Hitung selisih waktu sejak check_in
-            check_in_time = datetime.fromisoformat(str(row['check_in']))
+            check_in_val = row['check_in']
+            if isinstance(check_in_val, str):
+                try:
+                    check_in_time = datetime.fromisoformat(check_in_val.replace(' ', 'T'))
+                except Exception:
+                    check_in_time = datetime.strptime(check_in_val, '%Y-%m-%d %H:%M:%S')
+            else:
+                check_in_time = check_in_val
+                
             elapsed_seconds = (datetime.now() - check_in_time).total_seconds()
             if elapsed_seconds < self.CHECK_OUT_MIN_SECONDS:
                 remaining = int(self.CHECK_OUT_MIN_SECONDS - elapsed_seconds)

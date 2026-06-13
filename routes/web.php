@@ -66,7 +66,7 @@ Route::post('/api/python/detect', function (\Illuminate\Http\Request $request) {
         $response = \Illuminate\Support\Facades\Http::withBody($request->getContent(), 'application/json')->post('http://127.0.0.1:5000/api/python/detect');
         return response()->json($response->json(), $response->status());
     } catch (\Exception $e) {
-        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia'], 503);
+        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia: ' . $e->getMessage()], 503);
     }
 });
 
@@ -159,6 +159,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/api/settings/rtsp', [AdminController::class, 'saveRtspSettings']);
     // Settings YOLO (Admin Only)
     Route::post('/api/settings/yolo', [AdminController::class, 'saveYoloSettings']);
+    Route::get('/api/settings/yolo', [AdminController::class, 'getYoloSettings']);
 });
 
 // Routes untuk Mahasiswa (hanya role mahasiswa)
@@ -171,6 +172,7 @@ Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
     Route::get('/api/mahasiswa/{id}/chart/monthly', [MahasiswaController::class, 'getMonthlyChart']);
     Route::get('/api/mahasiswa/{id}/activity', [MahasiswaController::class, 'getRecentActivity']);
     Route::get('/api/mahasiswa/{id}/today-attendance', [MahasiswaController::class, 'getTodayAttendanceStatus']);
+    Route::get('/api/mahasiswa/{id}/qr-code', [MahasiswaController::class, 'getQRCode']);
 
     // Rute untuk data mahasiswa
     Route::get('/api/mahasiswa/{id}', [MahasiswaController::class, 'getProfile']);

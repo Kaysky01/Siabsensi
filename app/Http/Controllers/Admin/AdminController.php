@@ -435,9 +435,39 @@ class AdminController extends Controller
             $settingsFile = base_path('rtsp_settings.json');
             file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT));
 
+            // Reload Python backend settings
+            try {
+                \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/reload-settings');
+            } catch (\Exception $e) {
+                // Ignore if Python backend is not running
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Pengaturan RTSP disimpan'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getYoloSettings() {
+        try {
+            $settingsFile = base_path('yolo_settings.json');
+            if (!file_exists($settingsFile)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Settings file not found'
+                ], 404);
+            }
+
+            $settings = json_decode(file_get_contents($settingsFile), true);
+            return response()->json([
+                'success' => true,
+                'data' => $settings
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -455,9 +485,26 @@ class AdminController extends Controller
                 'qr_cooldown'
             ]);
 
+            // Normalize model path to use relative path from python_backend directory
+            if (isset($settings['model_path'])) {
+                // Convert Laravel-relative path (models/...) to Python-backend-relative path (../models/...)
+                if (strpos($settings['model_path'], 'models/') === 0) {
+                    $settings['model_path'] = '../' . $settings['model_path'];
+                }
+                // Remove any duplicate ../ prefixes
+                $settings['model_path'] = preg_replace('/^\.+\/+/', '../', $settings['model_path']);
+            }
+
             // Save settings to a JSON file or database
             $settingsFile = base_path('yolo_settings.json');
             file_put_contents($settingsFile, json_encode($settings, JSON_PRETTY_PRINT));
+
+            // Reload Python backend settings
+            try {
+                \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/reload-settings');
+            } catch (\Exception $e) {
+                // Ignore if Python backend is not running
+            }
 
             return response()->json([
                 'success' => true,

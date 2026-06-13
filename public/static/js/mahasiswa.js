@@ -1443,7 +1443,7 @@ async function exportRiwayatCSV() {
 // ─── Navigation Functions ────────────────────────────────────────────────
 function showSection(sectionName) {
   // Hide all sections
-  const sections = ['dashboard', 'profile', 'riwayat', 'izin', 'kehadiran', 'sertifikat'];
+  const sections = ['dashboard', 'profile', 'riwayat', 'izin', 'kehadiran', 'qr-code', 'sertifikat'];
   sections.forEach(section => {
     const element = document.getElementById(`section-${section}`);
     if (element) {
@@ -1492,6 +1492,9 @@ function showSection(sectionName) {
         break;
       case 'kehadiran':
         loadMyKehadiranHistory();
+        break;
+      case 'qr-code':
+        loadQRCode();
         break;
       case 'sertifikat':
         loadSertifikatData();
@@ -1620,6 +1623,71 @@ function openDetailKehadiranModal(submissionId) {
 
   // 6. Buka Modal
   document.getElementById('modal-detail-kehadiran').classList.add('show');
+}
+
+// ─── QR Code Functions ─────────────────────────────────────────────────────
+async function loadQRCode() {
+  if (!currentMahasiswa) {
+    console.error('No current mahasiswa data');
+    return;
+  }
+
+  const mahasiswaId = currentMahasiswa.id;
+  const qrCodeImage = document.getElementById('qr-code-image');
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/qr-code`, {
+      credentials: 'include'
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      qrCodeImage.src = url;
+    } else {
+      const result = await res.json();
+      console.error('Failed to load QR code:', result.message);
+      qrCodeImage.src = '';
+      alert('Gagal memuat QR Code: ' + result.message);
+    }
+  } catch (e) {
+    console.error('Error loading QR code:', e);
+    qrCodeImage.src = '';
+    alert('Gagal memuat QR Code. Pastikan server berjalan.');
+  }
+}
+
+async function downloadQRCode() {
+  if (!currentMahasiswa) {
+    console.error('No current mahasiswa data');
+    return;
+  }
+
+  const mahasiswaId = currentMahasiswa.id;
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/qr-code`, {
+      credentials: 'include'
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `qr_code_${currentMahasiswa.id}_${currentMahasiswa.name.replace(/\s+/g, '_')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      const result = await res.json();
+      alert('Gagal download QR Code: ' + result.message);
+    }
+  } catch (e) {
+    console.error('Error downloading QR code:', e);
+    alert('Gagal download QR Code. Pastikan server berjalan.');
+  }
 }
 
 // ─── Initialize Page ─────────────────────────────────────────────────────
