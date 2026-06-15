@@ -24,3 +24,5 @@ Homestead.yaml
 Thumbs.db
 venv/
 .venv/
+__pycache__/
+*.pyc

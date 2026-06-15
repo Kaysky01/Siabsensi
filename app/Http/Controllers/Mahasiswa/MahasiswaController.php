@@ -30,9 +30,10 @@ class MahasiswaController extends Controller
         }
 
         // Hitung data langsung via Relasi Model
-        $totalHadir = $mahasiswa->attendances()->count();
+        $totalHadir = $mahasiswa->attendances()->where('status', 'hadir')->count();
         
         $hadirBulanIni = $mahasiswa->attendances()
+                            ->where('status', 'hadir')
                             ->whereMonth('created_at', Carbon::now()->month)
                             ->whereYear('created_at', Carbon::now()->year)
                             ->count();
@@ -41,7 +42,9 @@ class MahasiswaController extends Controller
                             ->where('status', 'approved')
                             ->count();
 
-        $totalHariKerja = $totalHadir + $totalIzin; 
+        $totalAlpha = $mahasiswa->attendances()->where('status', 'alpha')->count();
+
+        $totalHariKerja = $totalHadir + $totalIzin + $totalAlpha; 
         $persentase = $totalHariKerja > 0 ? round(($totalHadir / $totalHariKerja) * 100) : 0;
 
         return response()->json([
@@ -50,7 +53,7 @@ class MahasiswaController extends Controller
                 'totalHadir' => $totalHadir,
                 'hadirBulanIni' => $hadirBulanIni,
                 'totalIzin' => $totalIzin,
-                'tidakHadir' => 0, 
+                'tidakHadir' => $totalAlpha, 
                 'persentaseKehadiran' => $persentase,
                 'rataRataDurasi' => '8 jam',
                 'streakTerpanjang' => 0,
@@ -235,5 +238,46 @@ class MahasiswaController extends Controller
             'success' => true,
             'data' => $status
         ]);
+    }
+
+    public function getQRCode($id)
+    {
+        $mahasiswa = Mahasiswa::find($id);
+
+        if (!$mahasiswa) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mahasiswa tidak ditemukan'
+            ], 404);
+        }
+
+        // Generate QR code dynamically using the same method as admin
+        $qrData = $mahasiswa->qr_code_id ?? $mahasiswa->id;
+        $qrImage = $this->generateQrImage($qrData, 300);
+
+        if (!$qrImage) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal generate QR Code'
+            ], 500);
+        }
+
+        return response($qrImage)->header('Content-Type', 'image/png');
+    }
+
+    private function generateQrImage($data, $size)
+    {
+        // Gunakan package Laravel QR jika ada
+        if (class_exists('\SimpleSoftwareIO\QrCode\Facades\QrCode')) {
+            return \SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')->size($size)->generate($data);
+        }
+        
+        // Fallback URL jika package tidak ada (menggunakan API eksternal)
+        try {
+            $img = @file_get_contents("https://api.qrserver.com/v1/create-qr-code/?size={$size}x{$size}&data=" . urlencode($data));
+            if ($img) return $img;
+        } catch (\Exception $e) {}
+        
+        return null;
     }
 }

@@ -29,6 +29,7 @@ from app.attendance_engine import create_system
 from app.config_db import MYSQL_CONFIG, YOLO_SETTINGS, RTSP_SETTINGS, reload_settings
 
 app = Flask(__name__)
+CORS(app)
 
 # Initialize system (try to connect to database, but allow running without it)
 try:
@@ -49,54 +50,32 @@ except Exception as e:
 camera_thread = None
 camera_running = False
 
-@app.route('/api/python/status', methods=['GET', 'OPTIONS'])
+@app.route('/api/python/status', methods=['GET'])
 def status():
     """Check if Python backend is running"""
-    # Add CORS headers
-    if request.method == 'OPTIONS':
-        response = jsonify('')
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Methods', 'GET, OPTIONS')
-        return response, 200
-
-    response = jsonify({
+    return jsonify({
         'success': True,
         'status': 'running',
         'yolo_model': str(YOLO_SETTINGS.get('model_path')),
         'confidence': YOLO_SETTINGS.get('confidence'),
         'rtsp_settings': RTSP_SETTINGS
     })
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response
 
-@app.route('/api/python/reload-settings', methods=['POST', 'OPTIONS'])
+@app.route('/api/python/reload-settings', methods=['POST'])
 def reload_settings_endpoint():
     """Reload YOLO and RTSP settings from JSON files"""
-    # Add CORS headers
-    if request.method == 'OPTIONS':
-        response = jsonify('')
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        return response, 200
-
     try:
         settings = reload_settings()
-        response = jsonify({
+        return jsonify({
             'success': True,
             'message': 'Settings reloaded successfully',
             'settings': settings
         })
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response
     except Exception as e:
-        response = jsonify({
+        return jsonify({
             'success': False,
             'message': f'Failed to reload settings: {str(e)}'
-        })
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response, 500
+        }), 500
 
 @app.route('/api/python/stream/<camera_id>', methods=['GET'])
 def stream_camera(camera_id):
@@ -129,20 +108,13 @@ def stream_camera(camera_id):
     
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-@app.route('/api/python/detect', methods=['POST', 'OPTIONS'])
+@app.route('/api/python/detect', methods=['POST'])
 def detect_qr():
     """Detect QR code from image"""
-    # Add CORS headers
-    response = None
-    if request.method == 'OPTIONS':
-        response = jsonify('')
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        return response, 200
-
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            data = {}
         image_data = data.get('image')
 
         if not image_data:
@@ -216,11 +188,17 @@ def detect_qr():
             logger.info("YOLO detected no QR papers - returning empty results (YOLO-only mode)")
             decoded_objects = []
 
+        # Build results from decoded objects
         results = []
         for obj in decoded_objects:
+            try:
+                qr_text = obj.data.decode('utf-8')
+            except UnicodeDecodeError:
+                qr_text = obj.data.decode('latin-1', errors='ignore')
+
             results.append({
-                'data': obj.data.decode('utf-8'),
-                'type': obj.type,
+                'data': qr_text,
+                'type': str(obj.type),
                 'rect': {
                     'left': obj.rect.left,
                     'top': obj.rect.top,
@@ -229,38 +207,24 @@ def detect_qr():
                 }
             })
 
-        response = jsonify({
+        return jsonify({
             'success': True,
             'results': results,
             'yolo_detections': len(qr_papers),
             'max_confidence': max_confidence
         })
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response
     except Exception as e:
-        response = jsonify({'success': False, 'message': str(e)})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response, 500
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-@app.route('/api/python/attendance', methods=['POST', 'OPTIONS'])
+@app.route('/api/python/attendance', methods=['POST'])
 def record_attendance():
     """Record attendance to Laravel database"""
-    # Add CORS headers
-    if request.method == 'OPTIONS':
-        response = jsonify('')
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        return response, 200
-
     try:
         if db is None:
-            response = jsonify({
+            return jsonify({
                 'success': False,
                 'message': 'Database not connected - attendance recording disabled'
-            })
-            response.headers.add('Access-Control-Allow-Origin', '*')
-            return response, 503
+            }), 503
 
         data = request.json
         qr_code_id = data.get('mahasiswa_id')  # This is actually the QR code ID, not mahasiswa ID
@@ -269,27 +233,42 @@ def record_attendance():
         # Look up mahasiswa by QR code
         mahasiswa = db.get_mahasiswa_by_qr(qr_code_id)
         if not mahasiswa:
-            response = jsonify({
+            return jsonify({
                 'success': False,
                 'message': 'Mahasiswa not found with this QR code'
-            })
-            response.headers.add('Access-Control-Allow-Origin', '*')
-            return response, 404
+            }), 404
 
         # Use the actual mahasiswa_id from the database
         actual_mahasiswa_id = mahasiswa['id']
+
+        # Determine whether this should be a check-in or check-out
+        action = 'check_in'
+        if processor is not None:
+            action = processor._determine_action(actual_mahasiswa_id)
+            
+            # Stop execution if student is in 1-hour cooldown or already checked out
+            if action in ['none', 'cooldown']:
+                return jsonify({
+                    'success': True,
+                    'message': f'Attendance ignored ({action})',
+                    'result': {'status': action},
+                    'mahasiswa': {
+                        'id': mahasiswa['id'],
+                        'name': mahasiswa['name']
+                    }
+                })
 
         # Record attendance using DatabaseManager method
         # Use NULL for camera_id to avoid foreign key constraint error
         result = db.record_attendance(
             actual_mahasiswa_id,
-            'check_in',
+            action,
             None,  # camera_id (NULL to avoid foreign key constraint)
             None,  # snapshot_path
             confidence  # Use confidence from request
         )
 
-        response = jsonify({
+        return jsonify({
             'success': True,
             'message': 'Attendance recorded',
             'result': result,
@@ -300,12 +279,8 @@ def record_attendance():
                 'jurusan': mahasiswa['jurusan']
             }
         })
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response
     except Exception as e:
-        response = jsonify({'success': False, 'message': str(e)})
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        return response, 500
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 if __name__ == '__main__':
     print("=" * 60)
