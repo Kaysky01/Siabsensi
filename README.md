@@ -1,59 +1,365 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SIABSEN — Sistem Absensi Mahasiswa
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Sistem absensi otomatis menggunakan **YOLO object detection** untuk mendeteksi **QR code paper** dan **pyzbar** untuk decode QR code, terintegrasi dengan **Webcam Lokal**, **Upload Video MP4**, **Form Pengajuan Izin/Sakit**, **Authentication System**, **Role-Based Access Control (RBAC)**, dan **MySQL database**.
 
-## About Laravel
+## 📋 Fitur Utama
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### 1. 📹 Real-time Webcam Monitoring
+- Deteksi QR code dari webcam lokal (built-in atau USB)
+- Auto-detect available webcams
+- Multi-camera support (multiple USB webcams)
+- Live preview dengan bounding box
+- Auto check-in/check-out
+- Simplified setup (no RTSP configuration needed)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### 2. 🎬 Upload & Deteksi Video MP4
+- Upload video rekaman untuk deteksi offline
+- Preview video dengan bounding box real-time
+- Batch processing untuk multiple QR codes
+- Validasi duplikasi
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 3. 📝 Form Pengajuan Izin/Sakit & Kehadiran Manual
+- Pengajuan izin/sakit dengan upload bukti
+- Pengajuan kehadiran manual
+- Verifikasi oleh Tim Disiplin (Timdis)
+- Riwayat pengajuan dengan status real-time
 
-## Learning Laravel
+### 4. 📊 Dashboard & Reporting
+- Statistik kehadiran real-time
+- Export data ke CSV
+- Grafik kehadiran per kelompok
+- Material Icons untuk UI yang clean
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### 5. 🔐 Authentication & Authorization
+- Login/Logout dengan session management
+- Password hashing menggunakan bcrypt
+- Role-Based Access Control (Admin, Timdis, Mahasiswa)
+- Session token dengan expiry 24 jam
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 6. 🎓 Sertifikat Kehadiran
+- Generate sertifikat kehadiran otomatis
+- Preview sertifikat sebelum download
+- History sertifikat yang sudah diunduh
+- Kriteria kehadiran minimum 80%
 
-## Laravel Sponsors
+## 🏗️ Arsitektur Project
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Project ini menggunakan arsitektur hybrid:
 
-### Premium Partners
+- **Frontend**: Laravel (PHP) - Web application, authentication, dashboard
+- **Backend**: Python Flask - YOLO detection, QR code processing
+- **Database**: MySQL - Data storage
+- **Communication**: REST API antara Laravel dan Python backend
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## 🚀 Quick Start
 
-## Contributing
+### Prerequisites
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+- **PHP 8.1+**
+- **Python 3.11+**
+- **MySQL 8.0+**
+- **Webcam** (built-in atau USB)
+- **Composer**
+- **Node.js & NPM**
+- **OS**: Windows 10+, Ubuntu 22.04+, atau macOS
 
-## Code of Conduct
+### Instalasi
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd YOLO-Siabsensi
 
-## Security Vulnerabilities
+# 2. Install Laravel dependencies
+composer install
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# 3. Setup environment
+cp .env.example .env
+php artisan key:generate
 
-## License
+# 4. Setup Python backend
+cd python_backend
+python -m venv venv
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# Windows
+venv\Scripts\activate
+
+# Linux/Mac
+source venv/bin/activate
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# 5. Install library sistem (Ubuntu/Debian)
+sudo apt install -y libzbar0 libzbar-dev ffmpeg libgl1-mesa-glx mysql-server
+```
+
+### Setup MySQL
+
+```bash
+# Buat database
+mysql -u root -p
+```
+
+```sql
+CREATE DATABASE siabsensi CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'siabsen'@'localhost' IDENTIFIED BY 'password_anda';
+GRANT ALL PRIVILEGES ON siabsensi.* TO 'siabsen'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+### Konfigurasi Environment
+
+Edit `.env` file:
+```env
+DB_DATABASE=siabsensi
+DB_USERNAME=siabsen
+DB_PASSWORD=password_anda
+```
+
+### Run Migrations
+
+```bash
+# Kembali ke project root
+cd ..
+
+# Run migrations
+php artisan migrate
+
+# Seed database (admin user)
+php artisan db:seed
+```
+
+### Jalankan Aplikasi
+
+```bash
+# Terminal 1: Start Laravel
+php artisan serve
+
+# Terminal 2: Start Python backend
+cd python_backend
+python api_server.py
+```
+
+Akses aplikasi:
+- **Laravel**: http://127.0.0.1:8000
+- **Python Backend**: http://127.0.0.1:5000
+- **Login**: http://127.0.0.1:8000/login
+- **Monitor**: http://127.0.0.1:8000/monitor
+
+### First Login
+
+1. Buka http://127.0.0.1:8000/login
+2. Login dengan:
+   - **Username**: `admin`
+   - **Password**: `admin123`
+3. ⚠️ **PENTING**: Ganti password default setelah login pertama!
+
+## 📁 Struktur Project
+
+```
+YOLO-Siabsensi/
+├── app/                          # Laravel application
+│   ├── Http/Controllers/         # Controllers
+│   │   ├── Admin/              # Admin controllers
+│   │   ├── Mahasiswa/           # Mahasiswa controllers
+│   │   ├── Auth/               # Authentication
+│   │   └── SertifikatController.php
+│   ├── Models/                  # Eloquent models
+│   │   ├── Mahasiswa.php
+│   │   ├── Attendance.php
+│   │   ├── User.php
+│   │   └── SertifikatHistory.php
+│   └── ...
+│
+├── python_backend/              # Python Flask backend
+│   ├── api_server.py            # Flask API server
+│   ├── app/
+│   │   ├── attendance_engine.py # Core engine (YOLO + QR)
+│   │   ├── database_manager.py  # MySQL database manager
+│   │   └── config_db.py         # Database configuration
+│   ├── requirements.txt          # Python dependencies
+│   └── venv/                    # Python virtual environment
+│
+├── resources/views/              # Blade templates
+│   ├── admin/                   # Admin views
+│   │   └── dashboard.blade.php
+│   ├── mahasiswa/               # Mahasiswa views
+│   │   └── mahasiswa.blade.php
+│   ├── monitor.blade.php        # Live monitoring
+│   └── auth/                    # Authentication views
+│
+├── public/                      # Public assets
+│   ├── static/
+│   │   ├── css/                 # Stylesheets
+│   │   ├── js/                  # JavaScript files
+│   │   │   ├── monitor.js       # Monitor logic
+│   │   │   └── script.js        # Main script
+│   │   ├── img/                 # Images
+│   │   │   └── sertifikat.png   # Certificate template
+│   │   ├── sounds/              # Sound notifications
+│   │   │   └── beep.mp3
+│   │   └── fonts/               # Custom fonts
+│   └── uploads/                 # User uploads
+│       ├── bukti_izin/          # Bukti pengajuan
+│       └── videos/              # Uploaded videos
+│
+├── models/                      # YOLO models
+│   └── qr_paper.pt              # Custom trained model
+│
+├── yolo_settings.json           # YOLO configuration
+├── rtsp_settings.json           # RTSP configuration
+├── .env                         # Environment variables
+├── composer.json                # PHP dependencies
+└── requirements.txt             # Python dependencies
+```
+
+## 🎓 Training Model YOLO
+
+Model default belum dilatih untuk mendeteksi QR code paper. Anda perlu melatih model custom terlebih dahulu.
+
+### Setup Training
+
+```bash
+# Install YOLO training dependencies
+pip install ultralytics
+
+# Latih model dengan dataset QR code paper
+yolo detect train data=path/to/dataset.yaml model=yolov8n.pt epochs=100 imgsz=640
+
+# Export model
+cp runs/detect/train/weights/best.pt ../models/qr_paper.pt
+```
+
+### Konfigurasi Model
+
+Edit `yolo_settings.json`:
+```json
+{
+    "model_path": "../models/qr_paper.pt",
+    "confidence": 0.45,
+    "qr_cooldown": 30
+}
+```
+
+## 🔐 User Management
+
+### Default Users
+
+| Role | Username | Password |
+|------|----------|----------|
+| Admin | admin | admin123 |
+| Timdis | timdis | timdis123 |
+
+### Roles & Permissions
+
+| Role | Dashboard | Verifikasi | Manage Users | Settings | Portal Mahasiswa |
+|------|-----------|------------|--------------|----------|------------------|
+| **Admin** | ✅ Full | ✅ | ✅ | ✅ | ✅ |
+| **Timdis** | ✅ Read | ✅ | ❌ | ❌ | ✅ |
+| **Mahasiswa** | ❌ | ❌ | ❌ | ❌ | ✅ |
+
+## 🌐 API Endpoints
+
+### Python Backend (http://127.0.0.1:5000)
+
+#### Detection
+- `POST /api/python/detect` - Detect QR code from image
+- `POST /api/python/attendance` - Record attendance
+- `GET /api/python/status` - Check backend status
+- `POST /api/python/reload-settings` - Reload YOLO/RTSP settings
+
+### Laravel Frontend (http://127.0.0.1:8000)
+
+#### Authentication
+- `POST /api/auth/login` - Login
+- `POST /api/auth/logout` - Logout
+- `GET /api/auth/me` - Get current user
+
+#### Mahasiswa
+- `GET /api/mahasiswa` - List semua mahasiswa
+- `POST /api/mahasiswa` - Tambah mahasiswa baru
+- `GET /api/mahasiswa/<id>/qr` - Get QR code mahasiswa
+- `GET /api/mahasiswa/<id>/statistics` - Get mahasiswa statistics
+
+#### Attendance
+- `GET /api/attendance/today` - Absensi hari ini
+- `GET /api/attendance/stats` - Statistik absensi
+- `GET /api/attendance/history` - Riwayat absensi
+
+#### Izin/Sakit
+- `POST /api/izin/submit` - Submit pengajuan izin/sakit
+- `GET /api/izin/list` - List semua pengajuan
+- `POST /api/izin/verify` - Approve/Reject pengajuan
+
+#### Sertifikat
+- `POST /api/mahasiswa/<id>/sertifikat/preview` - Preview sertifikat
+- `POST /api/mahasiswa/<id>/sertifikat/generate` - Generate sertifikat
+- `GET /api/mahasiswa/<id>/sertifikat/history` - Riwayat sertifikat
+
+## 🐛 Troubleshooting
+
+### Python Backend Not Starting
+```bash
+# Check if port 5000 is in use
+netstat -ano | findstr :5000
+
+# Kill process if needed
+taskkill /PID <PID> /F
+
+# Check Python dependencies
+pip install -r python_backend/requirements.txt
+```
+
+### Database Connection Error
+```bash
+# Check MySQL status
+sudo systemctl status mysql
+
+# Restart MySQL
+sudo systemctl restart mysql
+
+# Check credentials in .env file
+```
+
+### Webcam Not Detected
+```bash
+# Test webcam with OpenCV
+python -c "import cv2; print(cv2.VideoCapture(0).isOpened())"
+
+# If False, check:
+# 1. Webcam is connected
+# 2. Webcam drivers are installed
+# 3. No other application is using the webcam
+```
+
+### YOLO Model Not Loading
+```bash
+# Check model path in yolo_settings.json
+cat yolo_settings.json
+
+# Verify model file exists
+ls -la models/
+
+# Test YOLO model
+python -c "from ultralytics import YOLO; model = YOLO('models/qr_paper.pt'); print('Model loaded successfully')"
+```
+
+## 📝 License
+
+Copyright © 2026 SIABSEN Team. All rights reserved.
+
+## 👥 Team
+
+- **Developer**: SIABSEN Development Team
+- **Version**: 3.0.0
+- **Last Updated**: June 2026
+- **Major Changes**: 
+  - v3.0.0: Laravel + Python hybrid architecture
+  - v2.5.0: RTSP → Webcam refactoring
+  - v2.4.0: Project restructuring
+
+---
+
+Untuk dokumentasi lengkap, lihat `docs/README.md`

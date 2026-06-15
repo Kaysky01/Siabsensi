@@ -104,10 +104,11 @@ function startQRDetection(videoElement) {
                 if (data.success && data.results && data.results.length > 0) {
                     // QR code detected
                     const qrData = data.results[0].data;
-                    console.log('QR detected:', qrData);
+                    const confidence = data.max_confidence || 0.0;
+                    console.log('QR detected:', qrData, 'Confidence:', confidence);
 
-                    // Record attendance
-                    await recordAttendance(qrData);
+                    // Record attendance with confidence
+                    await recordAttendance(qrData, confidence);
                 }
             }
         } catch (err) {
@@ -121,14 +122,15 @@ function startQRDetection(videoElement) {
 }
 
 // ===== RECORD ATTENDANCE =====
-async function recordAttendance(mahasiswaId) {
+async function recordAttendance(mahasiswaId, confidence = 0.0) {
     try {
         const res = await fetch(`${PYTHON_API_URL}/attendance`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 mahasiswa_id: mahasiswaId,
-                status: 'present'
+                status: 'hadir',
+                confidence: confidence
             })
         });
 

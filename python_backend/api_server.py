@@ -32,7 +32,9 @@ app = Flask(__name__)
 
 # Initialize system (try to connect to database, but allow running without it)
 try:
-    db, yolo, processor = create_system()
+    db, yolo_processor, processor = create_system()
+    # Extract the YOLO model from the processor for direct use in detect endpoint
+    yolo = yolo_processor.model
     print("✓ Database connected successfully")
 except Exception as e:
     print(f"⚠ Database connection failed: {e}")
@@ -177,24 +179,29 @@ def detect_qr():
         try:
             yolo_results = yolo(frame, conf=YOLO_SETTINGS.get('confidence', 0.45), verbose=False)
             qr_papers = []
+            max_confidence = 0.0
             for result in yolo_results:
                 for box in result.boxes:
                     x1, y1, x2, y2 = box.xyxy[0]
                     conf = float(box.conf[0])
+                    max_confidence = max(max_confidence, conf)
                     qr_papers.append({
                         'bbox': (int(x1), int(y1), int(x2), int(y2)),
                         'confidence': conf
                     })
+            logger.info(f"YOLO detected {len(qr_papers)} QR papers, max confidence: {max_confidence}")
         except Exception as yolo_error:
-            logger.warning(f"YOLO detection failed: {yolo_error}, falling back to pyzbar only")
+            logger.error(f"YOLO detection failed: {yolo_error}")
             qr_papers = []
+            max_confidence = 0.0
 
-        # QR detection using pyzbar
+        # QR detection using pyzbar - ONLY within YOLO-detected ROIs
         from pyzbar.pyzbar import decode as qr_decode
 
-        # If YOLO detected QR papers, decode only in those areas
-        # Otherwise decode the entire frame
+        # Only decode QR codes within YOLO-detected ROIs
+        # If YOLO detected no QR papers, return empty results
         if qr_papers:
+            logger.info("Using YOLO-detected ROIs for QR decoding")
             decoded_objects = []
             for qr_paper in qr_papers:
                 x1, y1, x2, y2 = qr_paper['bbox']
@@ -205,8 +212,9 @@ def detect_qr():
                     for obj in roi_decoded:
                         decoded_objects.append(obj)
         else:
-            # Fallback to full frame detection
-            decoded_objects = qr_decode(frame)
+            # YOLO-only mode: no fallback to pyzbar
+            logger.info("YOLO detected no QR papers - returning empty results (YOLO-only mode)")
+            decoded_objects = []
 
         results = []
         for obj in decoded_objects:
@@ -224,7 +232,8 @@ def detect_qr():
         response = jsonify({
             'success': True,
             'results': results,
-            'yolo_detections': len(qr_papers)
+            'yolo_detections': len(qr_papers),
+            'max_confidence': max_confidence
         })
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response
@@ -255,6 +264,7 @@ def record_attendance():
 
         data = request.json
         qr_code_id = data.get('mahasiswa_id')  # This is actually the QR code ID, not mahasiswa ID
+        confidence = data.get('confidence', 0.0)  # Get confidence from request
 
         # Look up mahasiswa by QR code
         mahasiswa = db.get_mahasiswa_by_qr(qr_code_id)
@@ -276,7 +286,7 @@ def record_attendance():
             'check_in',
             None,  # camera_id (NULL to avoid foreign key constraint)
             None,  # snapshot_path
-            0.0     # confidence
+            confidence  # Use confidence from request
         )
 
         response = jsonify({

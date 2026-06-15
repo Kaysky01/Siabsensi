@@ -259,7 +259,7 @@ class DatabaseManager:
             
             self._execute("""
                 INSERT INTO attendance (mahasiswa_id, check_in, date, status, camera_id, snapshot_path, yolo_confidence)
-                VALUES (%s, %s, %s, 'present', %s, %s, %s)
+                VALUES (%s, %s, %s, 'hadir', %s, %s, %s)
             """, (mahasiswa_id, now.isoformat(), today, camera_id, snapshot_path, confidence))
             return {'status': 'checked_in', 'time': now.isoformat()}
 
