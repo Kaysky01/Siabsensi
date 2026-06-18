@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Mahasiswa;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\IzinSubmission;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class IzinController extends Controller
@@ -18,7 +18,7 @@ class IzinController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => ['submissions' => $submissions]
+            'data' => ['submissions' => $submissions],
         ]);
     }
 
@@ -28,10 +28,10 @@ class IzinController extends Controller
         // Validasi input
         $validated = $request->validate([
             'mahasiswa_id' => 'required',
-            'type'         => 'required',
-            'date'         => 'required|date',
-            'keterangan'   => 'required|min:10',
-            'bukti'        => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
+            'type' => 'required',
+            'date' => 'required|date',
+            'keterangan' => 'required|min:10',
+            'bukti' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
         ]);
 
         // Simpan file bukti ke folder storage/app/public/bukti
@@ -39,28 +39,29 @@ class IzinController extends Controller
 
         // Simpan ke database
         IzinSubmission::create([
-            'mahasiswa_id'    => $request->mahasiswa_id,
-            'submission_type' => $request->type,         
-            'date'            => $request->date,         
-            'keterangan'      => $request->keterangan,
-            'bukti_path'      => $path,                  
-            'status'          => 'pending'
+            'mahasiswa_id' => $request->mahasiswa_id,
+            'submission_type' => $request->type,
+            'date' => $request->date,
+            'keterangan' => $request->keterangan,
+            'bukti_path' => $path,
+            'status' => 'pending',
         ]);
+
         return response()->json(['success' => true, 'message' => 'Pengajuan berhasil dikirim']);
     }
 
     public function getBukti($filename)
     {
         // Sesuaikan dengan nama folder
-        $path = 'izin/bukti/' . $filename;
+        $path = 'izin/bukti/'.$filename;
 
         // Cek apakah file benar-benar ada di storage/app/public/izin/bukti
-        if (!Storage::disk('public')->exists($path)) {
+        if (! Storage::disk('public')->exists($path)) {
             abort(404, 'File bukti tidak ditemukan.');
         }
 
         // Ambil path fisik lengkapnya di dalam server
-        $fullPath = storage_path('app/public/' . $path);
+        $fullPath = storage_path('app/public/'.$path);
 
         // Mengirimkan file tersebut langsung ke browser
         return response()->file($fullPath);

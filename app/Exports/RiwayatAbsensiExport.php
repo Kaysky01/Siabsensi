@@ -5,19 +5,20 @@ namespace App\Exports;
 use App\Models\Attendance;
 use App\Models\Mahasiswa;
 use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class RiwayatAbsensiExport implements FromCollection, WithHeadings, WithStyles, WithMapping, WithColumnWidths, WithTitle
+class RiwayatAbsensiExport implements FromCollection, WithColumnWidths, WithHeadings, WithMapping, WithStyles, WithTitle
 {
     protected $mahasiswaId;
+
     private $rowNumber = 0;
 
     public function __construct($mahasiswaId)
@@ -66,7 +67,7 @@ class RiwayatAbsensiExport implements FromCollection, WithHeadings, WithStyles, 
     public function styles(Worksheet $sheet)
     {
         $sheet->mergeCells('A1:E1');
-        
+
         return [
             // Title row styling
             1 => [
@@ -125,6 +126,7 @@ class RiwayatAbsensiExport implements FromCollection, WithHeadings, WithStyles, 
     public function title(): string
     {
         $mahasiswa = Mahasiswa::find($this->mahasiswaId);
-        return $mahasiswa ? 'Riwayat - ' . $mahasiswa->name : 'Riwayat Absensi';
+
+        return $mahasiswa ? 'Riwayat - '.$mahasiswa->name : 'Riwayat Absensi';
     }
 }

@@ -150,7 +150,8 @@ function showWelcomeMessage() {
   const welcomeElement = document.getElementById('welcome-message');
   if (welcomeElement && currentMahasiswa) {
     const displayName = currentMahasiswa.full_name || currentMahasiswa.name || 'Mahasiswa';
-    const displayKelompok = currentMahasiswa.kelompok || '-';
+    const displayKelompok = currentMahasiswa.kompi || '-';
+    const displayProdi = currentMahasiswa.prodi || '-';
     const displayJurusan = currentMahasiswa.jurusan || '-';
 
     welcomeElement.innerHTML = `
@@ -159,7 +160,7 @@ function showWelcomeMessage() {
         <div>
           <span style="font-weight: 600; color: var(--text);">${displayName}</span>
           <span style="color: var(--text-muted); margin-left: 8px;">
-            ${currentMahasiswa.id} • ${displayKelompok} • ${displayJurusan}
+            ${currentMahasiswa.id} • ${displayKelompok} • ${currentMahasiswa.jurusan || '-'} • ${displayProdi}
           </span>
         </div>
       </div>
@@ -290,7 +291,7 @@ async function loadMyIzinHistory() {
         <td style="font-family:var(--font-mono);font-size:13px;font-weight:600">${tglFormatted}</td>
         <td>${jenisBadge}</td>
         <td><div style="font-weight:600">${currentMahasiswa.name}</div></td>
-        <td><span class="badge badge-blue">${currentMahasiswa.kelompok}</span></td>
+        <td><span class="badge badge-blue">${currentMahasiswa.kompi}</span></td>
         <td style="font-size:14px">${currentMahasiswa.jurusan}</td>
         <td>${statusBadge}</td>
         <td style="font-size:13px">${verifiedBy}</td>
@@ -317,8 +318,9 @@ function openDetailMahasiswaModal(submissionId) {
   // Fill mahasiswa info
   document.getElementById('mhs-detail-mahasiswa-id').textContent = currentMahasiswa.id;
   document.getElementById('mhs-detail-mahasiswa-name').textContent = currentMahasiswa.name;
-  document.getElementById('mhs-detail-mahasiswa-kelompok').textContent = currentMahasiswa.kelompok;
+  document.getElementById('mhs-detail-mahasiswa-kompi').textContent = currentMahasiswa.kompi;
   document.getElementById('mhs-detail-mahasiswa-jurusan').textContent = currentMahasiswa.jurusan;
+  document.getElementById('mhs-detail-mahasiswa-prodi').textContent = currentMahasiswa.prodi || '—';
 
   // Fill pengajuan info
   const typeBadge = submission.submission_type === 'izin'
@@ -563,7 +565,7 @@ async function loadMyKehadiranHistory() {
         <td>
           <div style="font-weight:600">${currentMahasiswa.name}</div>
         </td>
-        <td><span class="badge badge-blue">${currentMahasiswa.kelompok}</span></td>
+        <td><span class="badge badge-blue">${currentMahasiswa.kompi}</span></td>
         <td style="font-size:14px">${currentMahasiswa.jurusan}</td>
         <td>${statusBadge}</td>
         <td style="font-size:13px">${verifiedBy}</td>
@@ -1175,8 +1177,9 @@ async function loadProfileData() {
       const mhs = result.data;
       document.getElementById('profile-id').value = mhs.mahasiswa_id || mhs.id;
       document.getElementById('profile-name').value = mhs.name || '';
-      document.getElementById('profile-kelompok').value = mhs.kelompok || '';
+      document.getElementById('profile-kompi').value = mhs.kompi || '';
       document.getElementById('profile-jurusan').value = mhs.jurusan || '';
+      document.getElementById('profile-prodi').value = mhs.prodi || '';
       document.getElementById('profile-email').value = mhs.email || '';
       
       document.getElementById('profile-form').style.display = 'block';
@@ -1191,14 +1194,39 @@ async function updateProfile() {
   if (!currentMahasiswa) return;
   
   const mahasiswaId = currentMahasiswa.id;
-  const name = document.getElementById('profile-name').value.trim();
-  const kelompok = document.getElementById('profile-kelompok').value.trim();
-  const jurusan = document.getElementById('profile-jurusan').value.trim();
   const email = document.getElementById('profile-email').value.trim();
+  const currentPassword = document.getElementById('profile-current-password').value;
+  const newPassword = document.getElementById('profile-new-password').value;
+  const newPasswordConfirm = document.getElementById('profile-new-password-confirmation').value;
 
-  if (!name || !kelompok || !jurusan) {
-    toast('Lengkapi field wajib', 'Nama, kelompok, dan jurusan harus diisi', true);
-    return;
+  // Validasi password jika ingin mengubah
+  if (currentPassword || newPassword || newPasswordConfirm) {
+    if (!currentPassword) {
+      toast('Password saat ini wajib diisi', 'Masukkan password saat ini untuk verifikasi', true);
+      return;
+    }
+    if (!newPassword) {
+      toast('Password baru wajib diisi', '', true);
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast('Password terlalu singkat', 'Minimal 6 karakter', true);
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      toast('Konfirmasi password tidak cocok', 'Pastikan kedua password sama', true);
+      return;
+    }
+  }
+
+  const payload = {
+    email: email
+  };
+
+  if (newPassword) {
+    payload.current_password = currentPassword;
+    payload.new_password = newPassword;
+    payload.new_password_confirmation = newPasswordConfirm;
   }
 
   const btn = event.target;
@@ -1212,19 +1240,20 @@ async function updateProfile() {
         'Content-Type': 'application/json',
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content 
       },
-      body: JSON.stringify({ name, kelompok, jurusan, email })
+      body: JSON.stringify(payload)
     });
 
     const result = await res.json();
     if (result.success) {
-      toast('Profil berhasil diperbarui', 'Data mahasiswa telah disimpan');
-      // Update currentMahasiswa
-      currentMahasiswa.name = name;
-      currentMahasiswa.kelompok = kelompok;
-      currentMahasiswa.jurusan = jurusan;
+      toast('Profil berhasil diperbarui', 'Data telah disimpan');
+      // Update currentMahasiswa email
       currentMahasiswa.email = email;
       // Update welcome message
       showWelcomeMessage();
+      // Reset password fields
+      document.getElementById('profile-current-password').value = '';
+      document.getElementById('profile-new-password').value = '';
+      document.getElementById('profile-new-password-confirmation').value = '';
     } else {
       toast('Gagal memperbarui profil', result.message || 'Terjadi kesalahan', true);
     }
@@ -1261,51 +1290,19 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadRiwayatData() {
   if (!currentMahasiswa) return;
 
-  document.getElementById('riwayat-filters').style.display = 'block';
   document.getElementById('riwayat-table-container').style.display = 'block';
   
-  // Populate year filter
-  populateYearFilter();
-  
-  // Load initial data
-  await filterRiwayat();
+  // Load initial data (tanpa filter)
+  await loadRiwayatTanpaFilter();
 }
 
-function populateYearFilter() {
-  const yearSelect = document.getElementById('filter-tahun');
-  const currentYear = new Date().getFullYear();
-  
-  yearSelect.innerHTML = '<option value="">Semua</option>';
-  
-  // Add years from current year back to 3 years ago
-  for (let year = currentYear; year >= currentYear - 3; year--) {
-    const option = document.createElement('option');
-    option.value = year;
-    option.textContent = year;
-    yearSelect.appendChild(option);
-  }
-}
-
-async function filterRiwayat() {
+async function loadRiwayatTanpaFilter() {
   if (!currentMahasiswa) return;
   
   const mahasiswaId = currentMahasiswa.id;
 
-  const filters = {
-    mahasiswa_id: mahasiswaId,
-    hari: document.getElementById('filter-hari').value,
-    bulan: document.getElementById('filter-bulan').value,
-    tahun: document.getElementById('filter-tahun').value,
-    status: document.getElementById('filter-status').value
-  };
-
   try {
-    const queryParams = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) queryParams.append(key, value);
-    });
-
-    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/riwayat?${queryParams}`);
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/riwayat`);
     const result = await res.json();
 
     if (result.success) {
@@ -1382,61 +1379,6 @@ function calculateDuration(checkIn, checkOut) {
   const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
   
   return `${diffHours}j ${diffMinutes}m`;
-}
-
-function resetRiwayatFilter() {
-  document.getElementById('filter-hari').value = '';
-  document.getElementById('filter-bulan').value = '';
-  document.getElementById('filter-tahun').value = '';
-  document.getElementById('filter-status').value = '';
-  
-  filterRiwayat();
-}
-
-async function exportRiwayatCSV() {
-  if (!currentMahasiswa) {
-    toast('Error: Data mahasiswa tidak ditemukan', '', true);
-    return;
-  }
-  
-  const mahasiswaId = currentMahasiswa.id;
-
-  const filters = {
-    mahasiswa_id: mahasiswaId,
-    hari: document.getElementById('filter-hari').value,
-    bulan: document.getElementById('filter-bulan').value,
-    tahun: document.getElementById('filter-tahun').value,
-    status: document.getElementById('filter-status').value
-  };
-
-  try {
-    const queryParams = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) queryParams.append(key, value);
-    });
-
-    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/riwayat/export?${queryParams}`);
-    
-    if (res.ok) {
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `riwayat_kehadiran_${mahasiswaId}_${Date.now()}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      toast('Export berhasil', 'File CSV telah diunduh');
-    } else {
-      const result = await res.json();
-      toast('Export gagal', result.message || 'Terjadi kesalahan', true);
-    }
-  } catch (e) {
-    console.error('Error exporting CSV:', e);
-    toast('Export gagal', 'Pastikan server berjalan', true);
-  }
 }
 
 // ─── Enhanced Izin Functions (REMOVED - using version with currentMahasiswa above) ─────────────────────────────────────────────
@@ -1547,8 +1489,9 @@ function openDetailKehadiranModal(submissionId) {
   // 2. Isi Data Mahasiswa (Ambil dari currentMahasiswa)
   document.getElementById('khd-detail-mahasiswa-id').textContent = currentMahasiswa.id;
   document.getElementById('khd-detail-mahasiswa-name').textContent = currentMahasiswa.name;
-  document.getElementById('khd-detail-mahasiswa-kelompok').textContent = currentMahasiswa.kelompok;
+  document.getElementById('khd-detail-mahasiswa-kompi').textContent = currentMahasiswa.kompi;
   document.getElementById('khd-detail-mahasiswa-jurusan').textContent = currentMahasiswa.jurusan;
+  document.getElementById('khd-detail-mahasiswa-prodi').textContent = currentMahasiswa.prodi || '—';
 
   // 3. Isi Data Spesifik Kehadiran
   const tglFormatted = submission.date ? submission.date.substring(0, 10) : '—';

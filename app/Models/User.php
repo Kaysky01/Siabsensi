@@ -51,8 +51,8 @@ class User extends Authenticatable
     }
 
     /**
-     * OVERRIDE PENTING: 
-     * Beri tahu sistem Auth Laravel untuk menggunakan 'password_hash' 
+     * OVERRIDE PENTING:
+     * Beri tahu sistem Auth Laravel untuk menggunakan 'password_hash'
      * sebagai ganti 'password' bawaan.
      */
     public function getAuthPassword()
@@ -60,8 +60,8 @@ class User extends Authenticatable
         return $this->password_hash;
     }
 
-    public function mahasiswa() 
+    public function mahasiswa()
     {
-        return $this->belongsTo(Mahasiswa::class, 'mahasiswa_id', 'id');  
+        return $this->belongsTo(Mahasiswa::class, 'mahasiswa_id', 'id');
     }
 }

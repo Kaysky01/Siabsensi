@@ -4,20 +4,22 @@ namespace App\Exports;
 
 use App\Models\Attendance;
 use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class AttendanceExport implements FromCollection, WithHeadings, WithStyles, WithMapping, WithColumnWidths, WithTitle
+class AttendanceExport implements FromCollection, WithColumnWidths, WithHeadings, WithMapping, WithStyles, WithTitle
 {
     protected $startDate;
+
     protected $endDate;
+
     private $rowNumber = 0;
 
     public function __construct($startDate = null, $endDate = null)
@@ -29,7 +31,7 @@ class AttendanceExport implements FromCollection, WithHeadings, WithStyles, With
     public function collection()
     {
         $query = Attendance::with(['mahasiswa']);
-        
+
         if ($this->startDate && $this->endDate) {
             $query->whereBetween('date', [$this->startDate, $this->endDate]);
         } elseif ($this->startDate) {
@@ -37,14 +39,14 @@ class AttendanceExport implements FromCollection, WithHeadings, WithStyles, With
         } elseif ($this->endDate) {
             $query->whereDate('date', '<=', $this->endDate);
         }
-        
+
         return $query->orderBy('date', 'desc')->get();
     }
 
     public function map($attendance): array
     {
         $mahasiswa = $attendance->mahasiswa;
-        
+
         // Format status
         $statusText = ucfirst($attendance->status);
         if ($attendance->status === 'izin') {
@@ -58,11 +60,11 @@ class AttendanceExport implements FromCollection, WithHeadings, WithStyles, With
         } else {
             $statusText = 'Absen';
         }
-        
+
         return [
             ++$this->rowNumber,
             $mahasiswa ? $mahasiswa->name : '-',
-            $mahasiswa ? $mahasiswa->kelompok : '-',
+            $mahasiswa ? $mahasiswa->kompi : '-',
             $mahasiswa ? $mahasiswa->jurusan : '-',
             $attendance->date ? date('d/m/Y', strtotime($attendance->date)) : '-',
             $attendance->check_in ? date('H:i', strtotime($attendance->check_in)) : '-',
@@ -76,18 +78,18 @@ class AttendanceExport implements FromCollection, WithHeadings, WithStyles, With
     {
         $dateRange = '';
         if ($this->startDate && $this->endDate) {
-            $dateRange = date('d/m/Y', strtotime($this->startDate)) . ' - ' . date('d/m/Y', strtotime($this->endDate));
+            $dateRange = date('d/m/Y', strtotime($this->startDate)).' - '.date('d/m/Y', strtotime($this->endDate));
         } elseif ($this->startDate) {
-            $dateRange = 'Mulai ' . date('d/m/Y', strtotime($this->startDate));
+            $dateRange = 'Mulai '.date('d/m/Y', strtotime($this->startDate));
         } elseif ($this->endDate) {
-            $dateRange = 'Sampai ' . date('d/m/Y', strtotime($this->endDate));
+            $dateRange = 'Sampai '.date('d/m/Y', strtotime($this->endDate));
         }
-        
+
         return [
             ['LAPORAN ABSENSI MAHASISWA'],
             $dateRange ? [$dateRange] : [''],
             [''],
-            ['No', 'Nama', 'Kelompok', 'Jurusan', 'Tanggal', 'Jam Masuk', 'Jam Keluar', 'Status', 'Kamera'],
+            ['No', 'Nama', 'kompi', 'Jurusan', 'Tanggal', 'Jam Masuk', 'Jam Keluar', 'Status', 'Kamera'],
         ];
     }
 
@@ -111,14 +113,14 @@ class AttendanceExport implements FromCollection, WithHeadings, WithStyles, With
         $titleRow = $this->startDate || $this->endDate ? 1 : 1;
         $headerRow = $this->startDate || $this->endDate ? 4 : 3;
         $dataStartRow = $this->startDate || $this->endDate ? 5 : 4;
-        
+
         if ($this->startDate || $this->endDate) {
             $sheet->mergeCells('A1:I1');
             $sheet->mergeCells('A2:I2');
         } else {
             $sheet->mergeCells('A1:I1');
         }
-        
+
         return [
             // Title row styling
             1 => [

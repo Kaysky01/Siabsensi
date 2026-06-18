@@ -139,16 +139,12 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
             if (data.success) {
                 console.log('Attendance recorded:', mahasiswaId, data);
                 // Play beep only for new check-in or check-out
-                // Don't beep if already checked-in or checked-out today
                 if (data.result && (data.result.status === 'checked_in' || data.result.status === 'checked_out')) {
                     playBeep();
-                    // Show toast notification
                     const actionText = data.result.status === 'checked_in' ? 'absen masuk' : 'absen pulang';
                     const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
                     showToast(`${mahasiswaName} berhasil ${actionText}`);
                 }
-                // Refresh attendance data
-                fetchLatestAttendance();
             }
         }
     } catch (err) {
@@ -277,7 +273,7 @@ function renderRecentScans(attendanceData) {
                 <div class="log-body">
                     <div class="mhs-name">${record.name}</div>
                     <div class="mhs-info">
-                        <span>${record.kelompok || '—'}</span>
+                        <span>${record.kompi || '—'}</span>
                         <span class="action-badge ${isCheckout ? 'keluar' : 'masuk'}">${actionText}</span>
                     </div>
                     ${cooldownBadge}
@@ -318,28 +314,73 @@ function updateFooter() {
     }
 }
 
-// ===== POLLING DATA ABSENSI =====
+// ===== REAL-TIME DENGAN DELTA UPDATES (Polling) =====
+let currentAttendanceList = [];
+let lastUpdateTimestamp = null;
+
+function handleIncomingData(newData) {
+    if (!newData || newData.length === 0) return;
+
+    let hasNewCheck = false;
+    let newActionMessage = '';
+
+    newData.forEach(newItem => {
+        // Cari apakah mahasiswa ini sudah ada di log absensi hari ini
+        const idx = currentAttendanceList.findIndex(item => item.mahasiswa_id === newItem.mahasiswa_id);
+        
+        if (idx !== -1) {
+            const oldItem = currentAttendanceList[idx];
+            // Cek apakah ada aksi baru (misalnya check_out baru terisi)
+            if (!oldItem.check_out && newItem.check_out) {
+                hasNewCheck = true;
+                newActionMessage = `${newItem.name} berhasil absen pulang`;
+            }
+            // Update data lama dengan data baru
+            currentAttendanceList[idx] = newItem;
+        } else {
+            // Data baru absen masuk
+            currentAttendanceList.unshift(newItem); // Letakkan paling atas
+            hasNewCheck = true;
+            newActionMessage = `${newItem.name} berhasil absen masuk`;
+        }
+    });
+
+    // Urutkan berdasarkan waktu check_in terbaru agar yang terbaru selalu di atas
+    currentAttendanceList.sort((a, b) => {
+        const timeA = new Date(a.check_in || a.created_at || 0).getTime();
+        const timeB = new Date(b.check_in || b.created_at || 0).getTime();
+        return timeB - timeA;
+    });
+
+    // Batasi maksimum segups data agar tetap ringan di client
+    currentAttendanceList = currentAttendanceList.slice(0, 50);
+
+    // Sync cooldown dan render
+    syncCooldownMap(currentAttendanceList);
+    renderRecentScans(currentAttendanceList);
+    updateStats(currentAttendanceList);
+    updateFooter();
+
+    // Bunyikan beep dan tampilkan toast jika ada absensi baru terdeteksi
+    if (hasNewCheck && lastUpdateTimestamp) {
+        playBeep();
+        showToast(newActionMessage);
+    }
+}
+
 async function fetchLatestAttendance() {
     try {
-        const res = await fetch(`${API_URL}/attendance/today`);
+        const url = `${API_URL}/attendance/stream${lastUpdateTimestamp ? `?last_update=${encodeURIComponent(lastUpdateTimestamp)}` : ''}`;
+        const res = await fetch(url);
         const data = await res.json();
 
         if (data.success) {
-            syncCooldownMap(data.data);
-
-            // Hitung total aktivitas: setiap check-in dihitung 1, setiap check-out dihitung 1
-            let currentActionCount = 0;
-            data.data.forEach(record => {
-                if (record.check_in) currentActionCount++;
-                if (record.check_out) currentActionCount++;
-            });
-
-            // Update last action count
-            lastActionCount = currentActionCount;
-
-            renderRecentScans(data.data);
-            updateStats(data.data);
-            updateFooter();
+            if (data.data.length > 0) {
+                handleIncomingData(data.data);
+                if (data.last_update) {
+                    lastUpdateTimestamp = data.last_update;
+                }
+            }
         }
     } catch (err) {
         console.warn('Gagal memuat data absensi:', err);
@@ -349,15 +390,11 @@ async function fetchLatestAttendance() {
 // ===== SUARA BEEP SAAT ABSEN BARU =====
 let isAudioUnlocked = false;
 
-// Fungsi yang dipanggil saat tombol OK di alert diklik
 function aktifkanSuara() {
     const alertBox = document.getElementById('audio-alert');
     if (alertBox) alertBox.remove();
 
-    // Preload audio terlebih dahulu
     beepSound.load();
-
-    // Trik: Mainkan dengan volume 0 untuk membuka izin audio browser
     beepSound.volume = 0;
     beepSound.play()
         .then(() => {
@@ -368,20 +405,16 @@ function aktifkanSuara() {
             console.info('[SIABSEN] Audio berhasil diaktifkan.');
         })
         .catch(err => {
-            // Jika file tidak ditemukan atau browser tolak, tandai gagal
             isAudioUnlocked = false;
-            console.warn('[SIABSEN] Izin audio gagal — pastikan file ada di static/sounds/beep.mp3:', err);
+            console.warn('[SIABSEN] Izin audio gagal:', err);
         });
 }
 
-// 3. Fungsi playBeep yang dipanggil HANYA saat ada absen baru
 function playBeep() {
-    // Jangan lakukan apa-apa jika user belum klik OK di alert
     if (!isAudioUnlocked) return;
-
     try {
-        beepSound.currentTime = 0; // Pastikan suara diputar dari awal
-        beepSound.play().catch(err => console.warn('Gagal memutar beep absensi:', err));
+        beepSound.currentTime = 0;
+        beepSound.play().catch(err => console.warn('Gagal memutar beep:', err));
     } catch (err) {
         console.warn('Error audio:', err);
     }
@@ -391,15 +424,10 @@ function playBeep() {
 function showToast(message) {
     const toast = document.getElementById('toast-notification');
     const toastText = document.getElementById('toast-text');
-    
     if (toast && toastText) {
         toastText.textContent = message;
         toast.classList.add('show');
-        
-        // Hide after 3 seconds
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 3000);
+        setTimeout(() => toast.classList.remove('show'), 3000);
     }
 }
 
@@ -407,13 +435,12 @@ function showToast(message) {
 initCamera();
 fetchLatestAttendance();
 
-// Refresh data absensi setiap 2 detik
-setInterval(fetchLatestAttendance, 3000);
+// Polling setiap 2 detik untuk delta updates
+setInterval(fetchLatestAttendance, 2000);
 
 // Re-render tiap 10 detik untuk update countdown cooldown
 setInterval(() => {
-    const container = document.getElementById('recent-scans');
-    if (container && !container.querySelector('.empty-state')) {
-        fetchLatestAttendance();
+    if (currentAttendanceList.length > 0) {
+        renderRecentScans(currentAttendanceList);
     }
 }, 10000);

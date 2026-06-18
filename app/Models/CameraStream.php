@@ -10,11 +10,13 @@ class CameraStream extends Model
     use HasFactory;
 
     protected $table = 'camera_streams';
-    
+
     protected $primaryKey = 'id';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
-    
+
     public const UPDATED_AT = null;
 
     protected $fillable = [

@@ -10,9 +10,10 @@ class SystemLog extends Model
     use HasFactory;
 
     protected $table = 'system_logs';
-    
+
     // Custom Timestamp mapping
     public const CREATED_AT = 'timestamp';
+
     public const UPDATED_AT = null;
 
     protected $fillable = [

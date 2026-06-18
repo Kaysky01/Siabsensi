@@ -2,35 +2,37 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Exports\AttendanceExport;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Attendance;
-use App\Models\Mahasiswa;
+use App\Models\CameraStream;
 use App\Models\IzinSubmission;
 use App\Models\KehadiranSubmission;
-use App\Models\CameraStream;
+use App\Models\Mahasiswa;
 use App\Models\User;
-use App\Exports\AttendanceExport;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\DB; // <-- untuk query builder relasi tabel
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash; // <-- untuk query builder relasi tabel
+use Illuminate\Support\Facades\Http;
 use Maatwebsite\Excel\Facades\Excel;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class AdminController extends Controller
 {
     public function dashboard_admin()
     {
         return view('admin.dashboard');
-    
+
     }
 
     public function getDashboardData(Request $request)
     {
         $today = Carbon::today()->toDateString();
-        
+
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
-        
+
         // 1. Hitung Statistik Utama
         $totalMahasiswa = Mahasiswa::count();
         $presentToday = Attendance::whereDate('date', $today)->distinct()->count('mahasiswa_id');
@@ -41,13 +43,13 @@ class AdminController extends Controller
         $recentAttendances = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
             ->whereDate("$table.date", $today)
             ->orderBy("$table.check_in", 'desc')
-            ->select("$table.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
             ->take(8)
             ->get()
-            ->map(function($att) {
+            ->map(function ($att) {
                 return [
                     'name' => $att->name,
-                    'kelompok' => $att->kelompok,
+                    'kompi' => $att->kompi,
                     'check_in' => $att->check_in,
                     'check_out' => $att->check_out,
                     'status' => $att->status ?? 'present', // fallback status
@@ -63,16 +65,16 @@ class AdminController extends Controller
             $count = Attendance::whereDate('date', $date)->distinct()->count('mahasiswa_id');
             $trend[] = [
                 'date' => $date,
-                'present' => $count
+                'present' => $count,
             ];
         }
 
-        // 4. Hitung Kehadiran Berdasarkan Kelompok Hari Ini
-        $byKelompok = DB::table($table)
+        // 4. Hitung Kehadiran Berdasarkan kompi Hari Ini
+        $bykompi = DB::table($table)
             ->join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
             ->whereDate("$table.date", $today)
-            ->select("$mhsTable.kelompok", DB::raw("count(DISTINCT $table.mahasiswa_id) as count"))
-            ->groupBy("$mhsTable.kelompok")
+            ->select("$mhsTable.kompi", DB::raw("count(DISTINCT $table.mahasiswa_id) as count"))
+            ->groupBy("$mhsTable.kompi")
             ->get();
 
         // Kembalikan ke format JSON untuk Javascript
@@ -87,8 +89,8 @@ class AdminController extends Controller
                 ],
                 'recent' => $recentAttendances,
                 'trend' => $trend,
-                'by_kelompok' => $byKelompok
-            ]
+                'by_kompi' => $bykompi,
+            ],
         ]);
     }
 
@@ -96,18 +98,18 @@ class AdminController extends Controller
     public function getAttendanceToday(Request $request)
     {
         $today = Carbon::today()->toDateString();
-        
+
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
         $attendances = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
             ->whereDate("$table.date", $today)
             ->orderBy("$table.check_in", 'desc')
-            ->select("$table.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
             ->get();
 
         return response()->json([
             'success' => true,
-            'data' => $attendances
+            'data' => $attendances,
         ]);
     }
 
@@ -121,7 +123,7 @@ class AdminController extends Controller
         $mhsTable = (new Mahasiswa)->getTable();
 
         $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
-            ->select("$table.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
             ->orderBy("$table.date", 'desc')
             ->orderBy("$table.check_in", 'desc');
 
@@ -131,7 +133,7 @@ class AdminController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $query->get()
+            'data' => $query->get(),
         ]);
     }
 
@@ -141,16 +143,36 @@ class AdminController extends Controller
         $start = $request->query('start');
         $end = $request->query('end');
 
-        return Excel::download(new AttendanceExport($start, $end), 'absensi_' . date('Y-m-d') . '.xlsx');
+        return Excel::download(new AttendanceExport($start, $end), 'absensi_'.date('Y-m-d').'.xlsx');
     }
 
     // Mengambil Semua Data Mahasiswa
     public function getAllMahasiswa()
     {
         $mahasiswa = Mahasiswa::all();
+
+        $today = Carbon::today()->format('Y-m-d');
+        // Ambil absensi hari ini sekali jalan untuk efisiensi
+        $attendances = Attendance::where('date', $today)->get()->keyBy('mahasiswa_id');
+
+        $mahasiswa->map(function ($m) use ($attendances) {
+            $att = $attendances->get($m->id);
+            if ($att) {
+                $m->today_check_in = $att->check_in ? Carbon::parse($att->check_in)->format('H:i') : null;
+                $m->today_check_out = $att->check_out ? Carbon::parse($att->check_out)->format('H:i') : null;
+                $m->today_status = $att->status;
+            } else {
+                $m->today_check_in = null;
+                $m->today_check_out = null;
+                $m->today_status = 'absent';
+            }
+
+            return $m;
+        });
+
         return response()->json([
             'success' => true,
-            'data' => $mahasiswa
+            'data' => $mahasiswa,
         ]);
     }
 
@@ -160,8 +182,9 @@ class AdminController extends Controller
         $validated = $request->validate([
             'id' => 'required|string|unique:mahasiswa,id',
             'name' => 'required|string|max:255',
-            'kelompok' => 'required|string',
+            'kompi' => 'required|string',
             'jurusan' => 'required|string',
+            'prodi' => 'nullable|string|max:100',
             'email' => 'nullable|email',
             'no_telp_mahasiswa' => 'nullable|string',
             'no_telp_ortu' => 'nullable|string',
@@ -174,8 +197,30 @@ class AdminController extends Controller
             'success' => true,
             'data' => [
                 'qr_code_id' => $mahasiswa->qr_code_id,
-                'qr_image_base64' => $this->generateQrBase64($mahasiswa->qr_code_id, 200)
-            ]
+                'qr_image_base64' => $this->generateQrBase64($mahasiswa->qr_code_id, 200),
+            ],
+        ]);
+    }
+
+    // ─── BULK UPDATE KOMPI (Panel Pengaturan Kompi) ───────────────
+    public function bulkUpdateKompi(Request $request)
+    {
+        $validated = $request->validate([
+            'assignments' => 'required|array',
+            'assignments.*.id' => 'required|string|exists:mahasiswa,id',
+            'assignments.*.kompi' => 'required|string|max:100',
+        ]);
+
+        $updated = 0;
+        foreach ($validated['assignments'] as $assignment) {
+            Mahasiswa::where('id', $assignment['id'])->update(['kompi' => $assignment['kompi']]);
+            $updated++;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Kompi berhasil diperbarui untuk {$updated} mahasiswa",
+            'updated' => $updated,
         ]);
     }
 
@@ -184,22 +229,26 @@ class AdminController extends Controller
         $mahasiswa = Mahasiswa::find($id);
         if ($mahasiswa) {
             $mahasiswa->delete();
+
             return response()->json(['success' => true]);
         }
+
         return response()->json(['success' => false], 404);
     }
 
     public function getMahasiswaQR($id)
     {
         $mahasiswa = Mahasiswa::find($id);
-        if (!$mahasiswa) return response()->json(['success' => false], 404);
+        if (! $mahasiswa) {
+            return response()->json(['success' => false], 404);
+        }
 
         return response()->json([
             'success' => true,
             'data' => [
                 'qr_code_id' => $mahasiswa->qr_code_id,
-                'qr_image_base64' => $this->generateQrBase64($mahasiswa->qr_code_id, 300)
-            ]
+                'qr_image_base64' => $this->generateQrBase64($mahasiswa->qr_code_id, 300),
+            ],
         ]);
     }
 
@@ -207,14 +256,17 @@ class AdminController extends Controller
     {
         // Gunakan package Laravel QR jika ada
         if (class_exists('\SimpleSoftwareIO\QrCode\Facades\QrCode')) {
-            return base64_encode(\SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')->size($size)->generate($data));
+            return base64_encode(QrCode::format('png')->size($size)->generate($data));
         }
         // Fallback URL jika package tidak ada (menggunakan API eksternal)
         try {
-            $img = @file_get_contents("https://api.qrserver.com/v1/create-qr-code/?size={$size}x{$size}&data=" . urlencode($data));
-            if ($img) return base64_encode($img);
-        } catch (\Exception $e) {}
-        
+            $img = @file_get_contents("https://api.qrserver.com/v1/create-qr-code/?size={$size}x{$size}&data=".urlencode($data));
+            if ($img) {
+                return base64_encode($img);
+            }
+        } catch (\Exception $e) {
+        }
+
         return '';
     }
 
@@ -232,29 +284,47 @@ class AdminController extends Controller
             'email' => 'nullable|email',
             'role' => 'required|in:admin,timdis,mahasiswa',
             'password' => 'required|string|min:6',
-            'mahasiswa_id' => 'nullable|string'
+            'mahasiswa_id' => 'nullable|string',
         ]);
 
         $data['password_hash'] = Hash::make($data['password']);
         unset($data['password']);
 
         $user = User::create($data);
+
         return response()->json(['success' => true, 'data' => $user]);
     }
 
     public function updateUser(Request $request, $id)
     {
         $user = User::find($id);
-        if (!$user) return response()->json(['success' => false], 404);
-        
+        if (! $user) {
+            return response()->json(['success' => false], 404);
+        }
+
         $user->update($request->only(['full_name', 'email', 'mahasiswa_id']));
+
         return response()->json(['success' => true, 'data' => $user]);
     }
 
-    public function activateUser($id) { User::where('id', $id)->update(['is_active' => 1]); return response()->json(['success' => true]); }
-    public function deactivateUser($id) { User::where('id', $id)->update(['is_active' => 0]); return response()->json(['success' => true]); }
-    public function resetUserPassword(Request $request, $id) {
+    public function activateUser($id)
+    {
+        User::where('id', $id)->update(['is_active' => 1]);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function deactivateUser($id)
+    {
+        User::where('id', $id)->update(['is_active' => 0]);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function resetUserPassword(Request $request, $id)
+    {
         User::where('id', $id)->update(['password_hash' => Hash::make($request->new_password)]);
+
         return response()->json(['success' => true]);
     }
 
@@ -265,7 +335,7 @@ class AdminController extends Controller
         $mhsTable = (new Mahasiswa)->getTable();
 
         $query = IzinSubmission::join($mhsTable, "$izinTable.mahasiswa_id", '=', "$mhsTable.id")
-            ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kompi")
             ->orderBy("$izinTable.created_at", 'desc');
 
         if ($request->has('status') && $request->status) {
@@ -288,24 +358,29 @@ class AdminController extends Controller
             'submission_id' => 'required|integer',
             'action' => 'required|in:approve,reject',
             'verified_by' => 'required|string',
-            'rejection_reason' => 'nullable|string'
+            'rejection_reason' => 'nullable|string',
         ]);
 
         $submission = IzinSubmission::find($validated['submission_id']);
-        if (!$submission) return response()->json(['success' => false, 'message' => 'Data tidak ditemukan'], 404);
+        if (! $submission) {
+            return response()->json(['success' => false, 'message' => 'Data tidak ditemukan'], 404);
+        }
 
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
         $submission->verified_by = $validated['verified_by'];
         $submission->verified_at = Carbon::now();
-        if ($validated['action'] === 'reject') $submission->rejection_reason = $validated['rejection_reason'];
+        if ($validated['action'] === 'reject') {
+            $submission->rejection_reason = $validated['rejection_reason'];
+        }
         $submission->save();
-        
+
         if ($validated['action'] === 'approve') {
             Attendance::updateOrCreate(
                 ['mahasiswa_id' => $submission->mahasiswa_id, 'date' => $submission->date],
                 ['status' => $submission->submission_type]
             );
         }
+
         return response()->json(['success' => true]);
     }
 
@@ -316,7 +391,7 @@ class AdminController extends Controller
         $mhsTable = (new Mahasiswa)->getTable();
 
         $query = KehadiranSubmission::join($mhsTable, "$khdTable.mahasiswa_id", '=', "$mhsTable.id")
-            ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kelompok")
+            ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kompi")
             ->orderBy("$khdTable.created_at", 'desc');
 
         if ($request->has('status') && $request->status) {
@@ -339,37 +414,45 @@ class AdminController extends Controller
             'submission_id' => 'required|integer',
             'action' => 'required|in:approve,reject',
             'verified_by' => 'required|string',
-            'reject_reason' => 'nullable|string'
+            'reject_reason' => 'nullable|string',
         ]);
 
         $submission = KehadiranSubmission::find($validated['submission_id']);
-        if (!$submission) return response()->json(['success' => false, 'message' => 'Data tidak ditemukan'], 404);
+        if (! $submission) {
+            return response()->json(['success' => false, 'message' => 'Data tidak ditemukan'], 404);
+        }
 
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
         $submission->verified_by = $validated['verified_by'];
         $submission->verified_at = Carbon::now();
-        if ($validated['action'] === 'reject') $submission->rejection_reason = $validated['reject_reason'];
+        if ($validated['action'] === 'reject') {
+            $submission->rejection_reason = $validated['reject_reason'];
+        }
         $submission->save();
 
         if ($validated['action'] === 'approve') {
             // Ambil format Y-m-d saja agar tidak terjadi penumpukan dengan waktu bawaan (00:00:00)
             $dateOnly = Carbon::parse($submission->date)->format('Y-m-d');
-            
+
             Attendance::updateOrCreate(
                 ['mahasiswa_id' => $submission->mahasiswa_id, 'date' => $dateOnly],
                 [
-                    'check_in' => $dateOnly . ' ' . $submission->check_in_time, 
-                    'check_out' => $submission->check_out_time ? $dateOnly . ' ' . $submission->check_out_time : null, 
-                    'status' => 'present'
+                    'check_in' => $dateOnly.' '.$submission->check_in_time,
+                    'check_out' => $submission->check_out_time ? $dateOnly.' '.$submission->check_out_time : null,
+                    'status' => 'present',
                 ]
             );
         }
+
         return response()->json(['success' => true]);
     }
 
     // ─── CRUD KAMERA (STREAM) ─────────────────────────────────────
-    public function getCameras() { return response()->json(['success' => true, 'data' => CameraStream::all()]); }
-    
+    public function getCameras()
+    {
+        return response()->json(['success' => true, 'data' => CameraStream::all()]);
+    }
+
     public function getAvailableWebcams()
     {
         // Return available webcam indices (0, 1, 2, etc.)
@@ -380,47 +463,55 @@ class AdminController extends Controller
             ['index' => 1, 'name' => 'Webcam 1', 'resolution' => '640x480'],
             ['index' => 2, 'name' => 'Webcam 2', 'resolution' => '640x480'],
         ];
-        
+
         return response()->json(['success' => true, 'data' => $webcams]);
     }
-    
-    public function storeCamera(Request $request) { 
+
+    public function storeCamera(Request $request)
+    {
         try {
             $data = $request->all();
             // Store camera_index in rtsp_url field for compatibility
             if (isset($data['camera_index'])) {
-                $data['rtsp_url'] = (string)$data['camera_index'];
+                $data['rtsp_url'] = (string) $data['camera_index'];
                 unset($data['camera_index']);
             }
             // Set default values if not provided
             $data['is_active'] = $data['is_active'] ?? 0;
-            $c = CameraStream::create($data); 
-            return response()->json(['success' => true, 'data' => $c]); 
+            $c = CameraStream::create($data);
+
+            return response()->json(['success' => true, 'data' => $c]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
-    
-    public function updateCamera(Request $request, $id) { 
+
+    public function updateCamera(Request $request, $id)
+    {
         try {
             $data = $request->all();
             // Store camera_index in rtsp_url field for compatibility
             if (isset($data['camera_index'])) {
-                $data['rtsp_url'] = (string)$data['camera_index'];
+                $data['rtsp_url'] = (string) $data['camera_index'];
                 unset($data['camera_index']);
             }
-            CameraStream::where('id', $id)->update($data); 
-            return response()->json(['success' => true]); 
+            CameraStream::where('id', $id)->update($data);
+
+            return response()->json(['success' => true]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
-    public function deleteCamera($id) {
+
+    public function deleteCamera($id)
+    {
         CameraStream::destroy($id);
+
         return response()->json(['success' => true]);
     }
 
-    public function saveRtspSettings(Request $request) {
+    public function saveRtspSettings(Request $request)
+    {
         try {
             $settings = $request->only([
                 'frame_width',
@@ -428,7 +519,7 @@ class AdminController extends Controller
                 'frame_fps',
                 'reconnect_delay',
                 'confidence_threshold',
-                'qr_cooldown'
+                'qr_cooldown',
             ]);
 
             // Save settings to a JSON file or database
@@ -437,59 +528,62 @@ class AdminController extends Controller
 
             // Reload Python backend settings
             try {
-                \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/reload-settings');
+                Http::post('http://127.0.0.1:5000/api/python/reload-settings');
             } catch (\Exception $e) {
                 // Ignore if Python backend is not running
             }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pengaturan RTSP disimpan'
+                'message' => 'Pengaturan RTSP disimpan',
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
 
-    public function getYoloSettings() {
+    public function getYoloSettings()
+    {
         try {
             $settingsFile = base_path('yolo_settings.json');
-            if (!file_exists($settingsFile)) {
+            if (! file_exists($settingsFile)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Settings file not found'
+                    'message' => 'Settings file not found',
                 ], 404);
             }
 
             $settings = json_decode(file_get_contents($settingsFile), true);
+
             return response()->json([
                 'success' => true,
-                'data' => $settings
+                'data' => $settings,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
 
-    public function saveYoloSettings(Request $request) {
+    public function saveYoloSettings(Request $request)
+    {
         try {
             $settings = $request->only([
                 'model_path',
                 'confidence',
-                'qr_cooldown'
+                'qr_cooldown',
             ]);
 
             // Normalize model path to use relative path from python_backend directory
             if (isset($settings['model_path'])) {
                 // Convert Laravel-relative path (models/...) to Python-backend-relative path (../models/...)
                 if (strpos($settings['model_path'], 'models/') === 0) {
-                    $settings['model_path'] = '../' . $settings['model_path'];
+                    $settings['model_path'] = '../'.$settings['model_path'];
                 }
                 // Remove any duplicate ../ prefixes
                 $settings['model_path'] = preg_replace('/^\.+\/+/', '../', $settings['model_path']);
@@ -501,19 +595,19 @@ class AdminController extends Controller
 
             // Reload Python backend settings
             try {
-                \Illuminate\Support\Facades\Http::post('http://127.0.0.1:5000/api/python/reload-settings');
+                Http::post('http://127.0.0.1:5000/api/python/reload-settings');
             } catch (\Exception $e) {
                 // Ignore if Python backend is not running
             }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pengaturan YOLO disimpan'
+                'message' => 'Pengaturan YOLO disimpan',
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 500);
         }
     }

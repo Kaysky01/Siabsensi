@@ -31,7 +31,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('sessions');
-        
+
         // Restore the old custom sessions table structure
         Schema::create('sessions', function (Blueprint $table) {
             $table->integer('id')->autoIncrement();

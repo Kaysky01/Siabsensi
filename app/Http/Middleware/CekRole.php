@@ -11,7 +11,7 @@ class CekRole
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
@@ -25,7 +25,7 @@ class CekRole
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akses ditolak: Anda tidak memiliki izin untuk mengakses resource ini.'
+                'message' => 'Akses ditolak: Anda tidak memiliki izin untuk mengakses resource ini.',
             ], 403);
         }
 

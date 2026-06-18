@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Middleware\CekRole;
+use App\Models\User;
 use Illuminate\Foundation\Application;
-use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Configuration\Exceptions; // <-- WAJIB: Tambahkan ini untuk membaca request
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Request; // <-- WAJIB: Tambahkan ini untuk membaca request
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -13,19 +15,19 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        
+
         // Sangat penting untuk hosting: Percayai SSL/Proxy agar sesi tidak terputus
         $middleware->trustProxies(at: '*');
-        
+
         // 1. Redirect untuk Guest (Belum Login) jika mencoba akses halaman yang diproteksi
-        $middleware->redirectGuestsTo('/login'); 
-        
+        $middleware->redirectGuestsTo('/login');
+
         // 2. Redirect untuk User (Sudah Login) jika mencoba akses halaman login/register
         // Di sini kita cek rolenya
         $middleware->redirectUsersTo(function (Request $request) {
-            // Asumsi kamu punya kolom 'role' di tabel users. 
+            // Asumsi kamu punya kolom 'role' di tabel users.
             // Sesuaikan '$request->user()->role' dengan nama kolom database kamu.
-            /** @var \App\Models\User $user */
+            /** @var User $user */
             $user = $request->user();
             $role = $user->role;
 
@@ -47,20 +49,20 @@ return Application::configure(basePath: dirname(__DIR__))
             // 3. Arahkan kembali ke URL login
             return '/login';
         });
-        
+
         // 3. Alias Middleware kamu yang sudah ada
         $middleware->alias([
-            'role' => App\Http\Middleware\CekRole::class,
+            'role' => CekRole::class,
         ]);
 
         // 4. Pengecualian CSRF kamu yang sudah ada
         $middleware->validateCsrfTokens(except: [
-            'api/hardware-absensi', 
+            'api/hardware-absensi',
             'api/sensor/*',
             'api/mahasiswa/*/sertifikat/*',
             'api/sertifikat/*',
             'api/python/detect',
-            'api/python/attendance'
+            'api/python/attendance',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

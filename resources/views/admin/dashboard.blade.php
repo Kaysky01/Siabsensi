@@ -44,6 +44,9 @@
         <div class="nav-item" onclick="showPage('mahasiswa')">
           <span class="material-symbols-outlined icon">badge</span> Mahasiswa
         </div>
+        <div class="nav-item" onclick="showPage('kompi-management')">
+          <span class="material-symbols-outlined icon">groups</span> Pengaturan Kompi
+        </div>
         <div class="nav-item" onclick="showPage('history')">
           <span class="material-symbols-outlined icon">history</span> Riwayat
         </div>
@@ -163,7 +166,7 @@
 
             <div class="panel">
               <div class="section-header">
-                <div class="section-title">Per Kelompok</div>
+                <div class="section-title">Per kompi</div>
               </div>
               <div id="dept-list"></div>
             </div>
@@ -189,7 +192,7 @@
               <tr>
                 <th>No</th>
                 <th>Mahasiswa</th>
-                <th>Kelompok</th>
+                <th>kompi</th>
                 <th>Jam Masuk</th>
                 <th>Jam Keluar</th>
                 <th>Durasi</th>
@@ -223,14 +226,20 @@
               <input type="text" id="mhs-search" class="form-input" placeholder="Ketik nama mahasiswa..." style="padding:7px 10px" oninput="filterMahasiswa()">
             </div>
             <div>
-              <label class="form-label">Kelompok</label>
-              <select id="mhs-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterMahasiswa()">
+              <label class="form-label">kompi</label>
+              <select id="mhs-filter-kompi" class="form-input" style="width:120px;padding:7px 10px" onchange="filterMahasiswa()">
                 <option value="">Semua</option>
               </select>
             </div>
             <div>
               <label class="form-label">Jurusan</label>
               <select id="mhs-filter-jurusan" class="form-input" style="width:180px;padding:7px 10px" onchange="filterMahasiswa()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Prodi</label>
+              <select id="mhs-filter-prodi" class="form-input" style="width:180px;padding:7px 10px" onchange="filterMahasiswa()">
                 <option value="">Semua</option>
               </select>
             </div>
@@ -248,18 +257,77 @@
             <thead>
               <tr>
                 <th>Mahasiswa</th>
-                <th>Kelompok</th>
+                <th>kompi</th>
                 <th>Jurusan</th>
+                <th>Prodi</th>
                 <th>Email</th>
                 <th>No Telp Mahasiswa</th>
                 <th>No Telp Orang Tua</th>
-                <th>QR Code ID</th>
+                <th>Status Absensi</th>
                 <th>Aksi</th>
               </tr>
             </thead>
             <tbody id="mhs-tbody">
               <tr>
                 <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== PAGE: PENGATURAN KOMPI (ADMIN ONLY) ===== -->
+      <section id="page-kompi-management" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Pengaturan & Pembagian Kompi</div>
+            <div class="page-sub">Kelola dan bagi kompi mahasiswa secara massal (bulk)</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveBulkKompi()">
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">save</span> Simpan Pembagian Kompi
+          </button>
+        </div>
+
+        <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div style="flex:1;min-width:200px">
+              <label class="form-label">Cari Nama Mahasiswa</label>
+              <input type="text" id="kompi-mhs-search" class="form-input" placeholder="Ketik nama mahasiswa..." style="padding:7px 10px" oninput="filterKompiManagement()">
+            </div>
+            <div>
+              <label class="form-label">Kompi Saat Ini</label>
+              <select id="kompi-filter-current" class="form-input" style="width:120px;padding:7px 10px" onchange="filterKompiManagement()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Prodi</label>
+              <select id="kompi-filter-prodi" class="form-input" style="width:180px;padding:7px 10px" onchange="filterKompiManagement()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+            <div style="align-self:flex-end">
+              <button class="btn btn-secondary btn-sm" onclick="resetKompiManagementFilter()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span>
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>Mahasiswa</th>
+                <th>Program Studi (Prodi)</th>
+                <th>Jurusan</th>
+                <th style="width:250px">Atur Kompi</th>
+              </tr>
+            </thead>
+            <tbody id="kompi-tbody">
+              <tr>
+                <td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Memuat data mahasiswa...</td>
               </tr>
             </tbody>
           </table>
@@ -291,7 +359,7 @@
               <tr>
                 <th>Tanggal</th>
                 <th>Mahasiswa</th>
-                <th>Kelompok</th>
+                <th>kompi</th>
                 <th>Masuk</th>
                 <th>Keluar</th>
                 <th>Durasi</th>
@@ -429,8 +497,8 @@
               <input type="text" id="izin-search" class="form-input" placeholder="Ketik nama mahasiswa..." style="padding:7px 10px" oninput="filterIzinSubmissions()">
             </div>
             <div>
-              <label class="form-label">Kelompok</label>
-              <select id="izin-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterIzinSubmissions()">
+              <label class="form-label">kompi</label>
+              <select id="izin-filter-kompi" class="form-input" style="width:120px;padding:7px 10px" onchange="filterIzinSubmissions()">
                 <option value="">Semua</option>
               </select>
             </div>
@@ -459,7 +527,7 @@
               <thead>
                 <tr>
                   <th>Mahasiswa</th>
-                  <th>Kelompok</th>
+                  <th>kompi</th>
                   <th>Jenis</th>
                   <th>Tanggal</th>
                   <th>Keterangan</th>
@@ -518,8 +586,8 @@
               <input type="text" id="kehadiran-search" class="form-input" placeholder="Ketik nama mahasiswa..." style="padding:7px 10px" oninput="filterKehadiranSubmissions()">
             </div>
             <div>
-              <label class="form-label">Kelompok</label>
-              <select id="kehadiran-filter-kelompok" class="form-input" style="width:120px;padding:7px 10px" onchange="filterKehadiranSubmissions()">
+              <label class="form-label">kompi</label>
+              <select id="kehadiran-filter-kompi" class="form-input" style="width:120px;padding:7px 10px" onchange="filterKehadiranSubmissions()">
                 <option value="">Semua</option>
               </select>
             </div>
@@ -548,7 +616,7 @@
               <thead>
                 <tr>
                   <th>Mahasiswa</th>
-                  <th>Kelompok</th>
+                  <th>kompi</th>
                   <th>Tanggal</th>
                   <th>Jam Masuk</th>
                   <th>Jam Keluar</th>
@@ -884,13 +952,18 @@
           <div style="height:12px"></div>
           <div class="form-row-2">
             <div class="form-row" style="margin:0">
-              <label class="form-label">Kelompok *</label>
+              <label class="form-label">kompi *</label>
               <input class="form-input" id="f-dept" placeholder="A">
             </div>
             <div class="form-row" style="margin:0">
               <label class="form-label">Jurusan *</label>
               <input class="form-input" id="f-pos" placeholder="Teknik Informatika">
             </div>
+          </div>
+          <div style="height:12px"></div>
+          <div class="form-row">
+            <label class="form-label">Program Studi (Prodi) *</label>
+            <input class="form-input" id="f-prodi" placeholder="Contoh: D3 Teknik Informatika, S1 Sistem Informasi, dll">
           </div>
           <div style="height:12px"></div>
           <div class="form-row">
@@ -925,8 +998,9 @@
             <strong>Kolom yang diperlukan:</strong><br>
             • <code>mahasiswa_id</code> - ID Mahasiswa (contoh: MHS001)<br>
             • <code>name</code> - Nama Lengkap<br>
-            • <code>kelompok</code> - Kelompok (contoh: A, B, C)<br>
+            • <code>kompi</code> - kompi (contoh: A, B, C)<br>
             • <code>jurusan</code> - Jurusan<br>
+            • <code>prodi</code> - Program Studi (contoh: D3 Teknik Informatika)<br>
             • <code>email</code> - Email (opsional)<br>
             • <code>no_telp_mahasiswa</code> - No Telp Mahasiswa (opsional)<br>
             • <code>no_telp_ortu</code> - No Telp Orang Tua (opsional)
@@ -957,7 +1031,7 @@
                   <tr>
                     <th>ID Mahasiswa</th>
                     <th>Nama</th>
-                    <th>Kelompok</th>
+                    <th>kompi</th>
                     <th>Jurusan</th>
                     <th>Email</th>
                     <th>Status</th>
@@ -1099,7 +1173,7 @@
   <!-- Authentication Module -->
   <script src="{{ asset('static/js/auth.js') }}"></script>
   <!-- Main Dashboard Script -->
-  <script src="{{ asset('static/js/script.js?v=2.5') }}"></script>
+  <script src="{{ asset('static/js/script.js?v=2.6') }}"></script>
 </body>
 
 </html>

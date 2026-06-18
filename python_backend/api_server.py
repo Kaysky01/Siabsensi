@@ -275,7 +275,7 @@ def record_attendance():
             'mahasiswa': {
                 'id': mahasiswa['id'],
                 'name': mahasiswa['name'],
-                'kelompok': mahasiswa['kelompok'],
+                'kompi': mahasiswa['kompi'],
                 'jurusan': mahasiswa['jurusan']
             }
         })

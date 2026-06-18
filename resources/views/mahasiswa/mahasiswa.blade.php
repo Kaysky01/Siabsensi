@@ -237,22 +237,52 @@
 
             <div class="form-row">
               <label class="form-label">Nama Lengkap *</label>
-              <input type="text" id="profile-name" class="form-input" placeholder="Nama Lengkap">
+              <input type="text" id="profile-name" class="form-input" placeholder="Nama Lengkap" disabled>
             </div>
 
             <div class="form-row">
-              <label class="form-label">Kelompok *</label>
-              <input type="text" id="profile-kelompok" class="form-input" placeholder="Kelompok">
+              <label class="form-label">kompi *</label>
+              <input type="text" id="profile-kompi" class="form-input" placeholder="kompi" disabled>
             </div>
 
             <div class="form-row">
               <label class="form-label">Jurusan *</label>
-              <input type="text" id="profile-jurusan" class="form-input" placeholder="Jurusan">
+              <input type="text" id="profile-jurusan" class="form-input" placeholder="Jurusan" disabled>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Program Studi *</label>
+              <input type="text" id="profile-prodi" class="form-input" placeholder="Program Studi" disabled>
             </div>
 
             <div class="form-row">
               <label class="form-label">Email</label>
               <input type="email" id="profile-email" class="form-input" placeholder="email@student.ac.id">
+            </div>
+
+            <div class="form-row" style="margin-top:24px; border-top:1px solid var(--border); padding-top:20px;">
+              <label class="form-label" style="font-size:16px; font-weight:600; margin-bottom:12px; display:block;">
+                <span class="material-symbols-outlined" style="font-size:18px; vertical-align:middle;">lock</span>
+                Ganti Password
+              </label>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Password Sekarang</label>
+              <input type="password" id="profile-current-password" class="form-input" placeholder="Password Sekarang">
+              <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
+                Kosongkan jika tidak ingin mengubah password. <strong>Lupa password saat ini?</strong> Silakan hubungi Administrator atau Tim Disiplin untuk meresetnya.
+              </small>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Password Baru</label>
+              <input type="password" id="profile-new-password" class="form-input" placeholder="Password Baru (min. 6 karakter)">
+            </div>
+
+            <div class="form-row">
+              <label class="form-label">Konfirmasi Password Baru</label>
+              <input type="password" id="profile-new-password-confirmation" class="form-input" placeholder="Konfirmasi Password Baru">
             </div>
 
             <div class="btn-group">
@@ -280,69 +310,6 @@
             <select id="riwayat-mahasiswa-select" class="form-input" onchange="loadRiwayatData()">
               <option value="">-- Pilih Mahasiswa --</option>
             </select>
-          </div>
-
-          <div id="riwayat-filters" style="display:none">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px">
-              <div class="form-row" style="margin:0">
-                <label class="form-label">Hari</label>
-                <select id="filter-hari" class="form-input" onchange="filterRiwayat()">
-                  <option value="">Semua</option>
-                  <option value="0">Minggu</option>
-                  <option value="1">Senin</option>
-                  <option value="2">Selasa</option>
-                  <option value="3">Rabu</option>
-                  <option value="4">Kamis</option>
-                  <option value="5">Jumat</option>
-                  <option value="6">Sabtu</option>
-                </select>
-              </div>
-              <div class="form-row" style="margin:0">
-                <label class="form-label">Bulan</label>
-                <select id="filter-bulan" class="form-input" onchange="filterRiwayat()">
-                  <option value="">Semua</option>
-                  <option value="01">Januari</option>
-                  <option value="02">Februari</option>
-                  <option value="03">Maret</option>
-                  <option value="04">April</option>
-                  <option value="05">Mei</option>
-                  <option value="06">Juni</option>
-                  <option value="07">Juli</option>
-                  <option value="08">Agustus</option>
-                  <option value="09">September</option>
-                  <option value="10">Oktober</option>
-                  <option value="11">November</option>
-                  <option value="12">Desember</option>
-                </select>
-              </div>
-              <div class="form-row" style="margin:0">
-                <label class="form-label">Tahun</label>
-                <select id="filter-tahun" class="form-input" onchange="filterRiwayat()">
-                  <option value="">Semua</option>
-                </select>
-              </div>
-              <div class="form-row" style="margin:0">
-                <label class="form-label">Status</label>
-                <select id="filter-status" class="form-input" onchange="filterRiwayat()">
-                  <option value="">Semua</option>
-                  <option value="hadir">Hadir</option>
-                  <option value="izin">Izin</option>
-                  <option value="sakit">Sakit</option>
-                  <option value="alpha">Alpha</option>
-                </select>
-              </div>
-            </div>
-
-            <div style="margin-top:16px;display:flex;gap:8px">
-              <button class="btn btn-ghost btn-sm" onclick="resetRiwayatFilter()">
-                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span>
-                Reset Filter
-              </button>
-              <button class="btn btn-primary btn-sm" onclick="exportRiwayatCSV()">
-                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span>
-                Export CSV
-              </button>
-            </div>
           </div>
 
           <div id="riwayat-table-container" style="display:none;margin-top:20px">
@@ -440,7 +407,7 @@
                 <th>Tanggal</th>
                 <th>Jenis</th>
                 <th>Nama Mahasiswa</th>
-                <th>Kelompok</th>
+                <th>kompi</th>
                 <th>Jurusan</th>
                 <th>Status</th>
                 <th>Diverifikasi Oleh</th>
@@ -531,7 +498,7 @@
               <tr>
                 <th>Tanggal</th>
                 <th>Nama Mahasiswa</th>
-                <th>Kelompok</th>
+                <th>kompi</th>
                 <th>Jurusan</th>
                 <th>Status</th>
                 <th>Diverifikasi Oleh</th>
@@ -737,12 +704,16 @@
               <div style="font-weight:600" id="mhs-detail-mahasiswa-name">—</div>
             </div>
             <div>
-              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Kelompok</div>
-              <div style="font-weight:600" id="mhs-detail-mahasiswa-kelompok">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">kompi</div>
+              <div style="font-weight:600" id="mhs-detail-mahasiswa-kompi">—</div>
             </div>
             <div>
               <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Jurusan</div>
               <div style="font-weight:600" id="mhs-detail-mahasiswa-jurusan">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Program Studi</div>
+              <div style="font-weight:600" id="mhs-detail-mahasiswa-prodi">—</div>
             </div>
           </div>
         </div>
@@ -827,12 +798,16 @@
               <div style="font-weight:600" id="khd-detail-mahasiswa-name">—</div>
             </div>
             <div>
-              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Kelompok</div>
-              <div style="font-weight:600" id="khd-detail-mahasiswa-kelompok">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">kompi</div>
+              <div style="font-weight:600" id="khd-detail-mahasiswa-kompi">—</div>
             </div>
             <div>
               <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Jurusan</div>
               <div style="font-weight:600" id="khd-detail-mahasiswa-jurusan">—</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Program Studi</div>
+              <div style="font-weight:600" id="khd-detail-mahasiswa-prodi">—</div>
             </div>
           </div>
         </div>
@@ -898,7 +873,7 @@
   </div>
 
   <!-- Mahasiswa Portal Script -->
-  <script src="{{ asset('static/js/mahasiswa.js?v=10') }}"></script>
+  <script src="{{ asset('static/js/mahasiswa.js?v=12') }}"></script>
 
 </body>
 

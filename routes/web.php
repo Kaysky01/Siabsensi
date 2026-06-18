@@ -6,17 +6,24 @@ use App\Http\Controllers\Mahasiswa\IzinController;
 use App\Http\Controllers\Mahasiswa\KehadiranController;
 use App\Http\Controllers\Mahasiswa\MahasiswaController;
 use App\Http\Controllers\SertifikatController;
-use Illuminate\Support\Facades\Route;
+use App\Models\Attendance;
+use App\Models\Mahasiswa;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 
 // Helper function to format bytes
-function formatBytes($bytes, $precision = 2) {
+function formatBytes($bytes, $precision = 2)
+{
     $units = ['B', 'KB', 'MB', 'GB', 'TB'];
     $bytes = max($bytes, 0);
     $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
     $pow = min($pow, count($units) - 1);
     $bytes /= pow(1024, $pow);
-    return round($bytes, $precision) . ' ' . $units[$pow];
+
+    return round($bytes, $precision).' '.$units[$pow];
 }
 
 // Menangani path kosong (/) dengan kondisi pengecekan login
@@ -24,6 +31,7 @@ Route::get('/', function () {
     // Jika pengguna sudah login, arahkan ke dashboard masing-masing
     if (Auth::check()) {
         $role = Auth::user()->role;
+
         return match ($role) {
             'admin' => redirect()->route('admin.dashboard'),
             'timdis' => redirect()->route('timdis.dashboard'),
@@ -31,7 +39,7 @@ Route::get('/', function () {
             default => redirect()->route('login'),
         };
     }
-    
+
     // Kondisi jika pengguna BELUM login
     return redirect()->route('login');
 });
@@ -50,73 +58,115 @@ Route::get('/monitor', function () {
 Route::get('/api/monitor/cameras', [AdminController::class, 'getCameras']);
 Route::get('/api/monitor/attendance/today', [AdminController::class, 'getAttendanceToday']);
 
+// Endpoint untuk Delta Updates Absensi Real-time (Polling)
+Route::get('/api/monitor/attendance/stream', function (Request $request) {
+    $lastUpdate = $request->query('last_update');
+
+    $query = Attendance::with('mahasiswa:id,name,kompi')
+        ->whereDate('date', Carbon::today()->toDateString());
+
+    if ($lastUpdate) {
+        $query->where(function ($q) use ($lastUpdate) {
+            $q->where('check_in', '>', $lastUpdate)
+                ->orWhere('check_out', '>', $lastUpdate)
+                ->orWhere('created_at', '>', $lastUpdate);
+        });
+    } else {
+        $query->orderBy('check_in', 'desc')->take(50);
+    }
+
+    $attendances = $query->get();
+
+    $maxTimestamp = $attendances->max(function ($att) {
+        return max($att->check_in, $att->check_out, $att->created_at);
+    });
+
+    return response()->json([
+        'success' => true,
+        'data' => $attendances->map(function ($att) {
+            return [
+                'id' => $att->id,
+                'mahasiswa_id' => $att->mahasiswa_id,
+                'name' => $att->mahasiswa->name ?? 'Unknown',
+                'kompi' => $att->mahasiswa->kompi ?? '-',
+                'check_in' => $att->check_in,
+                'check_out' => $att->check_out,
+                'status' => $att->status ?? 'present',
+            ];
+        }),
+        'last_update' => $maxTimestamp ?: $lastUpdate,
+    ]);
+});
+
 // API untuk Python Backend (Proxy ke port 5000)
 Route::get('/api/python/status', function () {
     try {
-        $response = \Illuminate\Support\Facades\Http::get('http://127.0.0.1:5000/api/python/status');
+        $response = Http::get('http://127.0.0.1:5000/api/python/status');
+
         return response()->json($response->json(), $response->status());
-    } catch (\Exception $e) {
+    } catch (Exception $e) {
         return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia'], 503);
     }
 });
 
-Route::post('/api/python/detect', function (\Illuminate\Http\Request $request) {
+Route::post('/api/python/detect', function (Request $request) {
     try {
         // Forward raw body (mencegah memory limit pada base64 payload besar)
-        $response = \Illuminate\Support\Facades\Http::withBody($request->getContent(), 'application/json')->post('http://127.0.0.1:5000/api/python/detect');
+        $response = Http::withBody($request->getContent(), 'application/json')->post('http://127.0.0.1:5000/api/python/detect');
+
         return response()->json($response->json(), $response->status());
-    } catch (\Exception $e) {
-        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia: ' . $e->getMessage()], 503);
+    } catch (Exception $e) {
+        return response()->json(['success' => false, 'message' => 'Python backend tidak tersedia: '.$e->getMessage()], 503);
     }
 });
 
-Route::post('/api/python/attendance', function (\Illuminate\Http\Request $request) {
+Route::post('/api/python/attendance', function (Request $request) {
     try {
         $mahasiswaId = $request->input('mahasiswa_id');
         $status = $request->input('status', 'present');
-        
-        if (!$mahasiswaId) {
+
+        if (! $mahasiswaId) {
             return response()->json(['success' => false, 'message' => 'Data mahasiswa_id tidak boleh kosong.'], 400);
         }
 
         // Cek apakah mahasiswa valid untuk menghindari Database Constraint Error (500)
-        $mahasiswa = \App\Models\Mahasiswa::find($mahasiswaId);
-        if (!$mahasiswa) {
+        $mahasiswa = Mahasiswa::find($mahasiswaId);
+        if (! $mahasiswa) {
             return response()->json(['success' => false, 'message' => 'Mahasiswa tidak ditemukan di database.'], 404);
         }
 
         // Record attendance directly in Laravel
-        $attendance = \App\Models\Attendance::where('mahasiswa_id', $mahasiswaId)
-            ->where('date', \Carbon\Carbon::today()->format('Y-m-d'))
+        $attendance = Attendance::where('mahasiswa_id', $mahasiswaId)
+            ->where('date', Carbon::today()->format('Y-m-d'))
             ->first();
-        
+
         if ($attendance) {
             // Update existing attendance
             $attendance->update([
                 'status' => $status,
-                'check_in' => $attendance->check_in ?? \Carbon\Carbon::now()->toDateTimeString(),
-                'check_out' => $status === 'present' ? \Carbon\Carbon::now()->toDateTimeString() : null,
+                'check_in' => $attendance->check_in ?? Carbon::now()->toDateTimeString(),
+                'check_out' => $status === 'present' ? Carbon::now()->toDateTimeString() : null,
             ]);
         } else {
             // Create new attendance
-            \App\Models\Attendance::create([
+            Attendance::create([
                 'mahasiswa_id' => $mahasiswaId,
-                'date' => \Carbon\Carbon::today()->format('Y-m-d'),
+                'date' => Carbon::today()->format('Y-m-d'),
                 'status' => $status,
-                'check_in' => \Carbon\Carbon::now()->toDateTimeString(),
+                'check_in' => Carbon::now()->toDateTimeString(),
                 'check_out' => null,
-                'created_at' => \Carbon\Carbon::now()->toDateTimeString(),
+                'created_at' => Carbon::now()->toDateTimeString(),
             ]);
         }
-        
+
         return response()->json([
             'success' => true,
-            'message' => 'Attendance recorded successfully'
+            'message' => 'Attendance recorded successfully',
         ]);
-    } catch (\Exception $e) {
+    } catch (Exception $e) {
         return response()->json([
             'success' => false,
-            'message' => 'Failed to record attendance: ' . $e->getMessage()
+            'message' => 'Failed to record attendance: '.$e->getMessage(),
         ], 500);
     }
 });
@@ -130,11 +180,11 @@ Route::get('/api/models/list', function () {
         $files = scandir($modelsDir);
         foreach ($files as $file) {
             if (pathinfo($file, PATHINFO_EXTENSION) === 'pt') {
-                $filePath = $modelsDir . '/' . $file;
+                $filePath = $modelsDir.'/'.$file;
                 $models[] = [
                     'name' => $file,
-                    'path' => 'models/' . $file,
-                    'size' => formatBytes(filesize($filePath))
+                    'path' => 'models/'.$file,
+                    'size' => formatBytes(filesize($filePath)),
                 ];
             }
         }
@@ -142,7 +192,7 @@ Route::get('/api/models/list', function () {
 
     return response()->json([
         'success' => true,
-        'data' => $models
+        'data' => $models,
     ]);
 });
 
@@ -188,7 +238,7 @@ Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
     // Rute untuk kehadiran mahasiswa
     Route::post('/api/kehadiran/submit', [KehadiranController::class, 'submit']);
     Route::get('/api/kehadiran/mahasiswa/{id}', [KehadiranController::class, 'history']);
-    Route::get('/api/kehadiran/bukti/{filename}', [App\Http\Controllers\Mahasiswa\KehadiranController::class, 'getBukti']);
+    Route::get('/api/kehadiran/bukti/{filename}', [KehadiranController::class, 'getBukti']);
 
     // Sertifikat (Mahasiswa)
     Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview', [SertifikatController::class, 'preview']);
@@ -198,32 +248,31 @@ Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
     Route::get('/api/mahasiswa/{mahasiswaId}/sertifikat/history', [SertifikatController::class, 'history']);
 });
 
-// Routes untuk Admin & Timdis
+// Routes untuk Admin & Timdis (Lihat daftar pengajuan)
 Route::middleware(['auth', 'role:admin,timdis'])->group(function () {
-    Route::get('/admin/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
-    
-    // Perbaikan: Daftarkan route untuk timdis agar redirect saat login tidak error 500
-    Route::get('/timdis/dashboard', [AdminController::class, 'dashboard_admin'])->name('timdis.dashboard');
-    
-    // Rute API Data Dashboard Admin
-    Route::get('/api/dashboard', [AdminController::class, 'getDashboardData'])->name('api.dashboard.data');
-    
-    // Rute API Data Tabel (Absensi & Mahasiswa)
-    Route::get('/api/attendance/today', [AdminController::class, 'getAttendanceToday']);
-    Route::get('/api/attendance/history', [AdminController::class, 'getAttendanceHistory']);
-    Route::get('/api/attendance/export', [AdminController::class, 'exportAttendance']);
-    Route::get('/api/mahasiswa', [AdminController::class, 'getAllMahasiswa']);
-    
-    // Rute API Verifikasi Pengajuan Izin dan Kehadiran (Admin & Timdis)
     Route::get('/api/izin/list', [AdminController::class, 'getIzinSubmissions']);
-    Route::post('/api/izin/verify', [AdminController::class, 'verifyIzin']);
     Route::get('/api/kehadiran/list', [AdminController::class, 'getKehadiranSubmissions']);
+});
+
+// Routes untuk Timdis Only (Verifikasi aksi)
+Route::middleware(['auth', 'role:timdis'])->group(function () {
+    Route::post('/api/izin/verify', [AdminController::class, 'verifyIzin']);
     Route::post('/api/kehadiran/verify', [AdminController::class, 'verifyKehadiran']);
+});
+
+// Routes untuk Admin Only (bukan timdis)
+Route::middleware(['auth', 'role:admin'])->group(function () {
+    // Settings RTSP (Admin Only)
+    Route::post('/api/settings/rtsp', [AdminController::class, 'saveRtspSettings']);
+    // Settings YOLO (Admin Only)
+    Route::post('/api/settings/yolo', [AdminController::class, 'saveYoloSettings']);
+    Route::get('/api/settings/yolo', [AdminController::class, 'getYoloSettings']);
 
     // CRUD Mahasiswa (Admin)
     Route::post('/api/mahasiswa', [AdminController::class, 'storeMahasiswa']);
     Route::delete('/api/mahasiswa/{id}', [AdminController::class, 'deleteMahasiswa']);
     Route::get('/api/mahasiswa/{id}/qr', [AdminController::class, 'getMahasiswaQR']);
+    Route::post('/api/mahasiswa/bulk-update-kompi', [AdminController::class, 'bulkUpdateKompi']);
 
     // CRUD Users Management (Admin)
     Route::get('/api/users', [AdminController::class, 'getAllUsers']);
@@ -242,5 +291,15 @@ Route::middleware(['auth', 'role:admin,timdis'])->group(function () {
 
     // Sertifikat (Admin - untuk download)
     Route::get('/api/sertifikat/download/{historyId}', [SertifikatController::class, 'download']);
+});
 
+// Routes untuk Admin & Timdis (Dashboard akses)
+Route::middleware(['auth', 'role:admin,timdis'])->group(function () {
+    Route::get('/admin/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
+    Route::get('/timdis/dashboard', [AdminController::class, 'dashboard_admin'])->name('timdis.dashboard');
+    Route::get('/api/dashboard', [AdminController::class, 'getDashboardData'])->name('api.dashboard.data');
+    Route::get('/api/attendance/today', [AdminController::class, 'getAttendanceToday']);
+    Route::get('/api/attendance/history', [AdminController::class, 'getAttendanceHistory']);
+    Route::get('/api/attendance/export', [AdminController::class, 'exportAttendance']);
+    Route::get('/api/mahasiswa', [AdminController::class, 'getAllMahasiswa']);
 });

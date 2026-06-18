@@ -10,7 +10,7 @@ class Attendance extends Model
     use HasFactory;
 
     protected $table = 'attendance';
-    
+
     public const UPDATED_AT = null;
 
     protected $fillable = [

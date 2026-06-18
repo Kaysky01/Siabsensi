@@ -2,29 +2,32 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Carbon\Carbon;
 
 class Mahasiswa extends Model
 {
     use HasFactory;
 
     protected $table = 'mahasiswa';
-    
+
     // Konfigurasi Primary Key String
     protected $primaryKey = 'id';
+
     public $incrementing = false;
+
     protected $keyType = 'string';
-    
+
     // Hanya ada created_at di tabel
     public const UPDATED_AT = null;
 
     protected $fillable = [
         'id',
         'name',
-        'kelompok',
+        'kompi',
         'jurusan',
+        'prodi',
         'email',
         'no_telp_mahasiswa',
         'no_telp_ortu',
@@ -65,57 +68,57 @@ class Mahasiswa extends Model
     public function calculateAlphaCount($startDate, $endDate)
     {
         $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
-        
+
         $attendanceCount = $this->attendances()
             ->whereBetween('date', [$startDate, $endDate])
             ->whereIn('status', ['present', 'izin'])
             ->count();
-        
+
         $alphaCount = $totalDays - $attendanceCount;
-        
+
         return max(0, $alphaCount);
     }
 
     public function canGetCertificate($startDate, $endDate)
     {
         $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
-        
+
         $attendanceCount = $this->attendances()
             ->whereBetween('date', [$startDate, $endDate])
             ->whereIn('status', ['present', 'izin', 'hadir'])
             ->count();
-        
+
         $persentase = $totalDays > 0 ? ($attendanceCount / $totalDays) * 100 : 0;
-        
+
         return $persentase >= 80;
     }
 
     public function getTodayAttendanceStatus()
     {
         $today = Carbon::today()->format('Y-m-d');
-        
+
         $attendance = $this->attendances()
             ->where('date', $today)
             ->first();
-        
-        if (!$attendance) {
+
+        if (! $attendance) {
             return [
                 'status' => 'pending',
                 'message' => 'Belum diabsen oleh admin',
-                'has_attended' => false
+                'has_attended' => false,
             ];
         }
-        
+
         return [
             'status' => $attendance->status,
-            'message' => $attendance->status === 'alpha' 
-                ? 'Alpha (tidak hadir)' 
-                : ($attendance->status === 'hadir' || $attendance->status === 'present' 
-                    ? 'Hadir via QR Scan' 
+            'message' => $attendance->status === 'alpha'
+                ? 'Alpha (tidak hadir)'
+                : ($attendance->status === 'hadir' || $attendance->status === 'present'
+                    ? 'Hadir via QR Scan'
                     : 'Izin/Sakit'),
             'has_attended' => in_array($attendance->status, ['hadir', 'present', 'izin']),
             'check_in' => $attendance->check_in,
-            'check_out' => $attendance->check_out
+            'check_out' => $attendance->check_out,
         ];
     }
 }

@@ -10,7 +10,7 @@ class SertifikatHistory extends Model
     use HasFactory;
 
     protected $table = 'sertifikat_history';
-    
+
     public const UPDATED_AT = null;
 
     protected $fillable = [

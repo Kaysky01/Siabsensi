@@ -54,7 +54,8 @@ async function loadUserPermissions() {
       userPermissions = result.data.permissions || {
         can_manage_users: currentUser.role === 'admin',
         can_edit_settings: currentUser.role === 'admin',
-        can_manage_mahasiswa: currentUser.role === 'admin'
+        can_manage_mahasiswa: currentUser.role === 'admin',
+        can_verify_submissions: currentUser.role === 'timdis'
       };
       
       // Apply UI restrictions based on permissions
@@ -122,6 +123,7 @@ function showPage(page) {
       if (page === 'attendance') loadFullAttendance();
       if (page === 'users') loadUsers();
       if (page === 'mahasiswa') loadMahasiswa();
+      if (page === 'kompi-management') loadKompiManagement();
       if (page === 'camera' || page === 'cameras') loadCameras();
       if (page === 'izin-timdis') loadIzinSubmissions();
       if (page === 'kehadiran-timdis') loadKehadiranSubmissions();
@@ -234,7 +236,7 @@ function showPage(page) {
 
         renderRecentAttendance(dashboardData.recent || []);
         renderTrend(dashboardData.trend || []);
-        renderDeptList(dashboardData.by_kelompok || []);
+        renderDeptList(dashboardData.by_kompi || []);
         
       } catch (err) {
         console.error('[Dashboard] Runtime Error:', err);
@@ -277,7 +279,7 @@ function showPage(page) {
         return `<tr>
       <td><div class="mahasiswa-cell">
         <div class="avatar" style="background:${color}22;color:${color}">${initials}</div>
-        <div><div class="mhs-name">${r.name}</div><div class="mhs-dept">${r.kelompok} ${conf}</div></div>
+        <div><div class="mhs-name">${r.name}</div><div class="mhs-dept">${r.kompi} ${conf}</div></div>
       </div></td>
       <td>${checkIn}</td>
       <td>${checkOut}</td>
@@ -345,7 +347,7 @@ function showPage(page) {
       const colors = ['#4f7cff', '#22d3a0', '#f5a623', '#ff6b6b'];
       document.getElementById('dept-list').innerHTML = data.map((d, i) => `
     <div class="dept-item">
-      <div class="dept-name">${d.kelompok}</div>
+      <div class="dept-name">${d.kompi}</div>
       <div class="dept-bar-wrap">
         <div class="dept-bar-fill" style="width:${Math.round(d.count / total * 100)}%;background:${colors[i % colors.length]}"></div>
       </div>
@@ -402,7 +404,7 @@ function showPage(page) {
         <div class="avatar" style="background:rgba(79,124,255,.15);color:var(--accent);font-size:11px">${initials}</div>
         <div class="mhs-name">${r.name}</div>
       </div></td>
-      <td><span class="badge badge-blue">${r.kelompok}</span></td>
+      <td><span class="badge badge-blue">${r.kompi}</span></td>
       <td><span class="time-val">${ci}</span></td>
       <td><span class="${r.check_out ? 'time-val' : 'time-dash'}">${co}</span></td>
       <td style="font-family:var(--mono);font-size:12px;color:var(--accent2)">${dur}</td>
@@ -465,45 +467,50 @@ function showPage(page) {
     }
 
     function populateMahasiswaFilters(list) {
-      // Get unique kelompok and jurusan
-      const kelompokSet = new Set(list.map(m => m.kelompok).filter(k => k));
+      const kompiSet = new Set(list.map(m => m.kompi).filter(k => k));
       const jurusanSet = new Set(list.map(m => m.jurusan).filter(j => j));
+      const prodiSet = new Set(list.map(m => m.prodi).filter(p => p));
       
-      // Populate kelompok dropdown
-      const kelompokSelect = document.getElementById('mhs-filter-kelompok');
-      const currentKelompok = kelompokSelect.value;
-      kelompokSelect.innerHTML = '<option value="">Semua</option>' + 
-        Array.from(kelompokSet).sort().map(k => `<option value="${k}">${k}</option>`).join('');
-      if (currentKelompok) kelompokSelect.value = currentKelompok;
+      const kompiSelect = document.getElementById('mhs-filter-kompi');
+      const currentKompi = kompiSelect.value;
+      kompiSelect.innerHTML = '<option value="">Semua</option>' + 
+        Array.from(kompiSet).sort().map(k => `<option value="${k}">${k}</option>`).join('');
+      if (currentKompi) kompiSelect.value = currentKompi;
       
-      // Populate jurusan dropdown
       const jurusanSelect = document.getElementById('mhs-filter-jurusan');
       const currentJurusan = jurusanSelect.value;
       jurusanSelect.innerHTML = '<option value="">Semua</option>' + 
         Array.from(jurusanSet).sort().map(j => `<option value="${j}">${j}</option>`).join('');
       if (currentJurusan) jurusanSelect.value = currentJurusan;
+
+      const prodiSelect = document.getElementById('mhs-filter-prodi');
+      if (prodiSelect) {
+        const currentProdi = prodiSelect.value;
+        prodiSelect.innerHTML = '<option value="">Semua</option>' + 
+          Array.from(prodiSet).sort().map(p => `<option value="${p}">${p}</option>`).join('');
+        if (currentProdi) prodiSelect.value = currentProdi;
+      }
     }
 
     function filterMahasiswa() {
       const searchTerm = document.getElementById('mhs-search').value.toLowerCase();
-      const filterKelompok = document.getElementById('mhs-filter-kelompok').value;
+      const filterKompi = document.getElementById('mhs-filter-kompi').value;
       const filterJurusan = document.getElementById('mhs-filter-jurusan').value;
+      const filterProdi = document.getElementById('mhs-filter-prodi')?.value || '';
       
       let filtered = mahasiswaData;
       
-      // Filter by name
       if (searchTerm) {
         filtered = filtered.filter(m => m.name.toLowerCase().includes(searchTerm));
       }
-      
-      // Filter by kelompok
-      if (filterKelompok) {
-        filtered = filtered.filter(m => m.kelompok === filterKelompok);
+      if (filterKompi) {
+        filtered = filtered.filter(m => m.kompi === filterKompi);
       }
-      
-      // Filter by jurusan
       if (filterJurusan) {
         filtered = filtered.filter(m => m.jurusan === filterJurusan);
+      }
+      if (filterProdi) {
+        filtered = filtered.filter(m => m.prodi === filterProdi);
       }
       
       renderMahasiswa(filtered);
@@ -511,8 +518,10 @@ function showPage(page) {
 
     function resetMahasiswaFilter() {
       document.getElementById('mhs-search').value = '';
-      document.getElementById('mhs-filter-kelompok').value = '';
+      document.getElementById('mhs-filter-kompi').value = '';
       document.getElementById('mhs-filter-jurusan').value = '';
+      const filterProdi = document.getElementById('mhs-filter-prodi');
+      if (filterProdi) filterProdi.value = '';
       renderMahasiswa(mahasiswaData);
     }
 
@@ -541,12 +550,25 @@ function showPage(page) {
         <div class="avatar" style="background:${c}22;color:${c}">${initials}</div>
         <div><div class="mhs-name">${e.name}</div><div class="mhs-dept">${e.id}</div></div>
       </div></td>
-      <td><span class="badge badge-blue">${e.kelompok}</span></td>
+      <td><span class="badge badge-blue">${e.kompi}</span></td>
       <td style="color:var(--muted2);font-size:12px">${e.jurusan}</td>
+      <td style="color:var(--muted2);font-size:12px">${e.prodi || '—'}</td>
       <td style="font-size:12px;color:var(--muted)">${e.email || '—'}</td>
       <td style="font-size:12px;color:var(--text);font-family:var(--mono)">${e.no_telp_mahasiswa || '—'}</td>
       <td style="font-size:12px;color:var(--text);font-family:var(--mono)">${e.no_telp_ortu || '—'}</td>
-      <td><span style="font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--bg3);padding:2px 6px;border-radius:4px">${e.qr_code_id || '—'}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="display:flex;align-items:center;gap:4px;" title="Absen Masuk">
+            <span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:${e.today_check_in ? '#22d3a0' : '#cbd5e1'}"></span>
+            <span style="font-family:var(--mono);font-size:11px;color:${e.today_check_in ? 'var(--text)' : 'var(--muted)'}">${e.today_check_in || '--'}</span>
+          </div>
+          <span style="color:var(--muted);font-family:var(--mono);font-size:11px;">/</span>
+          <div style="display:flex;align-items:center;gap:4px;" title="Absen Keluar">
+            <span style="width:10px;height:10px;border-radius:50%;display:inline-block;background:${e.today_check_out ? '#ff6b6b' : '#cbd5e1'}"></span>
+            <span style="font-family:var(--mono);font-size:11px;color:${e.today_check_out ? 'var(--text)' : 'var(--muted)'}">${e.today_check_out || '--'}</span>
+          </div>
+        </div>
+      </td>
       <td>
         <button class="btn btn-ghost btn-sm" onclick="showQR('${e.id}')"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">qr_code</span></button>
         ${deleteButton}
@@ -835,7 +857,7 @@ async function removeMahasiswa(id) {
         return `<tr>
       <td style="font-family:var(--mono);font-size:12px">${r.date ? r.date.split('T')[0] : (r.check_in?.slice(0, 10) || '—')}</td>
       <td class="mhs-name">${r.name}</td>
-      <td><span class="badge badge-blue">${r.kelompok}</span></td>
+      <td><span class="badge badge-blue">${r.kompi}</span></td>
       <td><span class="time-val">${ci}</span></td>
       <td><span class="${r.check_out ? 'time-val' : 'time-dash'}">${co}</span></td>
       <td style="font-family:var(--mono);font-size:12px;color:var(--accent2)">${dur}</td>
@@ -1188,13 +1210,14 @@ async function removeMahasiswa(id) {
       const body = {
         id: document.getElementById('f-id').value.trim(),
         name: document.getElementById('f-name').value.trim(),
-        kelompok: document.getElementById('f-dept').value.trim(),
+        kompi: document.getElementById('f-dept').value.trim(),
         jurusan: document.getElementById('f-pos').value.trim(),
+        prodi: document.getElementById('f-prodi').value.trim(),
         email: document.getElementById('f-email').value.trim(),
         no_telp_mahasiswa: document.getElementById('f-telp-mhs').value.trim(),
         no_telp_ortu: document.getElementById('f-telp-ortu').value.trim()
       };
-      if (!body.id || !body.name || !body.kelompok || !body.jurusan) {
+      if (!body.id || !body.name || !body.kompi || !body.jurusan || !body.prodi) {
         toast('Lengkapi semua field wajib', '', true); return;
       }
       const res = await apiFetch('/mahasiswa', { method: 'POST', body: JSON.stringify(body) });
@@ -1257,18 +1280,23 @@ async function removeMahasiswa(id) {
           return;
         }
 
-        const { submissions, stats } = result.data;
+        const submissions = result.data?.submissions || [];
+        const stats = result.data?.stats || { pending: 0, approved: 0, rejected: 0 };
 
         // Store data for filtering
-        allIzinSubmissions = submissions || [];
+        allIzinSubmissions = submissions;
         populateIzinKelompokFilter(allIzinSubmissions);
 
         // Update stats
         document.getElementById('stat-pending-izin').textContent = stats.pending;
         document.getElementById('stat-approved-izin').textContent = stats.approved;
         document.getElementById('stat-rejected-izin').textContent = stats.rejected;
-        document.getElementById('sidebar-pending-izin').textContent = stats.pending;
-        document.getElementById('sidebar-pending-izin').style.display = stats.pending > 0 ? '' : 'none';
+        
+        const badge = document.getElementById('sidebar-pending-izin');
+        if (badge) {
+          badge.textContent = stats.pending;
+          badge.style.display = stats.pending > 0 ? '' : 'none';
+        }
 
         if (!submissions.length) {
           tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Tidak ada pengajuan</td></tr>';
@@ -1375,11 +1403,13 @@ async function removeMahasiswa(id) {
     async function loadIzinPendingCount() {
       try {
         const result = await apiFetch('/izin/list?status=pending');
-        if (result && result.success) {
-          const count = result.data.stats.pending;
+        if (result && result.success && result.data && result.data.stats) {
+          const count = result.data.stats.pending || 0;
           const badge = document.getElementById('sidebar-pending-izin');
-          badge.textContent = count;
-          badge.style.display = count > 0 ? '' : 'none';
+          if (badge) {
+            badge.textContent = count;
+            badge.style.display = count > 0 ? '' : 'none';
+          }
         }
       } catch (e) {
         console.error('Error loading izin pending count:', e);
@@ -1406,18 +1436,23 @@ async function removeMahasiswa(id) {
           return;
         }
 
-        const { submissions, stats } = result.data;
+        const submissions = result.data?.submissions || [];
+        const stats = result.data?.stats || { pending: 0, approved: 0, rejected: 0 };
 
         // Store data for filtering
-        allKehadiranSubmissions = submissions || [];
+        allKehadiranSubmissions = submissions;
         populateKehadiranKelompokFilter(allKehadiranSubmissions);
 
         // Update stats
         document.getElementById('stat-pending-kehadiran').textContent = stats.pending;
         document.getElementById('stat-approved-kehadiran').textContent = stats.approved;
         document.getElementById('stat-rejected-kehadiran').textContent = stats.rejected;
-        document.getElementById('sidebar-pending-kehadiran').textContent = stats.pending;
-        document.getElementById('sidebar-pending-kehadiran').style.display = stats.pending > 0 ? '' : 'none';
+        
+        const badge = document.getElementById('sidebar-pending-kehadiran');
+        if (badge) {
+          badge.textContent = stats.pending;
+          badge.style.display = stats.pending > 0 ? '' : 'none';
+        }
 
         if (!submissions.length) {
           tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">Tidak ada pengajuan</td></tr>';
@@ -1508,11 +1543,13 @@ async function removeMahasiswa(id) {
     async function loadKehadiranPendingCount() {
       try {
         const result = await apiFetch('/kehadiran/list?status=pending');
-        if (result && result.success) {
-          const count = result.data.submissions.length;
+        if (result && result.success && result.data && result.data.submissions) {
+          const count = result.data.submissions.length || 0;
           const badge = document.getElementById('sidebar-pending-kehadiran');
-          badge.textContent = count;
-          badge.style.display = count > 0 ? '' : 'none';
+          if (badge) {
+            badge.textContent = count;
+            badge.style.display = count > 0 ? '' : 'none';
+          }
         }
       } catch (e) {
         console.error('Error loading kehadiran pending count:', e);
@@ -1840,7 +1877,7 @@ function renderExcelPreview(data) {
       <tr>
         <td>${row.mahasiswa_id || '-'}</td>
         <td>${row.name || '-'}</td>
-        <td>${row.kelompok || '-'}</td>
+        <td>${row.kompi || '-'}</td>
         <td>${row.jurusan || '-'}</td>
         <td>${row.email || '-'}</td>
         <td><span class="${statusClass}">${status}</span></td>
@@ -1967,7 +2004,7 @@ function openAddMahasiswa() {
   document.getElementById('mhs-submit-btn').style.display = '';
   
   // Clear form fields
-  ['f-id', 'f-name', 'f-dept', 'f-pos', 'f-email', 'f-telp-mhs', 'f-telp-ortu'].forEach(id => {
+  ['f-id', 'f-name', 'f-dept', 'f-pos', 'f-prodi', 'f-email', 'f-telp-mhs', 'f-telp-ortu'].forEach(id => {
     const element = document.getElementById(id);
     if (element) element.value = '';
   });
@@ -1976,7 +2013,7 @@ function openAddMahasiswa() {
 }
 
 function resetMahasiswaForm() {
-  ['f-id', 'f-name', 'f-dept', 'f-pos', 'f-email', 'f-telp-mhs', 'f-telp-ortu'].forEach(id => {
+  ['f-id', 'f-name', 'f-dept', 'f-pos', 'f-prodi', 'f-email', 'f-telp-mhs', 'f-telp-ortu'].forEach(id => {
     const element = document.getElementById(id);
     if (element) element.value = '';
   });
@@ -2004,19 +2041,19 @@ let allIzinSubmissions = [];
 let allKehadiranSubmissions = [];
 
 function populateIzinKelompokFilter(submissions) {
-  const kelompokSet = new Set(submissions.map(s => s.kelompok).filter(k => k));
-  const select = document.getElementById('izin-filter-kelompok');
+  const kompiSet = new Set(submissions.map(s => s.kompi).filter(k => k));
+  const select = document.getElementById('izin-filter-kompi');
   if (!select) return;
   
   const currentValue = select.value;
   select.innerHTML = '<option value="">Semua</option>' + 
-    Array.from(kelompokSet).sort().map(k => `<option value="${k}">${k}</option>`).join('');
+    Array.from(kompiSet).sort().map(k => `<option value="${k}">${k}</option>`).join('');
   if (currentValue) select.value = currentValue;
 }
 
 function filterIzinSubmissions() {
   const searchTerm = document.getElementById('izin-search')?.value.toLowerCase() || '';
-  const filterKelompok = document.getElementById('izin-filter-kelompok')?.value || '';
+  const filterKelompok = document.getElementById('izin-filter-kompi')?.value || '';
   const filterStatus = document.getElementById('izin-filter-status')?.value || '';
   
   let filtered = allIzinSubmissions;
@@ -2026,9 +2063,9 @@ function filterIzinSubmissions() {
     filtered = filtered.filter(s => s.name.toLowerCase().includes(searchTerm));
   }
   
-  // Filter by kelompok
+  // Filter by kompi
   if (filterKelompok) {
-    filtered = filtered.filter(s => s.kelompok === filterKelompok);
+    filtered = filtered.filter(s => s.kompi === filterKelompok);
   }
   
   // Filter by status
@@ -2065,7 +2102,8 @@ function renderIzinSubmissions(submissions) {
          </button>`
       : '<span style="color:var(--text-muted)">—</span>';
 
-    const actionBtns = s.status === 'pending'
+    const canVerify = userPermissions?.can_verify_submissions || false;
+    const actionBtns = (s.status === 'pending' && canVerify)
       ? `<div style="display:flex;gap:6px">
           <button class="btn btn-sm" style="background:var(--success);color:#fff" onclick="approveIzin(${s.id})">
             <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check</span> Setujui
@@ -2081,7 +2119,7 @@ function renderIzinSubmissions(submissions) {
         <div style="font-weight:600">${s.name}</div>
         <div style="font-size:12px;color:var(--text-muted)">${s.mahasiswa_id}</div>
       </td>
-      <td><span class="badge badge-blue">${s.kelompok}</span></td>
+      <td><span class="badge badge-blue">${s.kompi}</span></td>
       <td>${typeBadge}</td>
       <td style="font-family:var(--font-mono);font-size:13px">${s.date ? s.date.split('T')[0] : '-'}</td>
       <td style="max-width:180px;white-space:normal;font-size:13px">${s.keterangan}</td>
@@ -2094,25 +2132,25 @@ function renderIzinSubmissions(submissions) {
 
 function resetIzinFilter() {
   document.getElementById('izin-search').value = '';
-  document.getElementById('izin-filter-kelompok').value = '';
+  document.getElementById('izin-filter-kompi').value = '';
   document.getElementById('izin-filter-status').value = 'pending';
   loadIzinSubmissions();
 }
 
 function populateKehadiranKelompokFilter(submissions) {
-  const kelompokSet = new Set(submissions.map(s => s.kelompok).filter(k => k));
-  const select = document.getElementById('kehadiran-filter-kelompok');
+  const kompiSet = new Set(submissions.map(s => s.kompi).filter(k => k));
+  const select = document.getElementById('kehadiran-filter-kompi');
   if (!select) return;
   
   const currentValue = select.value;
   select.innerHTML = '<option value="">Semua</option>' + 
-    Array.from(kelompokSet).sort().map(k => `<option value="${k}">${k}</option>`).join('');
+    Array.from(kompiSet).sort().map(k => `<option value="${k}">${k}</option>`).join('');
   if (currentValue) select.value = currentValue;
 }
 
 function filterKehadiranSubmissions() {
   const searchTerm = document.getElementById('kehadiran-search')?.value.toLowerCase() || '';
-  const filterKelompok = document.getElementById('kehadiran-filter-kelompok')?.value || '';
+  const filterKelompok = document.getElementById('kehadiran-filter-kompi')?.value || '';
   const filterStatus = document.getElementById('kehadiran-filter-status')?.value || '';
   
   let filtered = allKehadiranSubmissions;
@@ -2122,9 +2160,9 @@ function filterKehadiranSubmissions() {
     filtered = filtered.filter(s => s.name.toLowerCase().includes(searchTerm));
   }
   
-  // Filter by kelompok
+  // Filter by kompi
   if (filterKelompok) {
-    filtered = filtered.filter(s => s.kelompok === filterKelompok);
+    filtered = filtered.filter(s => s.kompi === filterKelompok);
   }
   
   // Filter by status
@@ -2157,7 +2195,8 @@ function renderKehadiranSubmissions(submissions) {
          </button>`
       : '<span style="color:var(--text-muted)">—</span>';
 
-    const actionBtns = s.status === 'pending'
+    const canVerify = userPermissions?.can_verify_submissions || false;
+    const actionBtns = (s.status === 'pending' && canVerify)
       ? `<div style="display:flex;gap:6px">
           <button class="btn btn-sm" style="background:var(--success);color:#fff" onclick="approveKehadiran(${s.id})">
             <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check</span> Setujui
@@ -2176,7 +2215,7 @@ function renderKehadiranSubmissions(submissions) {
         <div style="font-weight:600">${s.name}</div>
         <div style="font-size:12px;color:var(--text-muted)">${s.mahasiswa_id}</div>
       </td>
-      <td><span class="badge badge-blue">${s.kelompok}</span></td>
+      <td><span class="badge badge-blue">${s.kompi}</span></td>
       <td style="font-family:var(--font-mono);font-size:13px">${formattedDate}</td>
       <td style="font-family:var(--font-mono);font-size:13px">${s.check_in_time || '—'}</td>
       <td style="font-family:var(--font-mono);font-size:13px">${s.check_out_time || '—'}</td>
@@ -2190,7 +2229,7 @@ function renderKehadiranSubmissions(submissions) {
 
 function resetKehadiranFilter() {
   document.getElementById('kehadiran-search').value = '';
-  document.getElementById('kehadiran-filter-kelompok').value = '';
+  document.getElementById('kehadiran-filter-kompi').value = '';
   document.getElementById('kehadiran-filter-status').value = 'pending';
   loadKehadiranSubmissions();
 }
@@ -2532,4 +2571,79 @@ async function submitResetPassword(event) {
   } else {
     toast('Gagal reset password', res?.message || '', true);
   }
+}
+
+// ─── Pengaturan Kompi ────────────────────────────────────────────────────────
+let kompiData = [];
+async function loadKompiManagement() {
+  const res = await apiFetch('/mahasiswa');
+  if (res?.success) {
+    kompiData = res.data;
+    renderKompiManagement(kompiData);
+    populateKompiFilters(kompiData);
+  }
+}
+
+function populateKompiFilters(list) {
+  const kompiSet = new Set(list.map(m => m.kompi).filter(k => k));
+  const prodiSet = new Set(list.map(m => m.prodi).filter(p => p));
+  
+  const kompiSelect = document.getElementById('kompi-filter-current');
+  kompiSelect.innerHTML = '<option value="">Semua</option>' + 
+    Array.from(kompiSet).sort().map(k => `<option value="${k}">${k}</option>`).join('');
+  
+  const prodiSelect = document.getElementById('kompi-filter-prodi');
+  prodiSelect.innerHTML = '<option value="">Semua</option>' + 
+    Array.from(prodiSet).sort().map(p => `<option value="${p}">${p}</option>`).join('');
+}
+
+function filterKompiManagement() {
+  const term = document.getElementById('kompi-mhs-search').value.toLowerCase();
+  const kompi = document.getElementById('kompi-filter-current').value;
+  const prodi = document.getElementById('kompi-filter-prodi').value;
+  
+  renderKompiManagement(kompiData.filter(m => 
+    (m.name.toLowerCase().includes(term)) &&
+    (!kompi || m.kompi === kompi) &&
+    (!prodi || m.prodi === prodi)
+  ));
+}
+
+function renderKompiManagement(list) {
+  const tbody = document.getElementById('kompi-tbody');
+  tbody.innerHTML = list.map(m => `
+    <tr>
+      <td><div style="font-weight:600">${m.name}</div><div style="font-size:12px;color:var(--muted)">${m.id}</div></td>
+      <td>${m.prodi || '-'}</td>
+      <td>${m.jurusan}</td>
+      <td><input class="form-input kompi-input" data-id="${m.id}" value="${m.kompi || ''}" placeholder="Masukkan Kompi"></td>
+    </tr>
+  `).join('');
+}
+
+async function saveBulkKompi() {
+  const inputs = document.querySelectorAll('.kompi-input');
+  const assignments = [];
+  inputs.forEach(i => {
+    assignments.push({ id: i.dataset.id, kompi: i.value });
+  });
+  
+  const res = await apiFetch('/mahasiswa/bulk-update-kompi', {
+    method: 'POST',
+    body: JSON.stringify({ assignments })
+  });
+  
+  if (res?.success) {
+    toast('Pembagian Kompi Berhasil', res.message);
+    loadKompiManagement();
+  } else {
+    toast('Gagal', res?.message || 'Terjadi kesalahan', true);
+  }
+}
+
+function resetKompiManagementFilter() {
+  document.getElementById('kompi-mhs-search').value = '';
+  document.getElementById('kompi-filter-current').value = '';
+  document.getElementById('kompi-filter-prodi').value = '';
+  renderKompiManagement(kompiData);
 }

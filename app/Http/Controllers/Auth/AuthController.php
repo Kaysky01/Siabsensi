@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -27,11 +28,11 @@ class AuthController extends Controller
             'password' => $request->password,
         ], $remember)) {
 
-            /** @var \App\Models\User $user */
+            /** @var User $user */
             $user = Auth::user();
 
             // Cek apakah akun pengguna berstatus aktif
-            if (!$user->is_active) {
+            if (! $user->is_active) {
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
@@ -77,19 +78,19 @@ class AuthController extends Controller
     public function me()
     {
         // Ambil user yang sedang login
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = Auth::user();
 
         // Kondisi jika user belum login atau sesi telah kadaluwarsa
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Sesi tidak valid atau belum login.'
+                'message' => 'Sesi tidak valid atau belum login.',
             ], 401);
         }
 
         // Kembalikan data user dalam format JSON
-        return response() -> json([
+        return response()->json([
             'success' => true,
             'data' => [
                 'user' => $user,
@@ -98,8 +99,9 @@ class AuthController extends Controller
                     'can_manage_users' => $user->role === 'admin',
                     'can_edit_settings' => $user->role === 'admin',
                     'can_manage_mahasiswa' => $user->role === 'admin',
-                ]
-            ]
+                    'can_verify_submissions' => $user->role === 'timdis',
+                ],
+            ],
         ]);
     }
 }

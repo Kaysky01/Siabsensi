@@ -515,7 +515,7 @@ if __name__ == '__main__':
         att = result['attendance']
         mhs = att['mahasiswa']
         action = "MASUK" if att['action'] == 'check_in' else "KELUAR"
-        print(f"\n✅ ABSEN {action}: {mhs['name']} ({mhs['kelompok']}) "
+        print(f"\n✅ ABSEN {action}: {mhs['name']} ({mhs['kompi']}) "
               f"— QR Conf: {att['confidence']:.1%} @ {result['camera_id']}")
 
     processor.start_all(callback=on_attendance)
@@ -523,9 +523,6 @@ if __name__ == '__main__':
 
     try:
         while True:
-            stats = db.get_attendance_stats()
-            print(f"\r📊 Hari ini: Hadir={stats['present']} | "
-                  f"Absen={stats['absent']} | Masih di dalam={stats['still_in']}", end='')
             time.sleep(10)
     except KeyboardInterrupt:
         print("\n\nMenghentikan sistem...")

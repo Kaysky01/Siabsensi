@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\Mahasiswa;
 use Carbon\Carbon;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 class MarkAlphaCommand extends Command
@@ -29,10 +29,11 @@ class MarkAlphaCommand extends Command
     public function handle()
     {
         $kemarin = Carbon::yesterday()->format('Y-m-d');
-        
+
         // Opsional: Abaikan jika kemarin adalah akhir pekan (Sabtu/Minggu)
         if (Carbon::yesterday()->isWeekend()) {
-            $this->info("Kemarin adalah hari libur (akhir pekan). Tidak ada pencatatan alpha.");
+            $this->info('Kemarin adalah hari libur (akhir pekan). Tidak ada pencatatan alpha.');
+
             return;
         }
 
@@ -44,7 +45,7 @@ class MarkAlphaCommand extends Command
             // Cek apakah ada record izin/sakit kemarin
             $hasIzin = $mhs->izinSubmissions()->whereDate('date', $kemarin)->where('status', 'approved')->exists();
 
-            if (!$hasAttendance && !$hasIzin) {
+            if (! $hasAttendance && ! $hasIzin) {
                 DB::table('attendance')->insert([
                     'mahasiswa_id' => $mhs->id,
                     'date' => $kemarin,

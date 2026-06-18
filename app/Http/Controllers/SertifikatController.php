@@ -4,9 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Mahasiswa;
 use App\Models\SertifikatHistory;
-use App\Models\Attendance;
-use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class SertifikatController extends Controller
@@ -14,11 +13,11 @@ class SertifikatController extends Controller
     public function preview(Request $request, $mahasiswaId)
     {
         $mahasiswa = Mahasiswa::find($mahasiswaId);
-        
-        if (!$mahasiswa) {
+
+        if (! $mahasiswa) {
             return response()->json([
                 'success' => false,
-                'message' => 'Mahasiswa tidak ditemukan'
+                'message' => 'Mahasiswa tidak ditemukan',
             ], 404);
         }
 
@@ -48,22 +47,22 @@ class SertifikatController extends Controller
             $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
         }
 
-        if (!$startDate || !$endDate) {
+        if (! $startDate || ! $endDate) {
             return response()->json([
                 'success' => false,
-                'message' => 'Periode tidak valid'
+                'message' => 'Periode tidak valid',
             ], 400);
         }
 
         $alphaCount = $mahasiswa->calculateAlphaCount($startDate, $endDate);
         $canGetCertificate = $mahasiswa->canGetCertificate($startDate, $endDate);
-        
+
         $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
         $attendanceCount = $mahasiswa->attendances()
             ->whereBetween('date', [$startDate, $endDate])
             ->whereIn('status', ['present', 'izin', 'hadir'])
             ->count();
-        
+
         $izinCount = $mahasiswa->attendances()
             ->whereBetween('date', [$startDate, $endDate])
             ->where('status', 'izin')
@@ -79,28 +78,28 @@ class SertifikatController extends Controller
                 'totalHari' => $totalDays,
                 'persentase' => $persentase,
                 'alphaCount' => $alphaCount,
-                'canGetCertificate' => $canGetCertificate
-            ]
+                'canGetCertificate' => $canGetCertificate,
+            ],
         ]);
     }
 
     public function generate(Request $request, $mahasiswaId)
     {
         $user = Auth::user();
-        
+
         if ($user->role !== 'admin' && $user->mahasiswa_id != $mahasiswaId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akses ditolak'
+                'message' => 'Akses ditolak',
             ], 403);
         }
 
         $mahasiswa = Mahasiswa::find($mahasiswaId);
-        
-        if (!$mahasiswa) {
+
+        if (! $mahasiswa) {
             return response()->json([
                 'success' => false,
-                'message' => 'Mahasiswa tidak ditemukan'
+                'message' => 'Mahasiswa tidak ditemukan',
             ], 404);
         }
 
@@ -130,26 +129,26 @@ class SertifikatController extends Controller
             $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
         }
 
-        if (!$startDate || !$endDate) {
+        if (! $startDate || ! $endDate) {
             return response()->json([
                 'success' => false,
-                'message' => 'Periode tidak valid'
+                'message' => 'Periode tidak valid',
             ], 400);
         }
 
         $canGetCertificate = $mahasiswa->canGetCertificate($startDate, $endDate);
-        
-        if (!$canGetCertificate) {
+
+        if (! $canGetCertificate) {
             $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
             $attendanceCount = $mahasiswa->attendances()
                 ->whereBetween('date', [$startDate, $endDate])
                 ->whereIn('status', ['present', 'izin', 'hadir'])
                 ->count();
             $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
-            
+
             return response()->json([
                 'success' => false,
-                'message' => "Mahasiswa tidak dapat mendapatkan sertifikat karena kehadiran kurang dari 80% (saat ini {$persentase}%)"
+                'message' => "Mahasiswa tidak dapat mendapatkan sertifikat karena kehadiran kurang dari 80% (saat ini {$persentase}%)",
             ], 400);
         }
 
@@ -158,7 +157,7 @@ class SertifikatController extends Controller
             ->whereBetween('date', [$startDate, $endDate])
             ->whereIn('status', ['present', 'izin', 'hadir'])
             ->count();
-        
+
         $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
 
         $sertifikat = SertifikatHistory::create([
@@ -166,34 +165,34 @@ class SertifikatController extends Controller
             'periode' => "{$startDate} s/d {$endDate}",
             'template' => 'sertifikat',
             'total_hadir' => $attendanceCount,
-            'persentase' => $persentase
+            'persentase' => $persentase,
         ]);
 
         $pngContent = $this->generateCertificatePng($mahasiswa);
 
         return response($pngContent)
             ->header('Content-Type', 'image/png')
-            ->header('Content-Disposition', 'attachment; filename="sertifikat_' . $mahasiswa->id . '_' . time() . '.png"');
+            ->header('Content-Disposition', 'attachment; filename="sertifikat_'.$mahasiswa->id.'_'.time().'.png"');
     }
 
     public function previewImage(Request $request, $mahasiswaId)
     {
         try {
             $user = Auth::user();
-            
+
             if ($user->role !== 'admin' && $user->mahasiswa_id != $mahasiswaId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Akses ditolak'
+                    'message' => 'Akses ditolak',
                 ], 403);
             }
 
             $mahasiswa = Mahasiswa::find($mahasiswaId);
-            
-            if (!$mahasiswa) {
+
+            if (! $mahasiswa) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Mahasiswa tidak ditemukan'
+                    'message' => 'Mahasiswa tidak ditemukan',
                 ], 404);
             }
 
@@ -223,10 +222,10 @@ class SertifikatController extends Controller
                 $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
             }
 
-            if (!$startDate || !$endDate) {
+            if (! $startDate || ! $endDate) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Periode tidak valid'
+                    'message' => 'Periode tidak valid',
                 ], 400);
             }
 
@@ -235,7 +234,7 @@ class SertifikatController extends Controller
                 ->whereBetween('date', [$startDate, $endDate])
                 ->whereIn('status', ['present', 'izin', 'hadir'])
                 ->count();
-            
+
             $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
 
             $pngContent = $this->generateCertificatePng($mahasiswa);
@@ -246,7 +245,7 @@ class SertifikatController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal generate sertifikat: ' . $e->getMessage()
+                'message' => 'Gagal generate sertifikat: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -259,20 +258,20 @@ class SertifikatController extends Controller
     public function history(Request $request, $mahasiswaId)
     {
         $user = Auth::user();
-        
+
         if ($user->role !== 'admin' && $user->mahasiswa_id != $mahasiswaId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akses ditolak'
+                'message' => 'Akses ditolak',
             ], 403);
         }
 
         $mahasiswa = Mahasiswa::find($mahasiswaId);
-        
-        if (!$mahasiswa) {
+
+        if (! $mahasiswa) {
             return response()->json([
                 'success' => false,
-                'message' => 'Mahasiswa tidak ditemukan'
+                'message' => 'Mahasiswa tidak ditemukan',
             ], 404);
         }
 
@@ -280,23 +279,23 @@ class SertifikatController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $history
+            'data' => $history,
         ]);
     }
 
     public function download($historyId)
     {
         $sertifikat = SertifikatHistory::find($historyId);
-        
-        if (!$sertifikat) {
+
+        if (! $sertifikat) {
             return response()->json([
                 'success' => false,
-                'message' => 'Sertifikat tidak ditemukan'
+                'message' => 'Sertifikat tidak ditemukan',
             ], 404);
         }
 
         $mahasiswa = $sertifikat->mahasiswa;
-        
+
         // Parse periode to get start and end dates
         preg_match('/(\d{4}-\d{2}-\d{2})\s*s\/d\s*(\d{4}-\d{2}-\d{2})/', $sertifikat->periode, $matches);
         $startDate = $matches[1] ?? null;
@@ -306,7 +305,7 @@ class SertifikatController extends Controller
 
         return response($pngContent)
             ->header('Content-Type', 'image/png')
-            ->header('Content-Disposition', 'attachment; filename="sertifikat_' . $historyId . '.png"');
+            ->header('Content-Disposition', 'attachment; filename="sertifikat_'.$historyId.'.png"');
     }
 
     private function generateCertificatePng($mahasiswa)
@@ -315,60 +314,60 @@ class SertifikatController extends Controller
             $rawStudentName = trim($mahasiswa->name ?? '');
             $imagePath = public_path('static/img/sertifikat.png');
 
-        if (!is_file($imagePath)) {
-            abort(500, 'Template sertifikat tidak ditemukan di: ' . $imagePath);
-        }
+            if (! is_file($imagePath)) {
+                abort(500, 'Template sertifikat tidak ditemukan di: '.$imagePath);
+            }
 
-        // Bersihkan buffer yang ada sebelum mulai
-        while (ob_get_level() > 0) {
-            ob_end_clean();
-        }
+            // Bersihkan buffer yang ada sebelum mulai
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
 
-        $image = @imagecreatefrompng($imagePath); // @ untuk suppress warning ke buffer
-        if (!$image) {
-            abort(500, 'Gagal membaca template PNG. Pastikan file valid.');
-        }
+            $image = @imagecreatefrompng($imagePath); // @ untuk suppress warning ke buffer
+            if (! $image) {
+                abort(500, 'Gagal membaca template PNG. Pastikan file valid.');
+            }
 
-        imagesavealpha($image, true);
+            imagesavealpha($image, true);
 
-        $width  = imagesx($image);
-        $height = imagesy($image);
-        $name   = mb_strtoupper($rawStudentName, 'UTF-8');
+            $width = imagesx($image);
+            $height = imagesy($image);
+            $name = mb_strtoupper($rawStudentName, 'UTF-8');
 
-        $fontPath = $this->getCertificateFontPath();
-        $fontSize = strlen($rawStudentName) > 32 ? 48 : (strlen($rawStudentName) > 24 ? 58 : 68);
-        $color    = imagecolorallocate($image, 13, 59, 102);
+            $fontPath = $this->getCertificateFontPath();
+            $fontSize = strlen($rawStudentName) > 32 ? 48 : (strlen($rawStudentName) > 24 ? 58 : 68);
+            $color = imagecolorallocate($image, 13, 59, 102);
 
-        if ($fontPath) {
-            $box       = imagettfbbox($fontSize, 0, $fontPath, $name);
-            $textWidth = abs($box[2] - $box[0]);
-            $x         = (int)(($width - $textWidth) / 2);
-            $y         = (int)($height * 0.49);
-            imagettftext($image, $fontSize, 0, $x, $y, $color, $fontPath, $name);
-        } else {
-            // Fallback: gunakan font bawaan GD
-            $font      = 5;
-            $textWidth = imagefontwidth($font) * strlen($name);
-            $x         = (int)(($width - $textWidth) / 2);
-            $y         = (int)($height * 0.46);
-            imagestring($image, $font, $x, $y, $name, $color);
-        }
+            if ($fontPath) {
+                $box = imagettfbbox($fontSize, 0, $fontPath, $name);
+                $textWidth = abs($box[2] - $box[0]);
+                $x = (int) (($width - $textWidth) / 2);
+                $y = (int) ($height * 0.49);
+                imagettftext($image, $fontSize, 0, $x, $y, $color, $fontPath, $name);
+            } else {
+                // Fallback: gunakan font bawaan GD
+                $font = 5;
+                $textWidth = imagefontwidth($font) * strlen($name);
+                $x = (int) (($width - $textWidth) / 2);
+                $y = (int) ($height * 0.46);
+                imagestring($image, $font, $x, $y, $name, $color);
+            }
 
-        // Tulis langsung ke file temp, hindari ob conflict
-        $tmpFile = tempnam(sys_get_temp_dir(), 'sertifikat_') . '.png';
-        imagepng($image, $tmpFile);
-        imagedestroy($image);
+            // Tulis langsung ke file temp, hindari ob conflict
+            $tmpFile = tempnam(sys_get_temp_dir(), 'sertifikat_').'.png';
+            imagepng($image, $tmpFile);
+            imagedestroy($image);
 
-        $pngContent = file_get_contents($tmpFile);
-        @unlink($tmpFile); // Hapus file temp
+            $pngContent = file_get_contents($tmpFile);
+            @unlink($tmpFile); // Hapus file temp
 
-        if (!$pngContent || strlen($pngContent) < 100) {
-            abort(500, 'Gagal menghasilkan PNG. Output kosong atau terlalu kecil.');
-        }
+            if (! $pngContent || strlen($pngContent) < 100) {
+                abort(500, 'Gagal menghasilkan PNG. Output kosong atau terlalu kecil.');
+            }
 
-        return $pngContent;
+            return $pngContent;
         } catch (\Exception $e) {
-            abort(500, 'Gagal generate sertifikat: ' . $e->getMessage());
+            abort(500, 'Gagal generate sertifikat: '.$e->getMessage());
         }
     }
 
