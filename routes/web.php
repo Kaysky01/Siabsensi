@@ -35,6 +35,7 @@ Route::get('/', function () {
         return match ($role) {
             'admin' => redirect()->route('admin.dashboard'),
             'timdis' => redirect()->route('timdis.dashboard'),
+            'garda' => redirect()->route('garda.dashboard'),
             'mahasiswa' => redirect()->route('mahasiswa.dashboard'),
             default => redirect()->route('login'),
         };
@@ -249,13 +250,13 @@ Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
 });
 
 // Routes untuk Admin & Timdis (Lihat daftar pengajuan)
-Route::middleware(['auth', 'role:admin,timdis'])->group(function () {
+Route::middleware(['auth', 'role:admin,timdis,garda'])->group(function () {
     Route::get('/api/izin/list', [AdminController::class, 'getIzinSubmissions']);
     Route::get('/api/kehadiran/list', [AdminController::class, 'getKehadiranSubmissions']);
 });
 
 // Routes untuk Timdis Only (Verifikasi aksi)
-Route::middleware(['auth', 'role:timdis'])->group(function () {
+Route::middleware(['auth', 'role:timdis,garda'])->group(function () {
     Route::post('/api/izin/verify', [AdminController::class, 'verifyIzin']);
     Route::post('/api/kehadiran/verify', [AdminController::class, 'verifyKehadiran']);
 });
@@ -294,9 +295,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 });
 
 // Routes untuk Admin & Timdis (Dashboard akses)
-Route::middleware(['auth', 'role:admin,timdis'])->group(function () {
+Route::middleware(['auth', 'role:admin,timdis,garda'])->group(function () {
     Route::get('/admin/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
     Route::get('/timdis/dashboard', [AdminController::class, 'dashboard_admin'])->name('timdis.dashboard');
+    Route::get('/garda/dashboard', [AdminController::class, 'dashboard_admin'])->name('garda.dashboard');
     Route::get('/api/dashboard', [AdminController::class, 'getDashboardData'])->name('api.dashboard.data');
     Route::get('/api/attendance/today', [AdminController::class, 'getAttendanceToday']);
     Route::get('/api/attendance/history', [AdminController::class, 'getAttendanceHistory']);

@@ -98,14 +98,42 @@ class AdminController extends Controller
     public function getAttendanceToday(Request $request)
     {
         $today = Carbon::today()->toDateString();
+        $filter = $request->query('filter', 'all');
 
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
-        $attendances = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
-            ->whereDate("$table.date", $today)
-            ->orderBy("$table.check_in", 'desc')
-            ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
+
+        if ($filter === 'alpha') {
+            $attendances = Mahasiswa::select(
+                "$mhsTable.name",
+                "$mhsTable.kompi",
+                DB::raw("null as check_in"),
+                DB::raw("null as check_out"),
+                DB::raw("null as date"),
+                DB::raw("'alpha' as status"),
+                DB::raw("null as camera_id"),
+                DB::raw("null as yolo_confidence"),
+                "$mhsTable.id as mahasiswa_id"
+            )
+            ->whereNotExists(function ($q) use ($table, $today, $mhsTable) {
+                $q->select(DB::raw(1))
+                  ->from($table)
+                  ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
+                  ->whereDate("$table.date", $today);
+            })
             ->get();
+        } else {
+            $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+                ->whereDate("$table.date", $today)
+                ->orderBy("$table.check_in", 'desc')
+                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi");
+
+            if (in_array($filter, ['izin', 'sakit'])) {
+                $query->where("$table.status", $filter);
+            }
+
+            $attendances = $query->get();
+        }
 
         return response()->json([
             'success' => true,
@@ -282,7 +310,7 @@ class AdminController extends Controller
             'username' => 'required|string|unique:users,username',
             'full_name' => 'required|string',
             'email' => 'nullable|email',
-            'role' => 'required|in:admin,timdis,mahasiswa',
+            'role' => 'required|in:admin,timdis,garda,mahasiswa',
             'password' => 'required|string|min:6',
             'mahasiswa_id' => 'nullable|string',
         ]);

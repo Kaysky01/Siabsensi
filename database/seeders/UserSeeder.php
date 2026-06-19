@@ -53,6 +53,18 @@ class UserSeeder extends Seeder
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
+            // 4. Akun Garda
+            [
+                'username' => 'garda',
+                'password_hash' => Hash::make('garda123'),
+                'full_name' => 'Petugas Garda',
+                'email' => 'garda@siabsen.test',
+                'role' => 'garda',
+                'mahasiswa_id' => null,
+                'is_active' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
         ]);
     }
 }

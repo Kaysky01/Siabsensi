@@ -36,6 +36,7 @@ let currentQRBase64 = '';
 let editingCameraId = null;
 let currentUser = null;
 let userPermissions = null;
+let currentFilter = 'all';
 
 // ─── Load User Permissions ─────────────────────────────────────────────────
 async function loadUserPermissions() {
@@ -103,6 +104,29 @@ function applyRoleBasedUI() {
     });
   }
   
+  
+  if (currentUser && currentUser.role === 'garda') {
+    const itemsToHide = [
+      'dashboard', 'attendance', 'mahasiswa', 'kompi-management', 'history', 'video-upload', 'camera'
+    ];
+    itemsToHide.forEach(page => {
+      const menu = document.querySelector('.nav-item[onclick*="' + page + '"]');
+      if (menu) menu.style.display = 'none';
+    });
+    
+    const sectionsToHide = ['Utama', 'Data', 'Analisis'];
+    const allNavSections = document.querySelectorAll('.nav-section');
+    allNavSections.forEach(section => {
+      if (sectionsToHide.some(text => section.textContent.includes(text))) {
+        section.style.display = 'none';
+      }
+    });
+
+    if (currentPage === 'dashboard') {
+      setTimeout(() => showPage('izin-timdis'), 100);
+    }
+  }
+
   console.log('User permissions loaded:', userPermissions);
 }
 
@@ -357,9 +381,9 @@ function showPage(page) {
     }
 
     // ─── Full Attendance ─────────────────────────────────────────────────────────
-    async function loadFullAttendance(targetDate = '') {
-      let url = '/attendance/today';
-      if (targetDate) url = `/attendance/history?start=${targetDate}&end=${targetDate}`;
+    async function loadFullAttendance(targetDate = '', filter = currentFilter) {
+      let url = `/attendance/today?filter=${filter}`;
+      if (targetDate) url = `/attendance/history?start=${targetDate}&end=${targetDate}&filter=${filter}`;
       const res = await apiFetch(url);
       const list = res?.success ? res.data : [];
       attendanceData = list;
@@ -384,12 +408,14 @@ function showPage(page) {
         }
         const conf = r.yolo_confidence ? `${Math.round(r.yolo_confidence * 100)}%` : '—';
         
-        // Handle different status types including izin and sakit
+        // Handle different status types including izin, sakit, and alpha
         let status;
         if (r.status === 'izin') {
           status = '<span class="badge badge-blue"><span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle">description</span> Izin</span>';
         } else if (r.status === 'sakit') {
           status = '<span class="badge badge-orange"><span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle">medical_services</span> Sakit</span>';
+        } else if (r.status === 'alpha') {
+          status = '<span class="badge badge-red"><span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle">block</span> Alpha</span>';
         } else if (r.check_out) {
           status = '<span class="badge badge-green">Lengkap</span>';
         } else if (r.check_in) {
@@ -412,6 +438,19 @@ function showPage(page) {
       <td>${status}</td>
     </tr>`;
       }).join('');
+    }
+
+    function setAttendanceFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === filter);
+      });
+      loadFullAttendance(document.getElementById('att-date-filter').value, filter);
+    }
+
+    function resetAttendanceFilter() {
+      document.getElementById('att-date-filter').value = '';
+      setAttendanceFilter('all');
     }
 
     function filterAttendance(d) { loadFullAttendance(d); }
@@ -1260,7 +1299,7 @@ async function removeMahasiswa(id) {
 
     setInterval(() => {
       if (currentPage === 'dashboard') loadDashboard();
-      if (currentPage === 'attendance') loadFullAttendance();
+      if (currentPage === 'attendance') loadFullAttendance(document.getElementById('att-date-filter').value);
     }, 30000);
 
     // ─── IZIN / SAKIT (TIMDIS ONLY) ─────────────────────────────────────────────
@@ -1729,7 +1768,7 @@ async function removeMahasiswa(id) {
 
     setInterval(() => {
       if (currentPage === 'dashboard') loadDashboard();
-      if (currentPage === 'attendance') loadFullAttendance();
+      if (currentPage === 'attendance') loadFullAttendance(document.getElementById('att-date-filter').value);
       if (currentPage === 'izin-timdis') loadIzinSubmissions();
       if (currentPage === 'kehadiran-timdis') loadKehadiranSubmissions();
     }, 30000);

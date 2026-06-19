@@ -186,6 +186,26 @@
             <button class="btn btn-ghost btn-sm" onclick="exportCSV()"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Export CSV</button>
           </div>
         </div>
+        <!-- Filter Status Absensi -->
+        <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div>
+              <label class="form-label">Filter Status</label>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-sm filter-btn active" data-filter="all" onclick="setAttendanceFilter('all')">Semua</button>
+                <button class="btn btn-sm filter-btn" data-filter="izin" onclick="setAttendanceFilter('izin')">Izin</button>
+                <button class="btn btn-sm filter-btn" data-filter="sakit" onclick="setAttendanceFilter('sakit')">Sakit</button>
+                <button class="btn btn-sm filter-btn" data-filter="alpha" onclick="setAttendanceFilter('alpha')">Alpha</button>
+              </div>
+            </div>
+            <div style="align-self:flex-end">
+              <button class="btn btn-secondary btn-sm" onclick="resetAttendanceFilter()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span>
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
         <div class="panel">
           <table class="att-table" id="full-att-table">
             <thead>
@@ -770,6 +790,7 @@
                 <option value="">Semua</option>
                 <option value="admin">Admin</option>
                 <option value="timdis">Tim Disiplin</option>
+                <option value="garda">Garda</option>
                 <option value="mahasiswa">Mahasiswa</option>
               </select>
             </div>
@@ -856,6 +877,7 @@
             <option value="">-- Pilih Role --</option>
             <option value="admin">Admin</option>
             <option value="timdis">Tim Disiplin</option>
+                <option value="garda">Garda</option>
             <option value="mahasiswa">Mahasiswa</option>
           </select>
         </div>

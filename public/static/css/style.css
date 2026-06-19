@@ -364,6 +364,28 @@ button, a, input, select, textarea {
     font-size: 13px;
 }
 
+.filter-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1.5px solid var(--border);
+    padding: 7px 14px;
+    font-size: 13px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+.filter-btn:hover {
+    background: var(--surface);
+    border-color: var(--text-secondary);
+    color: var(--text);
+}
+.filter-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
 /* ═══════════════════════════════════════════════════════════════
    Stats Grid
    ═══════════════════════════════════════════════════════════════ */

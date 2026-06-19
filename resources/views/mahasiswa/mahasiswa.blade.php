@@ -350,7 +350,7 @@
             <select id="izin-mahasiswa-select" class="form-input" onchange="loadMyIzinHistory()">
               <option value="">-- Pilih Mahasiswa --</option>
             </select>
-          </div>
+          </div> 
 
           <div class="form-row">
             <label class="form-label">Jenis Pengajuan *</label>

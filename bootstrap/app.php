@@ -35,6 +35,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 return route('admin.dashboard'); // Sesuaikan dengan rute dashboard admin
             } elseif ($role === 'timdis') {
                 return route('timdis.dashboard'); // Akses disesuaikan dengan rute dashboard timdis
+            } elseif ($role === 'garda') {
+                return route('garda.dashboard'); // Akses disesuaikan dengan rute dashboard garda
             } elseif ($role === 'mahasiswa') {
                 return route('mahasiswa.dashboard'); // Sesuaikan dengan rute dashboard mahasiswa
             }
