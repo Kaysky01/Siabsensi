@@ -76,8 +76,8 @@
 
         <div class="nav-section">Keluar</div>
 
-        <div class="nav-item" onclick="window.location.href='/logout'" id="nav-keluar">
-          <span class="material-symbols-outlined icon">logout</span>
+        <div class="nav-item" onclick="window.location.href='/logout'" id="nav-keluar" style="color: #ff6b6b;">
+          <span class="material-symbols-outlined icon" style="color: #ff6b6b;">logout</span>
           Logout
         </div>
       </nav>
@@ -100,10 +100,10 @@
         </div>
 
         <div class="header-actions">
-          <button class="btn btn-ghost btn-sm" onclick="window.location.href='/logout'">
-            <span class="material-symbols-outlined" style="font-size:16px">logout</span>
-            Logout
-          </button>
+            <button class="btn btn-ghost btn-sm" onclick="window.location.href='/logout'" style="color: #ff6b6b;">
+              <span class="material-symbols-outlined" style="font-size:16px;color:#ff6b6b">logout</span>
+              Logout
+            </button>
         </div>
       </div>
 
@@ -779,6 +779,17 @@
   <div id="toast">
     <div class="toast-title" id="toast-title"></div>
     <div class="toast-msg" id="toast-msg"></div>
+  </div>
+
+  <div class="modal-backdrop" id="modal-attendance-reminder">
+    <div class="modal" style="max-width:720px">
+      <div class="modal-title">Peringatan Absensi Harian</div>
+      <div id="attendance-reminder-content" style="margin-top:16px;color:var(--text)"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modal-attendance-reminder')">Tutup</button>
+        <button class="btn btn-primary" onclick="showSection('riwayat'); closeModal('modal-attendance-reminder')">Lihat Riwayat Absensi</button>
+      </div>
+    </div>
   </div>
 
   <div class="modal-backdrop" id="modal-detail-kehadiran">

@@ -1109,6 +1109,137 @@ textarea.form-input {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   Skeleton Loader
+   ═══════════════════════════════════════════════════════════════ */
+
+.skeleton-loader {
+    padding: 32px 40px;
+    max-width: 960px;
+}
+
+.skeleton-line {
+    height: 14px;
+    background: linear-gradient(90deg, var(--border-light) 25%, var(--bg) 50%, var(--border-light) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.4s ease infinite;
+    border-radius: 6px;
+    margin-bottom: 14px;
+}
+
+.skeleton-line.title {
+    width: 40%;
+    height: 28px;
+    margin-bottom: 8px;
+}
+
+.skeleton-line.subtitle {
+    width: 30%;
+    height: 14px;
+    margin-bottom: 28px;
+}
+
+.skeleton-line.filter {
+    width: 55%;
+    height: 38px;
+    margin-bottom: 24px;
+    border-radius: 8px;
+}
+
+.skeleton-table {
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+.skeleton-row {
+    display: flex;
+    gap: 16px;
+    padding: 16px 16px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.skeleton-row:last-child {
+    border-bottom: none;
+}
+
+.skeleton-cell {
+    height: 14px;
+    background: linear-gradient(90deg, var(--border-light) 25%, var(--bg) 50%, var(--border-light) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.4s ease infinite;
+    border-radius: 4px;
+}
+
+.skeleton-cell:nth-child(1) { width: 4%; }
+.skeleton-cell:nth-child(2) { width: 24%; }
+.skeleton-cell:nth-child(3) { width: 8%; }
+.skeleton-cell:nth-child(4) { width: 10%; }
+.skeleton-cell:nth-child(5) { width: 10%; }
+.skeleton-cell:nth-child(6) { width: 10%; }
+.skeleton-cell:nth-child(7) { width: 8%; }
+.skeleton-cell:nth-child(8) { width: 18%; }
+
+@keyframes skeleton-pulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ─── Sidebar skeleton ──────────────────────────────────────── */
+
+.nav-loading .nav-item,
+.nav-loading .nav-section {
+    display: none !important;
+}
+
+.nav-loading #sidebar-skeleton {
+    display: block;
+}
+
+#sidebar-skeleton {
+    display: none;
+    padding: 4px 0;
+}
+
+.skeleton-nav-section {
+    height: 11px;
+    width: 35%;
+    margin: 18px 16px 10px;
+    background: linear-gradient(90deg, var(--border-light) 25%, var(--bg) 50%, var(--border-light) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.4s ease infinite;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.skeleton-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    margin: 2px 0;
+}
+
+.skeleton-nav-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--border-light) 25%, var(--bg) 50%, var(--border-light) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.4s ease infinite;
+    flex-shrink: 0;
+}
+
+.skeleton-nav-text {
+    height: 13px;
+    width: 55%;
+    background: linear-gradient(90deg, var(--border-light) 25%, var(--bg) 50%, var(--border-light) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.4s ease infinite;
+    border-radius: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    Responsive Design
    ═══════════════════════════════════════════════════════════════ */
 

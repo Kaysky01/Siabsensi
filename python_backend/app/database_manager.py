@@ -226,8 +226,8 @@ class DatabaseManager:
         logger.info("Database MySQL diinisialisasi.")
 
     def get_mahasiswa_by_qr(self, qr_code_id: str):
-        """Cari mahasiswa berdasarkan QR code"""
-        query = "SELECT * FROM mahasiswa WHERE qr_code_id = %s AND is_active = 1"
+        """Cari mahasiswa berdasarkan QR code (termasuk yang non-aktif)"""
+        query = "SELECT * FROM mahasiswa WHERE qr_code_id = %s"
         return self._execute(query, (qr_code_id,), fetch_one=True)
 
     def record_attendance(self, mahasiswa_id, action, camera_id, snapshot_path, confidence):

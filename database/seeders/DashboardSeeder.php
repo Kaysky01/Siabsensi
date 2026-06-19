@@ -10,15 +10,13 @@ class DashboardSeeder extends Seeder
 {
     public function run(): void
     {
-        $today = Carbon::today();
-
         // Buat beberapa Mahasiswa tambahan untuk testing dashboard
         $mahasiswas = [
             ['id' => 'MHS-002', 'name' => 'Siti Aisyah', 'kompi' => 'Kompi A', 'prodi' => 'D3 Teknik Informatika', 'is_active' => 1],
             ['id' => 'MHS-003', 'name' => 'Andi Wijaya', 'kompi' => 'Kompi B', 'prodi' => 'S1 Sistem Informasi', 'is_active' => 1],
             ['id' => 'MHS-004', 'name' => 'Rina Melati', 'kompi' => 'Kompi B', 'prodi' => 'D3 Teknik Informatika', 'is_active' => 1],
             ['id' => 'MHS-005', 'name' => 'Eko Prasetyo', 'kompi' => 'Kompi C', 'prodi' => 'S1 Teknik Informatika', 'is_active' => 1],
-            ['id' => 'MHS-006', 'name' => 'Dwi Handayani', 'kompi' => 'Kompi C', 'prodi' => 'D3 Sistem Informasi', 'is_active' => 0],
+            ['id' => 'MHS-006', 'name' => 'Dwi Handayani', 'kompi' => 'Kompi C', 'prodi' => 'D3 Sistem Informasi', 'is_active' => 1],
         ];
 
         foreach ($mahasiswas as $mhs) {
@@ -43,9 +41,9 @@ class DashboardSeeder extends Seeder
         // Hapus data attendance agar fresh setiap dis-seed
         DB::table('attendance')->truncate();
 
-        // Buat data absensi 7 hari terakhir (Tren Kehadiran)
+        // Buat data absensi 7 hari sebelum hari ini (hari ini sengaja dikosongkan)
         $attendances = [];
-        for ($i = 6; $i >= 0; $i--) {
+        for ($i = 7; $i >= 1; $i--) {
             $date = Carbon::today()->subDays($i);
 
             // Randomly pick some students who attended on this day
@@ -54,12 +52,7 @@ class DashboardSeeder extends Seeder
                 if (rand(1, 10) > 2) {
                     $checkIn = $date->copy()->setTime(rand(7, 8), rand(0, 59), 0);
 
-                    // Untuk hari ini, ada yang belum check out
-                    $checkOut = null;
-                    if ($i > 0 || rand(0, 1) == 1) {
-                        // Hari sebelumnya pasti check out. Hari ini 50% sudah check out.
-                        $checkOut = $checkIn->copy()->addHours(rand(4, 8))->addMinutes(rand(0, 59));
-                    }
+                    $checkOut = $checkIn->copy()->addHours(rand(4, 8))->addMinutes(rand(0, 59));
 
                     $attendances[] = [
                         'mahasiswa_id' => $mhsId,

@@ -66,6 +66,8 @@ async function initCamera() {
 function startQRDetection(videoElement) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
+    const lastQrTime = new Map(); // qrData -> timestamp
+    const QR_COOLDOWN_MS = 3000; // 3 detik debounce per QR
     
     async function detectFrame() {
         if (videoElement.paused || videoElement.ended) {
@@ -107,6 +109,15 @@ function startQRDetection(videoElement) {
                     const confidence = data.max_confidence || 0.0;
                     console.log('QR detected:', qrData, 'Confidence:', confidence);
 
+                    // Debounce: skip if same QR was sent recently
+                    const now = Date.now();
+                    const last = lastQrTime.get(qrData) || 0;
+                    if (now - last < QR_COOLDOWN_MS) {
+                        requestAnimationFrame(detectFrame);
+                        return;
+                    }
+                    lastQrTime.set(qrData, now);
+
                     // Record attendance with confidence
                     await recordAttendance(qrData, confidence);
                 }
@@ -146,6 +157,12 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
                     showToast(`${mahasiswaName} berhasil ${actionText}`);
                 }
             }
+        } else {
+            // Handle error responses (e.g. 403 Forbidden for inactive students)
+            const errData = await res.json().catch(() => ({}));
+            const msg = errData.message || `Error ${res.status}`;
+            console.warn('[Attendance]', msg);
+            showToast(msg, res.status >= 500 ? '#ef4444' : '#f97316');
         }
     } catch (err) {
         console.warn('Attendance recording error:', err);
@@ -421,13 +438,17 @@ function playBeep() {
 }
 
 // ===== TOAST NOTIFICATION =====
-function showToast(message) {
+function showToast(message, bgColor) {
     const toast = document.getElementById('toast-notification');
     const toastText = document.getElementById('toast-text');
     if (toast && toastText) {
         toastText.textContent = message;
+        toast.style.background = bgColor || 'var(--success, #22d3a0)';
         toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 3000);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.style.background = '';
+        }, 3500);
     }
 }
 

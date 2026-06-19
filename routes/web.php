@@ -217,7 +217,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
     Route::get('/mahasiswa/dashboard', [MahasiswaController::class, 'dashboard'])->name('mahasiswa.dashboard');
 
-    // Rute API Data Mahasiswa
+    // Rute API Data Mahasiswa (static routes BEFORE parameterized ones)
+    Route::get('/api/mahasiswa/attendance-reminder', [MahasiswaController::class, 'getAttendanceReminder']);
     Route::get('/api/mahasiswa/{id}/statistics', [MahasiswaController::class, 'getStatistics']);
     Route::get('/api/mahasiswa/{id}/chart/weekly', [MahasiswaController::class, 'getWeeklyChart']);
     Route::get('/api/mahasiswa/{id}/chart/monthly', [MahasiswaController::class, 'getMonthlyChart']);

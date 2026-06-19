@@ -107,21 +107,39 @@ class AdminController extends Controller
             $attendances = Mahasiswa::select(
                 "$mhsTable.name",
                 "$mhsTable.kompi",
-                DB::raw("null as check_in"),
-                DB::raw("null as check_out"),
-                DB::raw("null as date"),
+                DB::raw('null as check_in'),
+                DB::raw('null as check_out'),
+                DB::raw('null as date'),
                 DB::raw("'alpha' as status"),
-                DB::raw("null as camera_id"),
-                DB::raw("null as yolo_confidence"),
+                DB::raw('null as camera_id'),
+                DB::raw('null as yolo_confidence'),
                 "$mhsTable.id as mahasiswa_id"
             )
-            ->whereNotExists(function ($q) use ($table, $today, $mhsTable) {
-                $q->select(DB::raw(1))
-                  ->from($table)
-                  ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
-                  ->whereDate("$table.date", $today);
+                ->whereNotExists(function ($q) use ($table, $today, $mhsTable) {
+                    $q->select(DB::raw(1))
+                        ->from($table)
+                        ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
+                        ->whereDate("$table.date", $today);
+                })
+                ->get();
+        } elseif ($filter === 'all') {
+            $attendances = Mahasiswa::leftJoin($table, function ($join) use ($table, $mhsTable, $today) {
+                $join->on("$table.mahasiswa_id", '=', "$mhsTable.id")
+                    ->whereDate("$table.date", $today);
             })
-            ->get();
+                ->select(
+                    "$mhsTable.name",
+                    "$mhsTable.kompi",
+                    "$table.check_in",
+                    "$table.check_out",
+                    "$table.date",
+                    "$table.camera_id",
+                    "$table.yolo_confidence",
+                    "$mhsTable.id as mahasiswa_id",
+                    DB::raw("COALESCE($table.status, 'alpha') as status")
+                )
+                ->orderBy("$table.check_in", 'desc')
+                ->get();
         } else {
             $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereDate("$table.date", $today)
@@ -146,22 +164,69 @@ class AdminController extends Controller
     {
         $start = $request->query('start');
         $end = $request->query('end');
+        $filter = $request->query('filter', 'all');
 
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
 
-        $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
-            ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
-            ->orderBy("$table.date", 'desc')
-            ->orderBy("$table.check_in", 'desc');
+        if ($filter === 'alpha') {
+            $attendances = Mahasiswa::select(
+                "$mhsTable.name",
+                "$mhsTable.kompi",
+                DB::raw('null as check_in'),
+                DB::raw('null as check_out'),
+                DB::raw('null as date'),
+                DB::raw("'alpha' as status"),
+                DB::raw('null as camera_id'),
+                DB::raw('null as yolo_confidence'),
+                "$mhsTable.id as mahasiswa_id"
+            )
+                ->whereNotExists(function ($q) use ($table, $start, $end, $mhsTable) {
+                    $q->select(DB::raw(1))
+                        ->from($table)
+                        ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
+                        ->whereBetween("$table.date", [$start, $end]);
+                })
+                ->get();
+        } elseif ($filter === 'all' && $start && $end) {
+            $attendances = Mahasiswa::leftJoin($table, function ($join) use ($table, $mhsTable, $start, $end) {
+                $join->on("$table.mahasiswa_id", '=', "$mhsTable.id")
+                    ->whereBetween("$table.date", [$start, $end]);
+            })
+                ->select(
+                    "$mhsTable.name",
+                    "$mhsTable.kompi",
+                    "$table.check_in",
+                    "$table.check_out",
+                    "$table.date",
+                    "$table.camera_id",
+                    "$table.yolo_confidence",
+                    "$mhsTable.id as mahasiswa_id",
+                    DB::raw("COALESCE($table.status, 'alpha') as status")
+                )
+                ->orderBy("$table.date", 'desc')
+                ->orderBy("$table.check_in", 'desc')
+                ->get();
+        } else {
+            $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
+                ->orderBy("$table.date", 'desc')
+                ->orderBy("$table.check_in", 'desc');
 
-        if ($start && $end) {
-            $query->whereBetween("$table.date", [$start, $end]);
+            if ($start && $end) {
+                $query->whereBetween("$table.date", [$start, $end]);
+            }
+
+            if (in_array($filter, ['izin', 'sakit'])) {
+                $query->where("$table.status", $filter);
+            }
+
+            $attendances = $query->get();
         }
 
         return response()->json([
             'success' => true,
-            'data' => $query->get(),
+            'data' => $attendances,
         ]);
     }
 

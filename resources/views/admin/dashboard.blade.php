@@ -31,7 +31,22 @@
         </div>
       </div>
 
-      <nav class="nav">
+      <nav class="nav nav-loading">
+        <div id="sidebar-skeleton">
+          <div class="skeleton-nav-section"></div>
+          <div class="skeleton-nav-item"><span class="skeleton-nav-icon"></span><span class="skeleton-nav-text"></span></div>
+          <div class="skeleton-nav-item"><span class="skeleton-nav-icon"></span><span class="skeleton-nav-text"></span></div>
+          <div class="skeleton-nav-section"></div>
+          <div class="skeleton-nav-item"><span class="skeleton-nav-icon"></span><span class="skeleton-nav-text"></span></div>
+          <div class="skeleton-nav-item"><span class="skeleton-nav-icon"></span><span class="skeleton-nav-text"></span></div>
+          <div class="skeleton-nav-item"><span class="skeleton-nav-icon"></span><span class="skeleton-nav-text"></span></div>
+          <div class="skeleton-nav-section"></div>
+          <div class="skeleton-nav-item"><span class="skeleton-nav-icon"></span><span class="skeleton-nav-text"></span></div>
+          <div class="skeleton-nav-item"><span class="skeleton-nav-icon"></span><span class="skeleton-nav-text"></span></div>
+          <div class="skeleton-nav-section"></div>
+          <div class="skeleton-nav-item"><span class="skeleton-nav-icon"></span><span class="skeleton-nav-text"></span></div>
+          <div class="skeleton-nav-item"><span class="skeleton-nav-icon"></span><span class="skeleton-nav-text"></span></div>
+        </div>
         <div class="nav-section">Utama</div>
         <div class="nav-item active" onclick="showPage('dashboard')">
           <span class="material-symbols-outlined icon">dashboard</span> Dashboard
@@ -87,7 +102,65 @@
 
     <main class="main">
 
-      <section id="page-dashboard">
+      <div id="skeleton-loader" class="skeleton-loader">
+        <div class="skeleton-line title"></div>
+        <div class="skeleton-line subtitle"></div>
+        <div class="skeleton-line filter"></div>
+        <div class="skeleton-table">
+          <div class="skeleton-row">
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+          </div>
+          <div class="skeleton-row">
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+          </div>
+          <div class="skeleton-row">
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+          </div>
+          <div class="skeleton-row">
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+          </div>
+          <div class="skeleton-row">
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+            <div class="skeleton-cell"></div>
+          </div>
+        </div>
+      </div>
+
+      <section id="page-dashboard" style="display:none">
         <div class="page-header">
           <div>
             <div class="page-title">Dashboard Absensi</div>

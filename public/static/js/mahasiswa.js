@@ -1,6 +1,7 @@
 const API = '/api';
 let mahasiswaData = [];
 let currentMahasiswa = null; // Store current logged-in mahasiswa
+let attendanceReminderShown = false;
 
 // ─── Authentication Check & Pengambilan Data ────────────────────────────────
 (function() {
@@ -107,6 +108,7 @@ function initializeMahasiswaPortal() {
   // Auto-load dashboard data
   console.log('[INIT] Loading dashboard data...');
   loadDashboardData();
+  checkAttendanceReminder();
   
   console.log('[INIT] Portal initialization complete!');
 }
@@ -166,6 +168,57 @@ function showWelcomeMessage() {
       </div>
     `;
     console.log('[WELCOME] Welcome message updated in header');
+  }
+}
+
+async function checkAttendanceReminder() {
+  if (attendanceReminderShown || !currentMahasiswa) return;
+  attendanceReminderShown = true;
+
+  try {
+    const res = await fetch(API + '/mahasiswa/attendance-reminder', {
+      credentials: 'include'
+    });
+    if (!res.ok) return;
+
+    const result = await res.json();
+    if (!result.success || !result.data.should_show) return;
+
+    const dates = result.data.missing_dates;
+    if (!dates || dates.length === 0) return;
+
+    const formatDate = (d) => {
+      const dt = new Date(d + 'T00:00:00');
+      return dt.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    };
+
+    let contentHtml = '';
+    if (dates.length === 1) {
+      contentHtml = `
+        <div style="display:flex;align-items:flex-start;gap:14px;padding:20px;background:var(--danger-light,#fff0f0);border:1px solid var(--danger,#ef4444);border-radius:var(--radius-md,8px)">
+          <span class="material-symbols-outlined" style="font-size:32px;color:var(--danger,#ef4444);flex-shrink:0">warning</span>
+          <div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:6px">Peringatan! Anda belum melakukan absensi pada tanggal ${formatDate(dates[0])}.</div>
+            <div style="font-size:13px;color:var(--text-muted)">Silakan hubungi guru pembimbing atau lakukan konfirmasi jika diperlukan.</div>
+          </div>
+        </div>`;
+    } else {
+      const dateListHtml = dates.map(d => `<li style="padding:4px 0;font-family:var(--mono,monospace);font-size:13px">${formatDate(d)}</li>`).join('');
+      contentHtml = `
+        <div style="display:flex;align-items:flex-start;gap:14px;padding:20px;background:var(--danger-light,#fff0f0);border:1px solid var(--danger,#ef4444);border-radius:var(--radius-md,8px)">
+          <span class="material-symbols-outlined" style="font-size:32px;color:var(--danger,#ef4444);flex-shrink:0">warning</span>
+          <div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:6px">Peringatan! Anda belum melakukan absensi pada ${dates.length} tanggal berikut:</div>
+            <ul style="margin:8px 0 8px 18px;max-height:200px;overflow-y:auto">${dateListHtml}</ul>
+            <div style="font-size:13px;color:var(--text-muted)">Silakan hubungi guru pembimbing atau lakukan konfirmasi jika diperlukan.</div>
+          </div>
+        </div>`;
+    }
+
+    document.getElementById('attendance-reminder-content').innerHTML = contentHtml;
+    document.getElementById('modal-attendance-reminder').classList.add('show');
+  } catch (e) {
+    console.error('Error checking attendance reminder:', e);
   }
 }
 

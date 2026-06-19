@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Mahasiswa;
 
 use App\Exports\RiwayatAbsensiExport;
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\Mahasiswa; // Pastikan Model di-import
 use Carbon\Carbon;        // Import Carbon untuk manipulasi tanggal
 use Illuminate\Http\Request; // Import Auth untuk otorisasi
+use Illuminate\Support\CarbonPeriod;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Maatwebsite\Excel\Facades\Excel;
@@ -272,6 +274,77 @@ class MahasiswaController extends Controller
         return response()->json([
             'success' => true,
             'data' => $status,
+        ]);
+    }
+
+    public function getAttendanceReminder(Request $request)
+    {
+        $user = Auth::user();
+
+        if (! $user || $user->role !== 'mahasiswa' || ! $user->mahasiswa_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak',
+            ], 403);
+        }
+
+        if ($request->session()->get('attendance_reminder_shown', false)) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'should_show' => false,
+                    'missing_dates' => [],
+                ],
+            ]);
+        }
+
+        $mahasiswa = Mahasiswa::find($user->mahasiswa_id);
+
+        if (! $mahasiswa) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mahasiswa tidak ditemukan',
+            ], 404);
+        }
+
+        $yesterday = Carbon::yesterday()->startOfDay();
+        $startDate = Carbon::parse($mahasiswa->created_at)->startOfDay();
+
+        if ($startDate->greaterThan($yesterday)) {
+            $request->session()->put('attendance_reminder_shown', true);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'should_show' => false,
+                    'missing_dates' => [],
+                ],
+            ]);
+        }
+
+        $attendanceDates = Attendance::query()
+            ->where('mahasiswa_id', $mahasiswa->id)
+            ->whereBetween('date', [$startDate->toDateString(), $yesterday->toDateString()])
+            ->pluck('date')
+            ->map(fn ($date) => Carbon::parse($date)->toDateString())
+            ->flip();
+
+        $missingDates = [];
+        foreach (CarbonPeriod::create($startDate, $yesterday) as $date) {
+            $dateString = $date->toDateString();
+            if (! $attendanceDates->has($dateString)) {
+                $missingDates[] = $dateString;
+            }
+        }
+
+        $request->session()->put('attendance_reminder_shown', true);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'should_show' => ! empty($missingDates),
+                'missing_dates' => $missingDates,
+            ],
         ]);
     }
 

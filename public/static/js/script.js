@@ -61,6 +61,10 @@ async function loadUserPermissions() {
       
       // Apply UI restrictions based on permissions
       applyRoleBasedUI();
+
+      // Hide skeleton loader when permissions are ready
+      const skel = document.getElementById('skeleton-loader');
+      if (skel) skel.style.display = 'none';
       
       return true;
     }
@@ -105,27 +109,31 @@ function applyRoleBasedUI() {
   }
   
   
-  if (currentUser && currentUser.role === 'garda') {
-    const itemsToHide = [
-      'dashboard', 'attendance', 'mahasiswa', 'kompi-management', 'history', 'video-upload', 'camera'
-    ];
-    itemsToHide.forEach(page => {
-      const menu = document.querySelector('.nav-item[onclick*="' + page + '"]');
-      if (menu) menu.style.display = 'none';
-    });
-    
-    const sectionsToHide = ['Utama', 'Data', 'Analisis'];
-    const allNavSections = document.querySelectorAll('.nav-section');
-    allNavSections.forEach(section => {
-      if (sectionsToHide.some(text => section.textContent.includes(text))) {
-        section.style.display = 'none';
-      }
-    });
+    if (currentUser && currentUser.role === 'garda') {
+      const itemsToHide = [
+        'dashboard', 'attendance', 'mahasiswa', 'kompi-management', 'history', 'video-upload', 'camera'
+      ];
+      itemsToHide.forEach(page => {
+        const menu = document.querySelector('.nav-item[onclick*="' + page + '"]');
+        if (menu) menu.style.display = 'none';
+      });
+      
+      const sectionsToHide = ['Utama', 'Data', 'Analisis'];
+      const allNavSections = document.querySelectorAll('.nav-section');
+      allNavSections.forEach(section => {
+        if (sectionsToHide.some(text => section.textContent.includes(text))) {
+          section.style.display = 'none';
+        }
+      });
 
-    if (currentPage === 'dashboard') {
-      setTimeout(() => showPage('izin-timdis'), 100);
+      showPage('izin-timdis');
+    } else if (currentUser) {
+      // Show dashboard for admin/timdis (hidden by default for skeleton loader)
+      showPage('dashboard');
     }
-  }
+
+    // Remove nav loading state — show real nav items
+    document.querySelector('.nav')?.classList.remove('nav-loading');
 
   console.log('User permissions loaded:', userPermissions);
 }

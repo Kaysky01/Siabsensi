@@ -68,12 +68,25 @@
         <div class="remember-me">
           <input type="checkbox" name="remember" id="remember-me">
           <label for="remember-me">Ingat saya</label>
+          <span id="toggle-password" style="margin-left:auto;display:inline-flex;align-items:center;gap:4px;cursor:pointer;user-select:none;font-size:13px;color:var(--muted,#888)">
+            <span class="material-symbols-outlined" style="font-size:18px">visibility</span>
+            Lihat Password
+          </span>
         </div>
 
         <button type="submit" class="btn-login" id="login-btn">
           <span id="login-text">Masuk</span>
         </button>
       </form>
+
+      <script>
+        document.getElementById('toggle-password')?.addEventListener('click', function() {
+          const pw = document.getElementById('password');
+          const isPassword = pw.type === 'password';
+          pw.type = isPassword ? 'text' : 'password';
+          this.querySelector('.material-symbols-outlined').textContent = isPassword ? 'visibility_off' : 'visibility';
+        });
+      </script>
 
       <div class="login-footer">
         <div class="login-footer-text">

@@ -238,6 +238,13 @@ def record_attendance():
                 'message': 'Mahasiswa not found with this QR code'
             }), 404
 
+        # Cek apakah mahasiswa aktif
+        if not mahasiswa.get('is_active'):
+            return jsonify({
+                'success': False,
+                'message': f"Mahasiswa '{mahasiswa.get('name')}' ({qr_code_id}) tidak aktif. Silakan hubungi Administrator."
+            }), 403
+
         # Use the actual mahasiswa_id from the database
         actual_mahasiswa_id = mahasiswa['id']
 
