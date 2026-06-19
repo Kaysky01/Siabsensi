@@ -377,12 +377,6 @@ function handleIncomingData(newData) {
     renderRecentScans(currentAttendanceList);
     updateStats(currentAttendanceList);
     updateFooter();
-
-    // Bunyikan beep dan tampilkan toast jika ada absensi baru terdeteksi
-    if (hasNewCheck && lastUpdateTimestamp) {
-        playBeep();
-        showToast(newActionMessage);
-    }
 }
 
 async function fetchLatestAttendance() {
