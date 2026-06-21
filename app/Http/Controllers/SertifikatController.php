@@ -168,7 +168,8 @@ class SertifikatController extends Controller
             'persentase' => $persentase,
         ]);
 
-        $pngContent = $this->generateCertificatePng($mahasiswa);
+        $downloadDate = Carbon::parse($sertifikat->created_at)->locale('id')->translatedFormat('d F Y');
+        $pngContent = $this->generateCertificatePng($mahasiswa, $downloadDate);
 
         return response($pngContent)
             ->header('Content-Type', 'image/png')
@@ -237,7 +238,7 @@ class SertifikatController extends Controller
 
             $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
 
-            $pngContent = $this->generateCertificatePng($mahasiswa);
+            $pngContent = $this->generateCertificatePng($mahasiswa, Carbon::now()->locale('id')->translatedFormat('d F Y'));
 
             return response($pngContent)
                 ->header('Content-Type', 'image/png')
@@ -301,14 +302,15 @@ class SertifikatController extends Controller
         $startDate = $matches[1] ?? null;
         $endDate = $matches[2] ?? null;
 
-        $pngContent = $this->generateCertificatePng($mahasiswa);
+        $downloadDate = Carbon::parse($sertifikat->created_at)->locale('id')->translatedFormat('d F Y');
+        $pngContent = $this->generateCertificatePng($mahasiswa, $downloadDate);
 
         return response($pngContent)
             ->header('Content-Type', 'image/png')
             ->header('Content-Disposition', 'attachment; filename="sertifikat_'.$historyId.'.png"');
     }
 
-    private function generateCertificatePng($mahasiswa)
+    private function generateCertificatePng($mahasiswa, ?string $downloadDate = null)
     {
         try {
             $rawStudentName = trim($mahasiswa->name ?? '');
@@ -323,7 +325,7 @@ class SertifikatController extends Controller
                 ob_end_clean();
             }
 
-            $image = @imagecreatefrompng($imagePath); // @ untuk suppress warning ke buffer
+            $image = @imagecreatefrompng($imagePath);
             if (! $image) {
                 abort(500, 'Gagal membaca template PNG. Pastikan file valid.');
             }
@@ -345,12 +347,23 @@ class SertifikatController extends Controller
                 $y = (int) ($height * 0.49);
                 imagettftext($image, $fontSize, 0, $x, $y, $color, $fontPath, $name);
             } else {
-                // Fallback: gunakan font bawaan GD
                 $font = 5;
                 $textWidth = imagefontwidth($font) * strlen($name);
                 $x = (int) (($width - $textWidth) / 2);
                 $y = (int) ($height * 0.46);
                 imagestring($image, $font, $x, $y, $name, $color);
+            }
+
+            // Tambahkan tanggal download di pojok kanan bawah (di bawah garis tanda tangan)
+            $dateText = $downloadDate ?? Carbon::now()->locale('id')->translatedFormat('d F Y');
+            $dateFontSize = 18;
+            $dateColor = imagecolorallocate($image, 13, 59, 102);
+            if ($fontPath) {
+                $dateBox = imagettfbbox($dateFontSize, 0, $fontPath, $dateText);
+                $dateTextWidth = abs($dateBox[2] - $dateBox[0]);
+                $dateX = (int) ($width - $dateTextWidth - 350);
+                $dateY = (int) ($height * 0.90);
+                imagettftext($image, $dateFontSize, 0, $dateX, $dateY, $dateColor, $fontPath, $dateText);
             }
 
             // Tulis langsung ke file temp, hindari ob conflict
@@ -359,7 +372,7 @@ class SertifikatController extends Controller
             imagedestroy($image);
 
             $pngContent = file_get_contents($tmpFile);
-            @unlink($tmpFile); // Hapus file temp
+            @unlink($tmpFile);
 
             if (! $pngContent || strlen($pngContent) < 100) {
                 abort(500, 'Gagal menghasilkan PNG. Output kosong atau terlalu kecil.');

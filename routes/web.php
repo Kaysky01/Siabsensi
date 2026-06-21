@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\Mahasiswa\IzinController;
 use App\Http\Controllers\Mahasiswa\KehadiranController;
 use App\Http\Controllers\Mahasiswa\MahasiswaController;
@@ -248,6 +249,11 @@ Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
     Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/generate', [SertifikatController::class, 'generate']);
     Route::post('/api/mahasiswa/{mahasiswaId}/sertifikat/preview-pdf', [SertifikatController::class, 'previewPdf']);
     Route::get('/api/mahasiswa/{mahasiswaId}/sertifikat/history', [SertifikatController::class, 'history']);
+
+    // Kegiatan mahasiswa
+    Route::get('/api/kegiatan/aktif', [KegiatanController::class, 'aktif']);
+    Route::post('/api/kegiatan/absen', [KegiatanController::class, 'absen']);
+    Route::get('/api/mahasiswa/{id}/riwayat-kegiatan', [KegiatanController::class, 'riwayatMahasiswa']);
 });
 
 // Routes untuk Admin & Timdis (Lihat daftar pengajuan)
@@ -293,6 +299,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Sertifikat (Admin - untuk download)
     Route::get('/api/sertifikat/download/{historyId}', [SertifikatController::class, 'download']);
+
+    // Kegiatan CRUD (Admin Only)
+    Route::post('/api/kegiatan', [KegiatanController::class, 'store']);
+    Route::put('/api/kegiatan/{id}', [KegiatanController::class, 'update']);
+    Route::delete('/api/kegiatan/{id}', [KegiatanController::class, 'destroy']);
 });
 
 // Routes untuk Admin & Timdis (Dashboard akses)
@@ -304,5 +315,10 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->group(function () {
     Route::get('/api/attendance/today', [AdminController::class, 'getAttendanceToday']);
     Route::get('/api/attendance/history', [AdminController::class, 'getAttendanceHistory']);
     Route::get('/api/attendance/export', [AdminController::class, 'exportAttendance']);
+    Route::get('/api/attendance/kelulusan', [AdminController::class, 'getKelulusan']);
     Route::get('/api/mahasiswa', [AdminController::class, 'getAllMahasiswa']);
+
+    // Kegiatan lihat & monitoring (semua role)
+    Route::get('/api/kegiatan', [KegiatanController::class, 'index']);
+    Route::get('/api/kegiatan/{id}/rekap', [KegiatanController::class, 'rekap']);
 });

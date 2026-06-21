@@ -1438,7 +1438,7 @@ function calculateDuration(checkIn, checkOut) {
 // ─── Navigation Functions ────────────────────────────────────────────────
 function showSection(sectionName) {
   // Hide all sections
-  const sections = ['dashboard', 'profile', 'riwayat', 'izin', 'kehadiran', 'qr-code', 'sertifikat'];
+  const sections = ['dashboard', 'profile', 'riwayat', 'izin', 'kehadiran', 'qr-code', 'kegiatan', 'sertifikat'];
   sections.forEach(section => {
     const element = document.getElementById(`section-${section}`);
     if (element) {
@@ -1469,6 +1469,9 @@ function showSection(sectionName) {
   if (navItem) {
     navItem.classList.add('active');
   }
+  
+  // Load data on section show
+  if (sectionName === 'kegiatan') loadKegiatanAktif();
   
   // Auto-load data for the section
   if (currentMahasiswa) {
@@ -1752,5 +1755,56 @@ function updateCurrentTime() {
       year: 'numeric'
     });
     timeElement.textContent = `${dateString} ${timeString}`;
+  }
+}
+
+// --- Absensi Kegiatan ---------------------------------------------------------
+
+async function loadKegiatanAktif() {
+  if (!currentMahasiswa) return;
+  // Load active kegiatan
+  const aktifRes = await fetch(API + '/kegiatan/aktif', { credentials: 'include' });
+  const aktif = await aktifRes.json();
+  const container = document.getElementById('kegiatan-aktif-container');
+  if (aktif.success && aktif.data.length > 0) {
+    container.innerHTML = aktif.data.map(function(k) {
+      var wajib = k.wajib_hadir ? '<span class=\"badge badge-red\">Wajib</span>' : '<span class=\"badge badge-yellow\">Opsional</span>';
+      return '<div class=\"panel\" style=\"margin-bottom:16px;background:var(--primary-light);border:1px solid var(--primary)\"><div style=\"display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px\"><div><div style=\"font-size:18px;font-weight:700;color:var(--primary)\">' + k.nama + '</div><div style=\"font-size:13px;color:var(--text-muted);margin-top:4px\">' + k.tanggal_pelaksanaan + ' | ' + k.jam_mulai + ' - ' + k.jam_selesai + ' | ' + wajib + '</div></div><button class=\"btn btn-primary\" onclick=\"absenKegiatan(' + k.id + ')\"><span class=\"material-symbols-outlined\" style=\"font-size:16px;vertical-align:middle\">how_to_reg</span> Absen Sekarang</button></div></div>';
+    }).join('');
+  } else {
+    container.innerHTML = '<div class=\"empty-state\"><span class=\"material-symbols-outlined\" style=\"font-size:40px;color:var(--muted)\">event_busy</span><p style=\"margin-top:12px\">Tidak ada kegiatan yang sedang berlangsung saat ini</p></div>';
+  }
+  // Load riwayat
+  loadRiwayatKegiatan();
+}
+
+async function absenKegiatan(kegiatanId) {
+  if (!currentMahasiswa) return;
+  const res = await fetch(API + '/kegiatan/absen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').content },
+    credentials: 'include',
+    body: JSON.stringify({ kegiatan_id: kegiatanId, mahasiswa_id: currentMahasiswa.id })
+  });
+  const result = await res.json();
+  if (result.success) {
+    toast('Absensi Berhasil', result.message);
+    loadKegiatanAktif();
+  } else {
+    toast('Gagal', result.message || 'Terjadi kesalahan', true);
+  }
+}
+
+async function loadRiwayatKegiatan() {
+  if (!currentMahasiswa) return;
+  const res = await fetch(API + '/mahasiswa/' + currentMahasiswa.id + '/riwayat-kegiatan', { credentials: 'include' });
+  const result = await res.json();
+  const tbody = document.getElementById('riwayat-kegiatan-tbody');
+  if (result.success && result.data.length > 0) {
+    tbody.innerHTML = result.data.map(function(r) {
+      return '<tr><td style=\"font-family:var(--mono)\">' + r.tanggal + '</td><td style=\"font-weight:600\">' + r.nama_kegiatan + '</td><td style=\"font-family:var(--mono)\">' + r.jam_mulai + ' - ' + r.jam_selesai + '</td><td style=\"font-family:var(--mono)\">' + new Date(r.absen_at).toLocaleString('id-ID') + '</td></tr>';
+    }).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:30px\">Belum ada riwayat absensi kegiatan</td></tr>';
   }
 }

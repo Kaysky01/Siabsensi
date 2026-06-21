@@ -69,6 +69,11 @@
         
         <div class="nav-section">Lainnya</div>
         
+        <div class="nav-item" onclick="showSection('kegiatan')" id="nav-kegiatan">
+          <span class="material-symbols-outlined icon">event</span>
+          Absensi Kegiatan
+        </div>
+
         <div class="nav-item" onclick="showSection('sertifikat')" id="nav-sertifikat">
           <span class="material-symbols-outlined icon">workspace_premium</span>
           Unduh Sertifikat
@@ -540,6 +545,47 @@
               Gunakan QR Code ini untuk absen saat scan oleh admin
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: ABSENSI KEGIATAN ===== -->
+      <section id="section-kegiatan" style="display:none">
+        <div class="panel">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="material-symbols-outlined">event</span>
+              Absensi Kegiatan
+            </div>
+          </div>
+          <div id="kegiatan-aktif-container">
+            <div class="empty-state">
+              <span class="material-symbols-outlined" style="font-size:40px;color:var(--muted)">event_busy</span>
+              <p style="margin-top:12px">Memuat kegiatan yang sedang berlangsung...</p>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="material-symbols-outlined">history</span>
+              Riwayat Absensi Kegiatan
+            </div>
+          </div>
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Kegiatan</th>
+                <th>Jam</th>
+                <th>Absen Pada</th>
+              </tr>
+            </thead>
+            <tbody id="riwayat-kegiatan-tbody">
+              <tr>
+                <td colspan="4" style="text-align:center;color:var(--muted);padding:30px">Memuat riwayat...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 

@@ -83,6 +83,12 @@ function applyRoleBasedUI() {
   if (!userPermissions.can_manage_users) {
     const userMgmtMenu = document.querySelector('.nav-item[onclick*="users"]');
     if (userMgmtMenu) userMgmtMenu.style.display = 'none';
+    
+    // Hide Camera & Kelola Kegiatan for non-admin
+    const cameraMenu = document.querySelector('.nav-item[onclick*="camera"]');
+    if (cameraMenu) cameraMenu.style.display = 'none';
+    const kelolaKegiatanMenu = document.getElementById('nav-kelola-kegiatan');
+    if (kelolaKegiatanMenu) kelolaKegiatanMenu.style.display = 'none';
   }
   
   // Hide Settings menu and "Sistem" section for non-admin
@@ -114,11 +120,15 @@ function applyRoleBasedUI() {
         'dashboard', 'attendance', 'mahasiswa', 'kompi-management', 'history', 'video-upload', 'camera'
       ];
       itemsToHide.forEach(page => {
-        const menu = document.querySelector('.nav-item[onclick*="' + page + '"]');
+        const menu = document.querySelector(`.nav-item[onclick*="${page}"]`);
         if (menu) menu.style.display = 'none';
       });
       
-      const sectionsToHide = ['Utama', 'Data', 'Analisis'];
+      // Show "Mahasiswa Saya" for garda
+      const mhsSayaNav = document.getElementById('nav-mahasiswa-saya');
+      if (mhsSayaNav) mhsSayaNav.style.display = '';
+
+      const sectionsToHide = ['Utama', 'Analisis', 'Sistem'];
       const allNavSections = document.querySelectorAll('.nav-section');
       allNavSections.forEach(section => {
         if (sectionsToHide.some(text => section.textContent.includes(text))) {
@@ -126,7 +136,7 @@ function applyRoleBasedUI() {
         }
       });
 
-      showPage('izin-timdis');
+      showPage('mahasiswa-saya');
     } else if (currentUser) {
       // Show dashboard for admin/timdis (hidden by default for skeleton loader)
       showPage('dashboard');
@@ -144,7 +154,15 @@ function showPage(page) {
       document.getElementById('page-' + page).style.display = '';
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(n => {
-        if (n.textContent.toLowerCase().includes(page === 'dashboard' ? 'dash' : page === 'attendance' ? 'absensi' : page === 'users' ? 'user management' : page === 'camera' ? 'kelola kamera' : page === 'cameras' ? 'kamera' : page === 'mahasiswa' ? 'mahasiswa' : page === 'history' ? 'riwayat' : page === 'video-upload' ? 'upload video' : page === 'izin-mahasiswa' ? 'form pengajuan' : page === 'izin-timdis' ? 'verifikasi izin' : page === 'kehadiran-timdis' ? 'verifikasi kehadiran' : 'pengaturan'))
+        const labels = {
+          'dashboard': 'dash', 'attendance': 'absensi', 'users': 'user management',
+          'camera': 'kelola kamera', 'cameras': 'kamera', 'mahasiswa': 'mahasiswa',
+          'mahasiswa-saya': 'mahasiswa saya', 'history': 'riwayat',
+          'video-upload': 'upload video', 'izin-mahasiswa': 'form pengajuan',
+          'izin-timdis': 'verifikasi izin', 'kehadiran-timdis': 'verifikasi kehadiran',
+          'kompi-management': 'pengaturan', 'kelulusan': 'laporan kelulusan', 'kegiatan': 'kelola kegiatan', 'monitoring-kegiatan': 'monitoring kegiatan'
+        };
+        if (n.textContent.toLowerCase().includes(labels[page] || 'pengaturan'))
           n.classList.add('active');
       });
       currentPage = page;
@@ -155,8 +173,12 @@ function showPage(page) {
       if (page === 'attendance') loadFullAttendance();
       if (page === 'users') loadUsers();
       if (page === 'mahasiswa') loadMahasiswa();
+      if (page === 'mahasiswa-saya') loadGardaMahasiswa();
       if (page === 'kompi-management') loadKompiManagement();
       if (page === 'camera' || page === 'cameras') loadCameras();
+      if (page === 'monitoring-kegiatan') loadMonitoringKegiatanPage();
+      if (page === 'kelulusan') loadKelulusanFilters();
+      if (page === 'kegiatan') loadKegiatan();
       if (page === 'izin-timdis') loadIzinSubmissions();
       if (page === 'kehadiran-timdis') loadKehadiranSubmissions();
     }
@@ -621,7 +643,105 @@ function showPage(page) {
         ${deleteButton}
       </td>
     </tr>`;
-      }).join('');
+  }).join('');
+}
+
+// ─── Laporan Kelulusan ─────────────────────────────────────────────────────────
+let kelulusanData = [];
+
+async function loadKelulusanFilters() {
+  const res = await apiFetch('/mahasiswa');
+  if (res?.success) {
+    const prodiSet = [...new Set(res.data.map(m => m.prodi).filter(p => p))].sort();
+    const jurusanSet = [...new Set(res.data.map(m => m.jurusan).filter(j => j))].sort();
+
+    const prodiSelect = document.getElementById('kelulusan-filter-prodi');
+    prodiSelect.innerHTML = '<option value="">Semua Prodi</option>' +
+      prodiSet.map(p => `<option value="${p}">${p}</option>`).join('');
+
+    const jurusanSelect = document.getElementById('kelulusan-filter-jurusan');
+    jurusanSelect.innerHTML = '<option value="">Semua Jurusan</option>' +
+      jurusanSet.map(j => `<option value="${j}">${j}</option>`).join('');
+  }
+
+  // Auto-load data
+  loadKelulusan();
+}
+
+async function loadKelulusan() {
+  const prodi = document.getElementById('kelulusan-filter-prodi').value;
+  const jurusan = document.getElementById('kelulusan-filter-jurusan').value;
+
+  let url = '/attendance/kelulusan';
+  const params = [];
+  if (prodi) params.push(`prodi=${encodeURIComponent(prodi)}`);
+  if (jurusan) params.push(`jurusan=${encodeURIComponent(jurusan)}`);
+  if (params.length) url += '?' + params.join('&');
+
+  const res = await apiFetch(url);
+  if (res?.success) {
+    kelulusanData = res.data;
+    renderKelulusan(kelulusanData);
+  }
+}
+
+function renderKelulusan(list) {
+  const filterStatus = document.getElementById('kelulusan-filter-status').value;
+  if (filterStatus) {
+    list = list.filter(m => m.status === filterStatus);
+  }
+
+  const tbody = document.getElementById('kelulusan-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Tidak ada data</td></tr>';
+    document.getElementById('kelulusan-summary').textContent = '';
+    return;
+  }
+
+  const lulus = list.filter(m => m.status === 'Lulus').length;
+  const tidakLulus = list.filter(m => m.status === 'Tidak Lulus').length;
+
+  tbody.innerHTML = list.map(m => {
+    const statusBadge = m.status === 'Lulus'
+      ? '<span class="badge badge-green"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check_circle</span> Lulus</span>'
+      : '<span class="badge badge-red"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">cancel</span> Tidak Lulus</span>';
+
+    return `<tr>
+      <td><div style="font-weight:600">${m.name}</div><div style="font-size:12px;color:var(--muted)">${m.id}</div></td>
+      <td><span class="badge badge-blue">${m.kompi || '-'}</span></td>
+      <td>${m.prodi || '-'}</td>
+      <td>${m.jurusan}</td>
+      <td style="font-family:var(--mono)">${m.total_hari}</td>
+      <td style="font-family:var(--mono)">${m.total_hadir}</td>
+      <td style="font-family:var(--mono);font-weight:600">${m.persentase}%</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('kelulusan-summary').textContent =
+    `Total: ${list.length} mahasiswa (${lulus} lulus, ${tidakLulus} tidak lulus)`;
+}
+
+function exportKelulusanCSV() {
+  const status = document.getElementById('kelulusan-filter-status').value;
+  let list = kelulusanData;
+  if (status) list = list.filter(m => m.status === status);
+
+  if (!list.length) { toast('Tidak ada data untuk diexport', '', true); return; }
+
+  const header = 'Nama,ID,Prodi,Jurusan,Kompi,Total Hari,Total Hadir,Persentase,Status\n';
+  const rows = list.map(m =>
+    `"${m.name}",${m.id},"${m.prodi || ''}","${m.jurusan}","${m.kompi || ''}",${m.total_hari},${m.total_hadir},${m.persentase},${m.status}`
+  ).join('\n');
+
+  const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `kelulusan_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Export CSV berhasil');
 }
 
 async function showQR(mhsId) {
@@ -2459,14 +2579,27 @@ function toggleMahasiswaField() {
   const role = document.getElementById('user-role').value;
   const mahasiswaRow = document.getElementById('mahasiswa-id-row');
   const mahasiswaSelect = document.getElementById('user-mahasiswa-id');
-  
+  const kompiRow = document.getElementById('assigned-kompi-row');
+  const kompiSelect = document.getElementById('user-assigned-kompi');
+
   if (role === 'mahasiswa') {
     mahasiswaRow.style.display = 'block';
     mahasiswaSelect.required = true;
+    kompiRow.style.display = 'none';
+    kompiSelect.required = false;
+  } else if (role === 'garda') {
+    mahasiswaRow.style.display = 'none';
+    mahasiswaSelect.required = false;
+    mahasiswaSelect.value = '';
+    kompiRow.style.display = 'block';
+    kompiSelect.required = true;
+    populateKompiDropdown();
   } else {
     mahasiswaRow.style.display = 'none';
     mahasiswaSelect.required = false;
     mahasiswaSelect.value = '';
+    kompiRow.style.display = 'none';
+    kompiSelect.required = false;
   }
 }
 
@@ -2506,8 +2639,33 @@ async function editUser(userId) {
     select.disabled = true; // Mahasiswa ID tidak bisa diubah
   }
   
+  // Handle garda kompi field
+  if (user.role === 'garda') {
+    const kompiRow = document.getElementById('assigned-kompi-row');
+    kompiRow.style.display = 'block';
+    await populateKompiDropdown();
+    document.getElementById('user-assigned-kompi').value = user.assigned_kompi || '';
+  }
+  
   document.getElementById('modal-user-title').textContent = 'Edit User';
   document.getElementById('modal-user').classList.add('show');
+}
+
+async function populateKompiDropdown() {
+  try {
+    const res = await apiFetch('/mahasiswa?limit=1');
+    if (!res?.success) return;
+    // Get all unique kompi values
+    const fullRes = await apiFetch('/mahasiswa');
+    if (fullRes?.success) {
+      const kompiSet = [...new Set(fullRes.data.map(m => m.kompi).filter(k => k))].sort();
+      const select = document.getElementById('user-assigned-kompi');
+      select.innerHTML = '<option value="">-- Pilih Kompi --</option>' + 
+        kompiSet.map(k => `<option value="${k}">${k}</option>`).join('');
+    }
+  } catch (e) {
+    console.error('Error loading kompi list:', e);
+  }
 }
 
 async function submitUser(event) {
@@ -2538,6 +2696,15 @@ async function submitUser(event) {
     data.mahasiswa_id = document.getElementById('user-mahasiswa-id').value;
     if (!data.mahasiswa_id) {
       toast('Pilih mahasiswa terlebih dahulu', '', true);
+      return;
+    }
+  }
+  
+  // Add assigned_kompi if role is garda
+  if (data.role === 'garda') {
+    data.assigned_kompi = document.getElementById('user-assigned-kompi').value;
+    if (!data.assigned_kompi) {
+      toast('Pilih kompi terlebih dahulu', '', true);
       return;
     }
   }
@@ -2668,6 +2835,34 @@ function renderKompiManagement(list) {
   `).join('');
 }
 
+function shuffleKompi() {
+  const count = parseInt(document.getElementById('kompi-count').value) || 3;
+  if (count < 2) { toast('Jumlah kompi minimal 2', '', true); return; }
+
+  // Generate kompi names (A, B, C, ...)
+  const kompiNames = [];
+  for (let i = 0; i < count; i++) {
+    kompiNames.push(String.fromCharCode(65 + i)); // A, B, C, ...
+  }
+
+  // Fisher-Yates shuffle on all students
+  const shuffled = [...kompiData];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  // Assign evenly to kompi
+  const inputs = document.querySelectorAll('.kompi-input');
+  shuffled.forEach((mhs, idx) => {
+    const kompi = kompiNames[idx % count];
+    const input = Array.from(inputs).find(i => i.dataset.id === mhs.id);
+    if (input) input.value = `Kompi ${kompi}`;
+  });
+
+  toast('Pembagian acak berhasil', `Mahasiswa dibagi ke ${count} kompi (A-${String.fromCharCode(64 + count)}). Klik Simpan untuk menyimpan.`);
+}
+
 async function saveBulkKompi() {
   const inputs = document.querySelectorAll('.kompi-input');
   const assignments = [];
@@ -2693,4 +2888,235 @@ function resetKompiManagementFilter() {
   document.getElementById('kompi-filter-current').value = '';
   document.getElementById('kompi-filter-prodi').value = '';
   renderKompiManagement(kompiData);
+}
+
+// ─── Garda: Mahasiswa Saya ─────────────────────────────────────────────────────
+let gardaMahasiswaData = [];
+async function loadGardaMahasiswa() {
+  const kompi = currentUser?.assigned_kompi;
+  if (!kompi) {
+    document.getElementById('garda-mhs-tbody').innerHTML = 
+      '<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:30px">Anda belum ditugaskan ke kompi manapun. Hubungi Admin.</td></tr>';
+    return;
+  }
+  
+  document.getElementById('garda-kompi-label').textContent = `Daftar mahasiswa Kompi ${kompi}`;
+  
+  const res = await apiFetch(`/mahasiswa?kompi=${encodeURIComponent(kompi)}`);
+  if (res?.success) {
+    gardaMahasiswaData = res.data;
+    renderGardaMahasiswa(gardaMahasiswaData);
+    populateGardaProdiFilter(gardaMahasiswaData);
+  }
+}
+
+function populateGardaProdiFilter(list) {
+  const prodiSet = [...new Set(list.map(m => m.prodi).filter(p => p))].sort();
+  const select = document.getElementById('garda-filter-prodi');
+  if (!select) return;
+  select.innerHTML = '<option value="">Semua Prodi</option>' + 
+    prodiSet.map(p => `<option value="${p}">${p}</option>`).join('');
+}
+
+function filterGardaMahasiswa() {
+  const term = document.getElementById('garda-mhs-search').value.toLowerCase();
+  const prodi = document.getElementById('garda-filter-prodi').value;
+  
+  renderGardaMahasiswa(gardaMahasiswaData.filter(m =>
+    m.name.toLowerCase().includes(term) &&
+    (!prodi || m.prodi === prodi)
+  ));
+}
+
+function renderGardaMahasiswa(list) {
+  const tbody = document.getElementById('garda-mhs-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Tidak ada mahasiswa ditemukan</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = list.map(m => {
+    const checkIn = m.today_check_in || '--';
+    const checkOut = m.today_check_out || '--';
+    let statusBadge = '';
+    if (m.today_status === 'absent' || !m.today_status) {
+      statusBadge = '<span class="badge badge-yellow">Belum Absen</span>';
+    } else if (m.today_check_out) {
+      statusBadge = '<span class="badge badge-green">Lengkap</span>';
+    } else if (m.today_check_in) {
+      statusBadge = '<span class="badge badge-blue">Masuk</span>';
+    }
+    
+    return `<tr>
+      <td><div style="font-weight:600">${m.name}</div><div style="font-size:12px;color:var(--muted)">${m.id}</div></td>
+      <td>${m.prodi || '-'}</td>
+      <td>${m.jurusan}</td>
+      <td style="font-family:var(--mono)">${checkIn}</td>
+      <td style="font-family:var(--mono)">${checkOut}</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  }).join('');
+}
+// --- Kegiatan Management (Admin) -----------------------------------------------
+async function loadKegiatan() {
+  const res = await apiFetch('/kegiatan');
+  if (res?.success) {
+    renderKegiatan(res.data);
+  }
+}
+
+function renderKegiatan(list) {
+  const tbody = document.getElementById('kegiatan-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Belum ada kegiatan</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(k => {
+    const wajib = k.wajib_hadir ? '<span class="badge badge-green">Wajib</span>' : '<span class="badge badge-yellow">Opsional</span>';
+    const status = k.is_active ? '<span class="badge badge-green">Aktif</span>' : '<span class="badge badge-red">Nonaktif</span>';
+    return '<tr><td><div style="font-weight:600">' + k.nama + '</div></td><td style="font-family:var(--mono)">' + (k.tanggal_pelaksanaan || '').split('T')[0] + '</td><td style="font-family:var(--mono)">' + k.jam_mulai + '</td><td style="font-family:var(--mono)">' + k.jam_selesai + '</td><td>' + wajib + '</td><td>' + status + '</td><td><button class=\"btn btn-ghost btn-sm\" onclick=\"editKegiatan(' + k.id + ')\" title=\"Edit\"><span class=\"material-symbols-outlined\" style=\"font-size:16px\">edit</span></button><button class=\"btn btn-danger btn-sm\" onclick=\"deleteKegiatan(' + k.id + ')\" title=\"Hapus\"><span class=\"material-symbols-outlined\" style=\"font-size:16px\">delete</span></button></td></tr>';
+  }).join('');
+}
+
+function openAddKegiatan() {
+  document.getElementById('kegiatan-id').value = '';
+  document.getElementById('kegiatan-form').reset();
+  document.getElementById('kegiatan-wajib').checked = true;
+  document.getElementById('kegiatan-status-row').style.display = 'none';
+  document.getElementById('modal-kegiatan-title').textContent = 'Tambah Kegiatan';
+  document.getElementById('modal-kegiatan').classList.add('show');
+}
+
+async function editKegiatan(id) {
+  const kegiatan = await apiFetch('/kegiatan/' + id + '/rekap');
+  if (!kegiatan?.success) { toast('Data tidak ditemukan', '', true); return; }
+  const k = kegiatan.data.kegiatan;
+  document.getElementById('kegiatan-id').value = k.id;
+  document.getElementById('kegiatan-nama').value = k.nama;
+  document.getElementById('kegiatan-tanggal').value = (k.tanggal_pelaksanaan || '').split('T')[0];
+  document.getElementById('kegiatan-jam-mulai').value = k.jam_mulai;
+  document.getElementById('kegiatan-jam-selesai').value = k.jam_selesai;
+  document.getElementById('kegiatan-wajib').checked = k.wajib_hadir;
+  document.getElementById('kegiatan-status').value = k.is_active ? '1' : '0';
+  document.getElementById('kegiatan-status-row').style.display = '';
+  document.getElementById('modal-kegiatan-title').textContent = 'Edit Kegiatan';
+  document.getElementById('modal-kegiatan').classList.add('show');
+}
+
+async function submitKegiatan(event) {
+  event.preventDefault();
+  const id = document.getElementById('kegiatan-id').value;
+  const data = {
+    nama: document.getElementById('kegiatan-nama').value.trim(),
+    tanggal_pelaksanaan: document.getElementById('kegiatan-tanggal').value,
+    jam_mulai: document.getElementById('kegiatan-jam-mulai').value,
+    jam_selesai: document.getElementById('kegiatan-jam-selesai').value,
+    wajib_hadir: document.getElementById('kegiatan-wajib').checked,
+  };
+  if (id) {
+    data.is_active = document.getElementById('kegiatan-status').value === '1';
+  }
+  const url = id ? '/kegiatan/' + id : '/kegiatan';
+  const method = id ? 'PUT' : 'POST';
+  const res = await apiFetch(url, { method: method, body: JSON.stringify(data) });
+  if (res?.success) {
+    toast(id ? 'Kegiatan diupdate' : 'Kegiatan dibuat');
+    closeModal('modal-kegiatan');
+    loadKegiatan();
+  } else {
+    toast('Gagal', res?.message || '', true);
+  }
+}
+
+async function deleteKegiatan(id) {
+  if (!confirm('Hapus kegiatan ini?')) return;
+  const res = await apiFetch('/kegiatan/' + id, { method: 'DELETE' });
+  if (res?.success) {
+    toast('Kegiatan dihapus');
+    loadKegiatan();
+  }
+}
+
+async function openRekapKegiatan(id) {
+  const res = await apiFetch('/kegiatan/' + id + '/rekap');
+  if (!res?.success) { toast('Gagal memuat data', '', true); return; }
+  const data = res.data;
+  const html = '<div class="panel"><div class="section-header"><div class="section-title"><span class="material-symbols-outlined">visibility</span> Monitoring: ' + data.kegiatan.nama + '</div><div class="header-actions"><small style="color:var(--muted)">' + data.total_hadir + '/' + data.total_mahasiswa + ' hadir</small></div></div><table class="att-table"><thead><tr><th>Mahasiswa</th><th>Kompi</th><th>Prodi</th><th>Status</th></tr></thead><tbody>' + data.rekap.map(function(m) { var badge = m.status === 'hadir' ? '<span class="badge badge-green">Hadir</span>' : '<span class="badge badge-yellow">Belum</span>'; return '<tr><td><div style="font-weight:600">' + m.name + '</div><div style="font-size:12px;color:var(--muted)">' + m.id + '</div></td><td><span class="badge badge-blue">' + (m.kompi || '-') + '</span></td><td>' + (m.prodi || '-') + '</td><td>' + badge + '</td></tr>'; }).join('') + '</tbody></table><div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal(\'modal-rekap-kegiatan\')">Tutup</button></div></div>';
+  document.getElementById('modal-rekap-kegiatan-content').innerHTML = html;
+  document.getElementById('modal-rekap-kegiatan').classList.add('show');
+}
+
+// ─── Monitoring Kegiatan (Full Page) ──────────────────────────────────────────
+let monKegiatanData = null;
+
+async function loadMonitoringKegiatanPage() {
+  // Load kegiatan list into dropdown
+  const res = await apiFetch('/kegiatan');
+  if (res?.success) {
+    const select = document.getElementById('mon-kegiatan-select');
+    select.innerHTML = '<option value="">-- Pilih Kegiatan --</option>' +
+      res.data.map(function(k) { return '<option value="' + k.id + '">' + k.nama + ' (' + (k.tanggal_pelaksanaan || '').split('T')[0] + ')</option>'; }).join('');
+    // Auto select first if only one
+    if (res.data.length === 1) { select.value = res.data[0].id; loadMonitoringKegiatan(); }
+  }
+}
+
+async function loadMonitoringKegiatan() {
+  const kegiatanId = document.getElementById('mon-kegiatan-select').value;
+  if (!kegiatanId) {
+    document.getElementById('mon-tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Pilih kegiatan terlebih dahulu</td></tr>';
+    document.getElementById('mon-summary').textContent = '';
+    return;
+  }
+  const res = await apiFetch('/kegiatan/' + kegiatanId + '/rekap');
+  if (res?.success) {
+    monKegiatanData = res.data;
+    populateMonFilters(res.data.rekap);
+    renderMonitoring(res.data);
+  }
+}
+
+function populateMonFilters(rekap) {
+  const kompiSet = new Set(rekap.map(function(m) { return m.kompi; }).filter(function(k) { return k; }));
+  const prodiSet = new Set(rekap.map(function(m) { return m.prodi; }).filter(function(p) { return p; }));
+  const kompiSelect = document.getElementById('mon-filter-kompi');
+  kompiSelect.innerHTML = '<option value="">Semua Kompi</option>' + Array.from(kompiSet).sort().map(function(k) { return '<option value="' + k + '">' + k + '</option>'; }).join('');
+  const prodiSelect = document.getElementById('mon-filter-prodi');
+  prodiSelect.innerHTML = '<option value="">Semua Prodi</option>' + Array.from(prodiSet).sort().map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
+}
+
+function filterMonitoringKegiatan() {
+  if (!monKegiatanData) return;
+  renderMonitoring(monKegiatanData);
+}
+
+function renderMonitoring(data) {
+  const search = document.getElementById('mon-search').value.toLowerCase();
+  const kompi = document.getElementById('mon-filter-kompi').value;
+  const prodi = document.getElementById('mon-filter-prodi').value;
+  const status = document.getElementById('mon-filter-status').value;
+
+  let filtered = data.rekap.filter(function(m) {
+    return (m.name.toLowerCase().includes(search)) &&
+      (!kompi || m.kompi === kompi) &&
+      (!prodi || m.prodi === prodi) &&
+      (!status || m.status === status);
+  });
+
+  const tbody = document.getElementById('mon-tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Tidak ada data sesuai filter</td></tr>';
+    document.getElementById('mon-summary').textContent = '0 dari ' + data.total_hadir + '/' + data.total_mahasiswa + ' hadir';
+    return;
+  }
+
+  const hadir = filtered.filter(function(m) { return m.status === 'hadir'; }).length;
+  tbody.innerHTML = filtered.map(function(m) {
+    var badge = m.status === 'hadir'
+      ? '<span class="badge badge-green"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check_circle</span> Hadir</span>'
+      : '<span class="badge badge-yellow"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">schedule</span> Belum</span>';
+    var absenWaktu = m.absen_at ? new Date(m.absen_at).toLocaleString('id-ID') : '-';
+    return '<tr><td><div style="font-weight:600">' + m.name + '</div><div style="font-size:12px;color:var(--muted)">' + m.id + '</div></td><td><span class="badge badge-blue">' + (m.kompi || '-') + '</span></td><td>' + (m.prodi || '-') + '</td><td>' + badge + '</td><td style="font-family:var(--mono);font-size:12px">' + absenWaktu + '</td></tr>';
+  }).join('');
+  document.getElementById('mon-summary').textContent = 'Menampilkan ' + filtered.length + ' mahasiswa (' + hadir + ' hadir)';
 }

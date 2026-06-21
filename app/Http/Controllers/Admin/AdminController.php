@@ -239,17 +239,68 @@ class AdminController extends Controller
         return Excel::download(new AttendanceExport($start, $end), 'absensi_'.date('Y-m-d').'.xlsx');
     }
 
-    // Mengambil Semua Data Mahasiswa
-    public function getAllMahasiswa()
+    // Mengambil Data Kelulusan Berdasarkan Prodi / Jurusan
+    public function getKelulusan(Request $request)
     {
-        $mahasiswa = Mahasiswa::all();
+        $query = Mahasiswa::query()->where('is_active', 1);
+
+        if ($request->has('prodi') && $request->prodi) {
+            $query->where('prodi', $request->prodi);
+        }
+        if ($request->has('jurusan') && $request->jurusan) {
+            $query->where('jurusan', $request->jurusan);
+        }
+
+        $mahasiswa = $query->get();
+
+        $startDate = $request->query('start', Carbon::now()->subMonth()->format('Y-m-d'));
+        $endDate = $request->query('end', Carbon::now()->format('Y-m-d'));
+        $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
+
+        $data = $mahasiswa->map(function ($m) use ($startDate, $endDate, $totalDays) {
+            $hadir = $m->attendances()
+                ->whereBetween('date', [$startDate, $endDate])
+                ->whereIn('status', ['present', 'hadir', 'izin'])
+                ->count();
+
+            $persentase = $totalDays > 0 ? round(($hadir / $totalDays) * 100, 2) : 0;
+
+            return [
+                'id' => $m->id,
+                'name' => $m->name,
+                'kompi' => $m->kompi,
+                'jurusan' => $m->jurusan,
+                'prodi' => $m->prodi,
+                'total_hari' => $totalDays,
+                'total_hadir' => $hadir,
+                'persentase' => $persentase,
+                'status' => $persentase >= 80 ? 'Lulus' : 'Tidak Lulus',
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
+
+    // Mengambil Semua Data Mahasiswa
+    public function getAllMahasiswa(Request $request)
+    {
+        $query = Mahasiswa::query();
+
+        if ($request->has('kompi') && $request->kompi) {
+            $query->where('kompi', $request->kompi);
+        }
+
+        $mahasiswa = $query->get();
 
         $today = Carbon::today()->format('Y-m-d');
-        // Ambil absensi hari ini sekali jalan untuk efisiensi
         $attendances = Attendance::where('date', $today)->get()->keyBy('mahasiswa_id');
 
         $mahasiswa->map(function ($m) use ($attendances) {
             $att = $attendances->get($m->id);
+
             if ($att) {
                 $m->today_check_in = $att->check_in ? Carbon::parse($att->check_in)->format('H:i') : null;
                 $m->today_check_out = $att->check_out ? Carbon::parse($att->check_out)->format('H:i') : null;
@@ -378,6 +429,7 @@ class AdminController extends Controller
             'role' => 'required|in:admin,timdis,garda,mahasiswa',
             'password' => 'required|string|min:6',
             'mahasiswa_id' => 'nullable|string',
+            'assigned_kompi' => 'nullable|string|max:100',
         ]);
 
         $data['password_hash'] = Hash::make($data['password']);
@@ -395,7 +447,12 @@ class AdminController extends Controller
             return response()->json(['success' => false], 404);
         }
 
-        $user->update($request->only(['full_name', 'email', 'mahasiswa_id']));
+        $fields = $request->only(['full_name', 'email', 'mahasiswa_id']);
+        if ($request->has('assigned_kompi')) {
+            $fields['assigned_kompi'] = $request->assigned_kompi;
+        }
+
+        $user->update($fields);
 
         return response()->json(['success' => true, 'data' => $user]);
     }

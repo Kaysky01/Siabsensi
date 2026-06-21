@@ -56,18 +56,31 @@
           <span class="badge" id="sidebar-present">0</span>
         </div>
         <div class="nav-section">Data</div>
-        <div class="nav-item" onclick="showPage('mahasiswa')">
+        <div class="nav-item" onclick="showPage('mahasiswa')" id="nav-mahasiswa">
           <span class="material-symbols-outlined icon">badge</span> Mahasiswa
         </div>
-        <div class="nav-item" onclick="showPage('kompi-management')">
+        <div class="nav-item" onclick="showPage('mahasiswa-saya')" id="nav-mahasiswa-saya" style="display:none">
+          <span class="material-symbols-outlined icon">visibility</span> Mahasiswa Saya
+        </div>
+        <div class="nav-item" onclick="showPage('kompi-management')" id="nav-kompi-management">
           <span class="material-symbols-outlined icon">groups</span> Pengaturan Kompi
         </div>
         <div class="nav-item" onclick="showPage('history')">
           <span class="material-symbols-outlined icon">history</span> Riwayat
         </div>
+        <div class="nav-section">Kegiatan</div>
+        <div class="nav-item" onclick="showPage('kegiatan')" id="nav-kelola-kegiatan">
+          <span class="material-symbols-outlined icon">event</span> Kelola Kegiatan
+        </div>
+        <div class="nav-item" onclick="showPage('monitoring-kegiatan')" id="nav-monitoring-kegiatan">
+          <span class="material-symbols-outlined icon">monitoring</span> Monitoring Kegiatan
+        </div>
         <div class="nav-section">Analisis</div>
         <div class="nav-item" onclick="showPage('video-upload')">
           <span class="material-symbols-outlined icon">video_file</span> Upload Video MP4
+        </div>
+        <div class="nav-item" onclick="showPage('kelulusan')">
+          <span class="material-symbols-outlined icon">assignment_turned_in</span> Laporan Kelulusan
         </div>
         <div class="nav-section">Verifikasi Pengajuan</div>
         <div class="nav-item" onclick="showPage('izin-timdis')">
@@ -369,6 +382,49 @@
         </div>
       </section>
 
+      <!-- ===== PAGE: MAHASISWA SAYA (GARDA) ===== -->
+      <section id="page-mahasiswa-saya" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Mahasiswa Saya</div>
+            <div class="page-sub" id="garda-kompi-label">Daftar mahasiswa kompi Anda</div>
+          </div>
+        </div>
+        <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div style="flex:1;min-width:200px">
+              <label class="form-label">Cari Nama Mahasiswa</label>
+              <input type="text" id="garda-mhs-search" class="form-input" placeholder="Ketik nama mahasiswa..." style="padding:7px 10px" oninput="filterGardaMahasiswa()">
+            </div>
+            <div>
+              <label class="form-label">Prodi</label>
+              <select id="garda-filter-prodi" class="form-input" style="width:180px;padding:7px 10px" onchange="filterGardaMahasiswa()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>Mahasiswa</th>
+                <th>Prodi</th>
+                <th>Jurusan</th>
+                <th>Jam Masuk</th>
+                <th>Jam Keluar</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="garda-mhs-tbody">
+              <tr>
+                <td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Memuat data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- ===== PAGE: PENGATURAN KOMPI (ADMIN ONLY) ===== -->
       <section id="page-kompi-management" style="display:none">
         <div class="page-header">
@@ -376,9 +432,18 @@
             <div class="page-title">Pengaturan & Pembagian Kompi</div>
             <div class="page-sub">Kelola dan bagi kompi mahasiswa secara massal (bulk)</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="saveBulkKompi()">
-            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">save</span> Simpan Pembagian Kompi
-          </button>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label class="form-label" style="margin:0;white-space:nowrap">Jumlah Kompi:</label>
+              <input type="number" id="kompi-count" class="form-input" value="3" min="2" max="20" style="width:70px;padding:7px 10px">
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="shuffleKompi()">
+              <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">shuffle</span> Acak
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="saveBulkKompi()">
+              <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">save</span> Simpan Pembagian Kompi
+            </button>
+          </div>
         </div>
 
         <div class="panel" style="margin-bottom:16px;padding:14px 20px">
@@ -548,6 +613,72 @@
               Semua data absensi telah tercatat ke database.<br>
               Silakan cek di halaman <strong>"Absensi Hari Ini"</strong>
             </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== LAPORAN KELULUSAN ===== -->
+      <section id="page-kelulusan" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Laporan Kelulusan Kehadiran</div>
+            <div class="page-sub">Pantau mahasiswa yang lulus/tidak lulus berdasarkan kehadiran (min. 80%)</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <div>
+              <label class="form-label">Prodi</label>
+              <select id="kelulusan-filter-prodi" class="form-input" style="width:200px;padding:7px 10px">
+                <option value="">Semua Prodi</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Jurusan</label>
+              <select id="kelulusan-filter-jurusan" class="form-input" style="width:200px;padding:7px 10px">
+                <option value="">Semua Jurusan</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Status</label>
+              <select id="kelulusan-filter-status" class="form-input" style="width:140px;padding:7px 10px">
+                <option value="">Semua</option>
+                <option value="Lulus">Lulus</option>
+                <option value="Tidak Lulus">Tidak Lulus</option>
+              </select>
+            </div>
+            <div style="align-self:flex-end">
+              <button class="btn btn-primary btn-sm" onclick="loadKelulusan()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">search</span> Tampilkan
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>Mahasiswa</th>
+                <th>Kompi</th>
+                <th>Prodi</th>
+                <th>Jurusan</th>
+                <th>Total Hari</th>
+                <th>Total Hadir</th>
+                <th>Persentase</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="kelulusan-tbody">
+              <tr>
+                <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">
+                  Pilih filter dan klik Tampilkan
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top:16px;display:flex;gap:12px;align-items:center">
+            <span id="kelulusan-summary" style="font-size:13px;color:var(--muted)"></span>
+            <button class="btn btn-ghost btn-sm" onclick="exportKelulusanCSV()">
+              <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Export CSV
+            </button>
           </div>
         </div>
       </section>
@@ -745,6 +876,104 @@
 
         <div class="camera-grid" id="camera-grid">
           <div style="color:var(--muted);padding:30px;text-align:center;grid-column:1/-1">Memuat kamera...</div>
+        </div>
+      </section>
+
+      <!-- ===== KEGIATAN MANAGEMENT ===== -->
+      <section id="page-kegiatan" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Kelola Kegiatan</div>
+            <div class="page-sub">Buat dan kelola kegiatan absensi dinamis</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openAddKegiatan()">
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">add</span> Tambah Kegiatan
+          </button>
+        </div>
+        <div class="panel">
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>Nama Kegiatan</th>
+                <th>Tanggal</th>
+                <th>Jam Mulai</th>
+                <th>Jam Selesai</th>
+                <th>Wajib Hadir</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="kegiatan-tbody">
+              <tr>
+                <td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== MONITORING KEGIATAN ===== -->
+      <section id="page-monitoring-kegiatan" style="display:none">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Monitoring Kegiatan</div>
+            <div class="page-sub">Pantau kehadiran mahasiswa per kegiatan</div>
+          </div>
+        </div>
+        <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div>
+              <label class="form-label">Pilih Kegiatan *</label>
+              <select id="mon-kegiatan-select" class="form-input" style="width:300px;padding:7px 10px" onchange="loadMonitoringKegiatan()">
+                <option value="">-- Pilih Kegiatan --</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Cari Nama</label>
+              <input type="text" id="mon-search" class="form-input" placeholder="Ketik nama..." style="padding:7px 10px" oninput="filterMonitoringKegiatan()">
+            </div>
+            <div>
+              <label class="form-label">Kompi</label>
+              <select id="mon-filter-kompi" class="form-input" style="width:120px;padding:7px 10px" onchange="filterMonitoringKegiatan()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Prodi</label>
+              <select id="mon-filter-prodi" class="form-input" style="width:180px;padding:7px 10px" onchange="filterMonitoringKegiatan()">
+                <option value="">Semua</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Status</label>
+              <select id="mon-filter-status" class="form-input" style="width:130px;padding:7px 10px" onchange="filterMonitoringKegiatan()">
+                <option value="">Semua</option>
+                <option value="hadir">Hadir</option>
+                <option value="belum">Belum</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:8px">
+            <span id="mon-summary" style="font-size:13px;color:var(--muted)"></span>
+          </div>
+        </div>
+        <div class="panel">
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>Mahasiswa</th>
+                <th>Kompi</th>
+                <th>Prodi</th>
+                <th>Status</th>
+                <th>Absen Pada</th>
+              </tr>
+            </thead>
+            <tbody id="mon-tbody">
+              <tr>
+                <td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Pilih kegiatan terlebih dahulu</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -962,6 +1191,16 @@
           </select>
           <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
             Hanya mahasiswa yang belum punya akun
+          </small>
+        </div>
+
+        <div class="form-row" id="assigned-kompi-row" style="display:none">
+          <label class="form-label">Kompi *</label>
+          <select id="user-assigned-kompi" class="form-input">
+            <option value="">-- Pilih Kompi --</option>
+          </select>
+          <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
+            Tentukan kompi yang akan di-handle oleh Garda ini
           </small>
         </div>
 
@@ -1243,6 +1482,62 @@
   </div>
 
   <!-- Modal Browse Models -->
+  <!-- Modal Kegiatan -->
+  <div class="modal-backdrop" id="modal-kegiatan">
+    <div class="modal">
+      <div class="modal-title" id="modal-kegiatan-title">Tambah Kegiatan</div>
+      <form id="kegiatan-form" onsubmit="submitKegiatan(event)">
+        <input type="hidden" id="kegiatan-id" value="">
+        <div class="form-row">
+          <label class="form-label">Nama Kegiatan *</label>
+          <input type="text" id="kegiatan-nama" class="form-input" placeholder="Contoh: Upacara Bendera" required>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Tanggal Pelaksanaan *</label>
+          <input type="date" id="kegiatan-tanggal" class="form-input" required>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row" style="margin:0">
+            <label class="form-label">Jam Mulai *</label>
+            <input type="time" id="kegiatan-jam-mulai" class="form-input" required>
+          </div>
+          <div class="form-row" style="margin:0">
+            <label class="form-label">Jam Selesai *</label>
+            <input type="time" id="kegiatan-jam-selesai" class="form-input" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">
+            <input type="checkbox" id="kegiatan-wajib" checked> Wajib Hadir
+          </label>
+        </div>
+        <div class="form-row" id="kegiatan-status-row" style="display:none">
+          <label class="form-label">Status</label>
+          <select id="kegiatan-status" class="form-input">
+            <option value="1">Aktif</option>
+            <option value="0">Nonaktif</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('modal-kegiatan')">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Kegiatan -->
+  <div class="modal-backdrop" id="modal-kegiatan">
+    ...
+  </div>
+
+  <!-- Modal Rekap Kegiatan -->
+  <div class="modal-backdrop" id="modal-rekap-kegiatan">
+    <div class="modal" style="max-width:900px">
+      <div id="modal-rekap-kegiatan-content"></div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="modal-browse-models">
     <div class="modal" style="max-width:600px">
       <div class="modal-title">Pilih Model YOLO</div>
