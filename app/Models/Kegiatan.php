@@ -18,9 +18,7 @@ class Kegiatan extends Model
     ];
 
     protected $casts = [
-        'tanggal_pelaksanaan' => 'date',
-        'jam_mulai' => 'datetime:H:i',
-        'jam_selesai' => 'datetime:H:i',
+        'tanggal_pelaksanaan' => 'date:Y-m-d',
         'wajib_hadir' => 'boolean',
         'is_active' => 'boolean',
     ];
@@ -28,15 +26,5 @@ class Kegiatan extends Model
     public function absensi()
     {
         return $this->hasMany(KegiatanAbsensi::class);
-    }
-
-    public function getTotalPesertaAttribute()
-    {
-        return Mahasiswa::where('is_active', 1)->count();
-    }
-
-    public function getTotalHadirAttribute()
-    {
-        return $this->absensi()->count();
     }
 }

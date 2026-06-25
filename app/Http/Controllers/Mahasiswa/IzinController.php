@@ -31,7 +31,7 @@ class IzinController extends Controller
             'type' => 'required',
             'date' => 'required|date',
             'keterangan' => 'required|min:10',
-            'bukti' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
+            'bukti' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240|mimetypes:image/jpeg,image/png,application/pdf',
         ]);
 
         // Simpan file bukti ke folder storage/app/public/bukti

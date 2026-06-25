@@ -116,7 +116,7 @@ class Mahasiswa extends Model
                 : ($attendance->status === 'hadir' || $attendance->status === 'present'
                     ? 'Hadir via QR Scan'
                     : 'Izin/Sakit'),
-            'has_attended' => in_array($attendance->status, ['hadir', 'present', 'izin']),
+            'has_attended' => in_array($attendance->status, ['hadir', 'present', 'izin'], true),
             'check_in' => $attendance->check_in,
             'check_out' => $attendance->check_out,
         ];

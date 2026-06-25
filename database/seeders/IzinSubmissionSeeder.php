@@ -8,14 +8,11 @@ use Illuminate\Support\Facades\DB;
 
 class IzinSubmissionSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         DB::table('izin_submissions')->insert([
             [
-                'mahasiswa_id' => 'MHS-001',
+                'mahasiswa_id' => 'MHS001',
                 'submission_type' => 'izin',
                 'date' => Carbon::tomorrow(),
                 'keterangan' => 'Izin ada keperluan keluarga di luar kota',
@@ -28,7 +25,7 @@ class IzinSubmissionSeeder extends Seeder
                 'updated_at' => Carbon::now(),
             ],
             [
-                'mahasiswa_id' => 'MHS-002',
+                'mahasiswa_id' => 'MHS002',
                 'submission_type' => 'sakit',
                 'date' => Carbon::yesterday(),
                 'keterangan' => 'Sakit demam tinggi, surat dokter terlampir',
@@ -41,7 +38,7 @@ class IzinSubmissionSeeder extends Seeder
                 'updated_at' => Carbon::now(),
             ],
             [
-                'mahasiswa_id' => 'MHS-003',
+                'mahasiswa_id' => 'MHS003',
                 'submission_type' => 'izin',
                 'date' => Carbon::today(),
                 'keterangan' => 'Tidak ada kendaraan untuk ke kantor',

@@ -16,7 +16,7 @@ class CekRole
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
         // Pastikan user sudah login dan rolenya ada dalam daftar parameter di route
-        if ($request->user() && in_array($request->user()->role, $roles)) {
+        if ($request->user() && in_array($request->user()->role, $roles, true)) {
             return $next($request);
         }
 

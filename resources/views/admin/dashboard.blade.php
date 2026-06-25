@@ -14,6 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700" rel="stylesheet">
   <!-- jsQR Library for QR Code Detection in Browser -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 
 <body>
@@ -363,19 +364,16 @@
             <thead>
               <tr>
                 <th>Mahasiswa</th>
-                <th>kompi</th>
-                <th>Jurusan</th>
+                <th>Kompi</th>
                 <th>Prodi</th>
                 <th>Email</th>
-                <th>No Telp Mahasiswa</th>
-                <th>No Telp Orang Tua</th>
-                <th>Status Absensi</th>
+                <th>Status</th>
                 <th>Aksi</th>
               </tr>
             </thead>
             <tbody id="mhs-tbody">
               <tr>
-                <td colspan="8" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
+                <td colspan="6" style="text-align:center;color:var(--muted);padding:30px">Memuat...</td>
               </tr>
             </tbody>
           </table>
@@ -1253,7 +1251,7 @@
 
   <div class="modal-backdrop" id="modal-mahasiswa">
     <div class="modal">
-      <div class="modal-title">QR-CODE</div>
+      <div class="modal-title" id="modal-mahasiswa-title">Tambah Mahasiswa</div>
       
       <!-- Method Selection -->
       <div class="form-row" style="margin-bottom:20px">
@@ -1275,8 +1273,9 @@
         <div id="mhs-form">
           <div class="form-row-2">
             <div class="form-row" style="margin:0">
-              <label class="form-label">ID Mahasiswa *</label>
-              <input class="form-input" id="f-id" placeholder="MHS001">
+              <label class="form-label">ID Mahasiswa</label>
+              <input class="form-input" id="f-id" placeholder="Otomatis" disabled style="background:var(--bg3);color:var(--muted);cursor:not-allowed">
+              <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">ID dibuat otomatis oleh sistem</small>
             </div>
             <div class="form-row" style="margin:0">
               <label class="form-label">Nama Lengkap *</label>
@@ -1297,7 +1296,50 @@
           <div style="height:12px"></div>
           <div class="form-row">
             <label class="form-label">Program Studi (Prodi) *</label>
-            <input class="form-input" id="f-prodi" placeholder="Contoh: D3 Teknik Informatika, S1 Sistem Informasi, dll">
+            <select class="form-input" id="f-prodi">
+              <option value="">-- Pilih Prodi --</option>
+              <option value="Manajemen Informatika">Manajemen Informatika</option>
+              <option value="Teknologi Rekayasa Internet">Teknologi Rekayasa Internet</option>
+              <option value="Teknologi Rekayasa Perangkat Lunak">Teknologi Rekayasa Perangkat Lunak</option>
+              <option value="Teknologi Rekayasa Elektronika">Teknologi Rekayasa Elektronika</option>
+              <option value="Sains Data Terapan">Sains Data Terapan</option>
+              <option value="Budidaya Perikanan">Budidaya Perikanan</option>
+              <option value="Perikanan Tangkap">Perikanan Tangkap</option>
+              <option value="Teknologi Pembenihan Ikan">Teknologi Pembenihan Ikan</option>
+              <option value="Teknologi Akuakultur">Teknologi Akuakultur</option>
+              <option value="Teknologi Cerdas Penangkapan Ikan">Teknologi Cerdas Penangkapan Ikan</option>
+              <option value="Teknik Sumberdaya Lahan dan Lingkungan">Teknik Sumberdaya Lahan dan Lingkungan</option>
+              <option value="Teknologi Rekayasa Kontruksi Jalan dan Jembatan">Teknologi Rekayasa Kontruksi Jalan dan Jembatan</option>
+              <option value="Teknologi Rekayasa Kimia Industri">Teknologi Rekayasa Kimia Industri</option>
+              <option value="Teknologi Rekayasa Otomotif">Teknologi Rekayasa Otomotif</option>
+              <option value="Perjalanan Wisata">Perjalanan Wisata</option>
+              <option value="Agribisnis Pangan">Agribisnis Pangan</option>
+              <option value="Pengelolaan Agribisnis">Pengelolaan Agribisnis</option>
+              <option value="Akuntansi Perpajakan">Akuntansi Perpajakan</option>
+              <option value="Akuntansi Bisnis Digital">Akuntansi Bisnis Digital</option>
+              <option value="Pengelolaan Perhotelan">Pengelolaan Perhotelan</option>
+              <option value="Pengelolaan Konvensi dan Acara">Pengelolaan Konvensi dan Acara</option>
+              <option value="Bahasa Inggris untuk Komunikasi Bisnis dan Profesional">Bahasa Inggris untuk Komunikasi Bisnis dan Profesional</option>
+              <option value="Produksi Media">Produksi Media</option>
+              <option value="Bisnis Digital">Bisnis Digital</option>
+              <option value="Teknologi Pakan Ternak">Teknologi Pakan Ternak</option>
+              <option value="Teknologi Produksi Ternak">Teknologi Produksi Ternak</option>
+              <option value="Agribisnis Peternakan">Agribisnis Peternakan</option>
+              <option value="Mekanisasi Pertanian">Mekanisasi Pertanian</option>
+              <option value="Teknologi Pangan">Teknologi Pangan</option>
+              <option value="Pengembangan Produk Agroindustri">Pengembangan Produk Agroindustri</option>
+              <option value="Kimia Terapan">Kimia Terapan</option>
+              <option value="Teknologi Pangan Halal">Teknologi Pangan Halal</option>
+              <option value="Gizi Klinis">Gizi Klinis</option>
+              <option value="Produksi Tanaman Perkebunan">Produksi Tanaman Perkebunan</option>
+              <option value="Produksi dan Manajemen Industri Perkebunan">Produksi dan Manajemen Industri Perkebunan</option>
+              <option value="Pengelolaan Perkebunan Kopi">Pengelolaan Perkebunan Kopi</option>
+              <option value="Teknologi Produksi Tanaman Perkebunan">Teknologi Produksi Tanaman Perkebunan</option>
+              <option value="Hortikultura">Hortikultura</option>
+              <option value="Teknologi Perbenihan">Teknologi Perbenihan</option>
+              <option value="Teknologi Produksi Tanaman Pangan">Teknologi Produksi Tanaman Pangan</option>
+              <option value="Teknologi Produksi Tanaman Hortikultura">Teknologi Produksi Tanaman Hortikultura</option>
+            </select>
           </div>
           <div style="height:12px"></div>
           <div class="form-row">
@@ -1395,7 +1437,7 @@
 
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="closeModal('modal-mahasiswa')">Tutup</button>
-        <button class="btn btn-primary" id="mhs-submit-btn" onclick="submitMahasiswa()">Simpan & Generate QR</button>
+        <button class="btn btn-primary" id="mhs-submit-btn" onclick="showMahasiswaPreview()">Verifikasi & Simpan</button>
         <button class="btn btn-primary" id="excel-submit-btn" onclick="submitExcelMahasiswa()" style="display:none">
           <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">upload</span>
           Upload Data Excel

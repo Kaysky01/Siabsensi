@@ -25,7 +25,8 @@ import time
 from datetime import datetime
 
 # Import from app modules
-from app.attendance_engine import create_system
+from app.attendance_engine import create_system, AttendanceProcessor
+from app.database_manager import DatabaseManager
 from app.config_db import MYSQL_CONFIG, YOLO_SETTINGS, RTSP_SETTINGS, reload_settings
 
 app = Flask(__name__)
@@ -288,6 +289,101 @@ def record_attendance():
         })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/python/process-video', methods=['POST'])
+def process_video():
+    try:
+        data = request.get_json(silent=True) or {}
+        video_path = data.get('video_path')
+        action = data.get('action', 'check_in')
+
+        if not video_path or not os.path.exists(video_path):
+            return jsonify({'success': False, 'message': 'Video file not found'}), 400
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return jsonify({'success': False, 'message': 'Failed to open video file'}), 400
+
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        process_interval = max(1, int(fps * 0.5))  # Process 2 frames per second
+
+        local_db = processor.db if processor is not None else DatabaseManager()
+        local_processor = processor if processor is not None else AttendanceProcessor(local_db, None)
+
+        recorded = []
+        skipped = []
+        frame_idx = 0
+
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            if frame_idx % process_interval == 0:
+                try:
+                    yolo_results = yolo(frame, conf=YOLO_SETTINGS.get('confidence', 0.45), verbose=False)
+                    qr_papers = []
+                    for r in yolo_results:
+                        for box in r.boxes:
+                            x1, y1, x2, y2 = box.xyxy[0]
+                            qr_papers.append({
+                                'bbox': (int(x1), int(y1), int(x2), int(y2)),
+                                'confidence': float(box.conf[0])
+                            })
+
+                    if qr_papers:
+                        from pyzbar.pyzbar import decode as qr_decode
+                        for qp in qr_papers:
+                            x1, y1, x2, y2 = qp['bbox']
+                            roi = frame[y1:y2, x1:x2]
+                            if roi.size > 0:
+                                decoded = qr_decode(roi)
+                                for obj in decoded:
+                                    qr_data = obj.data.decode('utf-8')
+                                    mahasiswa = local_db.get_mahasiswa_by_qr(qr_data)
+                                    if not mahasiswa or not mahasiswa.get('is_active'):
+                                        continue
+
+                                    mhs_id = mahasiswa['id']
+                                    det_action = local_processor._determine_action(mhs_id)
+                                    if det_action in ['none', 'cooldown']:
+                                        skipped.append({'name': mahasiswa['name'], 'reason': f'sudah {action}' if det_action == 'none' else 'masih cooldown'})
+                                        continue
+
+                                    if det_action != action:
+                                        continue
+
+                                    att_result = local_db.record_attendance(mhs_id, det_action, None, None, qp['confidence'])
+                                    recorded.append({
+                                        'name': mahasiswa['name'],
+                                        'mahasiswa_id': mhs_id,
+                                        'action': det_action,
+                                        'confidence': qp['confidence']
+                                    })
+                except Exception as e:
+                    logger.error(f"Frame {frame_idx}: {e}")
+
+            frame_idx += 1
+
+        cap.release()
+
+        unique_mhs = len(set(r['mahasiswa_id'] for r in recorded))
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'recorded_count': len(recorded),
+                'skipped_count': len(skipped),
+                'unique_mahasiswa': unique_mhs,
+                'detections': recorded,
+                'skipped_mahasiswa': skipped,
+            }
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 if __name__ == '__main__':
     print("=" * 60)

@@ -105,7 +105,7 @@ class MahasiswaController extends Controller
     {
         $user = Auth::user();
         // Pastikan hanya admin atau pemilik profil yang bisa mengambil data
-        if ($user->role !== 'admin' && $user->mahasiswa_id != $id) {
+        if ($user->role !== 'admin' && (int) $user->mahasiswa_id !== (int) $id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Akses ditolak: Anda tidak memiliki akses ke data ini',
@@ -113,7 +113,6 @@ class MahasiswaController extends Controller
         }
 
         // Cari data mahasiswa di tabel Mahasiswa berdasarkan ID
-        $mahasiswa = Mahasiswa::find($id);
         $mahasiswa = Mahasiswa::find($id);
 
         if (! $mahasiswa) {
@@ -191,7 +190,7 @@ class MahasiswaController extends Controller
     {
         $user = Auth::user();
         // Pastikan hanya admin atau pemilik profil yang bisa mengupdate
-        if ($user->role !== 'admin' && $user->mahasiswa_id != $id) {
+        if ($user->role !== 'admin' && (int) $user->mahasiswa_id !== (int) $id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Akses ditolak: Anda tidak diizinkan mengubah profil ini',

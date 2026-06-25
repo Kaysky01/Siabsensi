@@ -14,7 +14,7 @@ class MarkAlphaCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'attendance:mark-alpha';
+    protected $signature = 'attendance:mark-alpha {--date= : Custom target date (Y-m-d) to test/force check}';
 
     /**
      * The console command description.
@@ -28,10 +28,11 @@ class MarkAlphaCommand extends Command
      */
     public function handle()
     {
-        $kemarin = Carbon::yesterday()->format('Y-m-d');
+        $targetDate = $this->option('date') ? Carbon::parse($this->option('date')) : Carbon::yesterday();
+        $kemarin = $targetDate->format('Y-m-d');
 
-        // Opsional: Abaikan jika kemarin adalah akhir pekan (Sabtu/Minggu)
-        if (Carbon::yesterday()->isWeekend()) {
+        // Opsional: Abaikan jika kemarin adalah akhir pekan (Sabtu/Minggu), kecuali jika diinput manual via --date
+        if (! $this->option('date') && $targetDate->isWeekend()) {
             $this->info('Kemarin adalah hari libur (akhir pekan). Tidak ada pencatatan alpha.');
 
             return;

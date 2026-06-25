@@ -32,7 +32,7 @@ class KehadiranController extends Controller
             'check_in_time' => 'required',
             'check_out_time' => 'required',
             'keterangan' => 'required|min:10',
-            'bukti' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
+            'bukti' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240|mimetypes:image/jpeg,image/png,application/pdf',
         ]);
 
         // Simpan file bukti ke folder storage/app/public/kehadiran/bukti

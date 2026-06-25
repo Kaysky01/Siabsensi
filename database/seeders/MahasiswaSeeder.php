@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Faker\Factory as Faker;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class MahasiswaSeeder extends Seeder
 {
@@ -14,36 +15,31 @@ class MahasiswaSeeder extends Seeder
      */
     public function run(): void
     {
-        // Panggil seeder lain jika diperlukan (misal: UserSeeder agar ada relasi)
-        // $this->call(UserSeeder::class);
+        $faker = Faker::create('id_ID');
 
-        $faker = Faker::create('id_ID'); // Gunakan locale Indonesia
-
-        $mahasiswaData = [];
         $kompi = ['A', 'B', 'C', 'D', 'E', 'F'];
         $jurusan = ['Teknik Informatika', 'Sistem Informasi', 'Manajemen Informatika', 'Teknik Elektro', 'Teknik Mesin'];
         $prodi = [
-            'D3 Teknik Informatika', 'S1 Teknik Informatika', 'D3 Sistem Informasi', 'S1 Sistem Informasi',
-            'D3 Manajemen Informatika', 'S1 Teknik Elektro', 'D3 Teknik Elektro', 'S1 Teknik Mesin',
+            'Manajemen Informatika', 'Teknologi Rekayasa Internet', 'Teknologi Rekayasa Perangkat Lunak', 
+            'Teknologi Rekayasa Elektronika', 'Sains Data Terapan', 'Budidaya Perikanan', 'Perikanan Tangkap', 
+            'Teknologi Pembenihan Ikan', 'Teknologi Akuakultur', 'Teknologi Cerdas Penangkapan Ikan', 
+            'Teknik Sumberdaya Lahan dan Lingkungan', 'Teknologi Rekayasa Kontruksi Jalan dan Jembatan', 
+            'Teknologi Rekayasa Kimia Industri', 'Teknologi Rekayasa Otomotif', 'Perjalanan Wisata', 
+            'Agribisnis Pangan', 'Pengelolaan Agribisnis', 'Akuntansi Perpajakan', 'Akuntansi Bisnis Digital', 
+            'Pengelolaan Perhotelan', 'Pengelolaan Konvensi dan Acara', 'Bahasa Inggris untuk Komunikasi Bisnis dan Profesional', 
+            'Produksi Media', 'Bisnis Digital', 'Teknologi Pakan Ternak', 'Teknologi Produksi Ternak', 
+            'Agribisnis Peternakan', 'Mekanisasi Pertanian', 'Teknologi Pangan', 'Pengembangan Produk Agroindustri', 
+            'Kimia Terapan', 'Teknologi Pangan Halal', 'Gizi Klinis', 'Produksi Tanaman Perkebunan', 
+            'Produksi dan Manajemen Industri Perkebunan', 'Pengelolaan Perkebunan Kopi', 
+            'Teknologi Produksi Tanaman Perkebunan', 'Hortikultura', 'Teknologi Perbenihan', 
+            'Teknologi Produksi Tanaman Pangan', 'Teknologi Produksi Tanaman Hortikultura'
         ];
 
-        $existingIds = DB::table('mahasiswa')->pluck('id')->toArray();
-        $currentIdCount = count($existingIds);
-
-        for ($i = 1; $i <= 100; $i++) { // Generate 100 mahasiswa data
-            $nim = 'MHS-'.str_pad(++$currentIdCount, 3, '0', STR_PAD_LEFT);
-            // Pastikan NIM unik, meskipun loop ini untuk seeder saja, ini praktik yang baik
-            while (in_array($nim, $existingIds)) {
-                $nim = 'MHS-'.str_pad(++$currentIdCount, 3, '0', STR_PAD_LEFT);
-            }
-            $existingIds[] = $nim;
-
+        $mahasiswaData = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $nim = 'MHS' . str_pad($i, 3, '0', STR_PAD_LEFT);
             $jurusanAcak = $faker->randomElement($jurusan);
             $prodiAcak = $faker->randomElement($prodi);
-            // Jika jurusan tidak punya Prodi yang sesuai, bisa set default atau ambil dari list yang lebih spesifik
-            if (! str_contains($jurusanAcak, $prodiAcak)) {
-                $prodiAcak = $faker->randomElement(array_filter($prodi, fn ($p) => str_contains($p, substr($jurusanAcak, 0, 3))));
-            }
 
             $mahasiswaData[] = [
                 'id' => $nim,
@@ -51,19 +47,32 @@ class MahasiswaSeeder extends Seeder
                 'kompi' => $faker->randomElement($kompi),
                 'jurusan' => $jurusanAcak,
                 'prodi' => $prodiAcak,
-                'email' => strtolower(str_replace(' ', '', $nim)).'@mail.test', // Email unik berdasarkan NIM
+                'email' => strtolower(str_replace(' ', '', $nim)) . '@mail.test',
                 'no_telp_mahasiswa' => $faker->numerify('08##########'),
                 'no_telp_ortu' => $faker->numerify('08##########'),
-                'qr_code_id' => 'QR-'.$nim,
-                'created_at' => Carbon::now()->subDays(rand(1, 365)), // Tanggal dibuat acak setahun terakhir
-                'is_active' => $faker->boolean(90), // 90% aktif, 10% tidak aktif
+                'qr_code_id' => 'QR-' . $nim,
+                'created_at' => Carbon::now()->subDays(rand(1, 365)),
+                'is_active' => $faker->boolean(90),
             ];
         }
 
-        // Masukkan data ke tabel, gunakan insert untuk efisiensi jika data banyak
         DB::table('mahasiswa')->insert($mahasiswaData);
 
-        // Jika Anda juga ingin membuat user untuk mahasiswa ini, Anda perlu logic tambahan
-        // Contoh: Loop lagi dan buat user dengan password default (harus di-hash)
+        // Auto-create users for these mahasiswa
+        $userData = [];
+        foreach ($mahasiswaData as $mhs) {
+            $userData[] = [
+                'username' => $mhs['id'],
+                'password_hash' => Hash::make('123456'),
+                'full_name' => $mhs['name'],
+                'email' => $mhs['email'],
+                'role' => 'mahasiswa',
+                'mahasiswa_id' => $mhs['id'],
+                'is_active' => 1,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ];
+        }
+        DB::table('users')->insert($userData);
     }
 }

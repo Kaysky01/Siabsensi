@@ -20,7 +20,7 @@ class UserSeeder extends Seeder
             // 1. Akun Admin
             [
                 'username' => 'admin',
-                'password_hash' => Hash::make('admin123'), // Password yang akan diinput di form
+                'password_hash' => Hash::make('admin123'),
                 'full_name' => 'Administrator Sistem',
                 'email' => 'admin@siabsen.test',
                 'role' => 'admin',
@@ -41,19 +41,7 @@ class UserSeeder extends Seeder
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
-            // 3. Akun Mahasiswa
-            [
-                'username' => 'mhs001',
-                'password_hash' => Hash::make('mhs123'),
-                'full_name' => 'Budi Mahasiswa',
-                'email' => 'budi@mhs.test',
-                'role' => 'mahasiswa',
-                'mahasiswa_id' => 'MHS-001', // Sesuaikan jika nanti ada tabel mahasiswa
-                'is_active' => 1,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ],
-            // 4. Akun Garda
+            // 3. Akun Garda
             [
                 'username' => 'garda',
                 'password_hash' => Hash::make('garda123'),

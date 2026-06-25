@@ -80,7 +80,7 @@ Route::get('/api/monitor/attendance/stream', function (Request $request) {
     $attendances = $query->get();
 
     $maxTimestamp = $attendances->max(function ($att) {
-        return max($att->check_in, $att->check_out, $att->created_at);
+        return max(array_filter([$att->check_in, $att->check_out, $att->created_at]));
     });
 
     return response()->json([
@@ -124,14 +124,14 @@ Route::post('/api/python/detect', function (Request $request) {
 
 Route::post('/api/python/attendance', function (Request $request) {
     try {
-        $mahasiswaId = $request->input('mahasiswa_id');
-        $status = $request->input('status', 'present');
+        $validated = validator($request->all(), [
+            'mahasiswa_id' => 'required|string|max:50',
+            'status' => 'sometimes|string|in:present,izin,sakit,alpha',
+        ])->validate();
 
-        if (! $mahasiswaId) {
-            return response()->json(['success' => false, 'message' => 'Data mahasiswa_id tidak boleh kosong.'], 400);
-        }
+        $mahasiswaId = $validated['mahasiswa_id'];
+        $status = $validated['status'] ?? 'present';
 
-        // Cek apakah mahasiswa valid untuk menghindari Database Constraint Error (500)
         $mahasiswa = Mahasiswa::find($mahasiswaId);
         if (! $mahasiswa) {
             return response()->json(['success' => false, 'message' => 'Mahasiswa tidak ditemukan di database.'], 404);
@@ -205,15 +205,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/auth/me', [AuthController::class, 'me'])->name('api.auth.me');
 });
 
-// Routes untuk Admin Only (bukan timdis)
-Route::middleware(['auth', 'role:admin'])->group(function () {
-    // Settings RTSP (Admin Only)
-    Route::post('/api/settings/rtsp', [AdminController::class, 'saveRtspSettings']);
-    // Settings YOLO (Admin Only)
-    Route::post('/api/settings/yolo', [AdminController::class, 'saveYoloSettings']);
-    Route::get('/api/settings/yolo', [AdminController::class, 'getYoloSettings']);
-});
-
 // Routes untuk Mahasiswa (hanya role mahasiswa)
 Route::middleware(['auth', 'role:mahasiswa'])->group(function () {
     Route::get('/mahasiswa/dashboard', [MahasiswaController::class, 'dashboard'])->name('mahasiswa.dashboard');
@@ -278,6 +269,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // CRUD Mahasiswa (Admin)
     Route::post('/api/mahasiswa', [AdminController::class, 'storeMahasiswa']);
+    Route::put('/api/mahasiswa/{id}', [AdminController::class, 'updateMahasiswa']);
+    Route::post('/api/mahasiswa/check', [AdminController::class, 'checkMahasiswa']);
     Route::delete('/api/mahasiswa/{id}', [AdminController::class, 'deleteMahasiswa']);
     Route::get('/api/mahasiswa/{id}/qr', [AdminController::class, 'getMahasiswaQR']);
     Route::post('/api/mahasiswa/bulk-update-kompi', [AdminController::class, 'bulkUpdateKompi']);
@@ -302,6 +295,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Kegiatan CRUD (Admin Only)
     Route::post('/api/kegiatan', [KegiatanController::class, 'store']);
+
+    // Video Upload (Process full video via Python backend)
+    Route::post('/api/video/process', [AdminController::class, 'processVideo']);
     Route::put('/api/kegiatan/{id}', [KegiatanController::class, 'update']);
     Route::delete('/api/kegiatan/{id}', [KegiatanController::class, 'destroy']);
 });

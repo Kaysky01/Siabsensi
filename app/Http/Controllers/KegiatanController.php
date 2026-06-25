@@ -138,7 +138,7 @@ class KegiatanController extends Controller
         $user = Auth::user();
         $mahasiswaId = $request->input('mahasiswa_id');
 
-        if ($user->role !== 'admin' && $user->mahasiswa_id != $mahasiswaId) {
+        if ($user->role !== 'admin' && (int) $user->mahasiswa_id !== (int) $mahasiswaId) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak'], 403);
         }
 
@@ -157,7 +157,7 @@ class KegiatanController extends Controller
         if ($kegiatan->tanggal_pelaksanaan->format('Y-m-d') !== $hariIni) {
             return response()->json(['success' => false, 'message' => 'Kegiatan tidak berlangsung hari ini'], 400);
         }
-        if ($kegiatan->jam_mulai->format('H:i:s') > $waktu || $kegiatan->jam_selesai->format('H:i:s') < $waktu) {
+        if ($kegiatan->jam_mulai > $waktu || $kegiatan->jam_selesai < $waktu) {
             return response()->json(['success' => false, 'message' => 'Kegiatan belum dimulai atau sudah selesai'], 400);
         }
 

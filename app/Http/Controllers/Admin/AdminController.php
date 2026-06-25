@@ -23,7 +23,43 @@ class AdminController extends Controller
     public function dashboard_admin()
     {
         return view('admin.dashboard');
+    }
 
+    public function processVideo(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'video' => 'required|file|mimes:mp4,mov,avi,wmv|max:51200|mimetypes:video/mp4,video/quicktime,video/x-msvideo,video/x-ms-wmv',
+                'action' => 'required|in:check_in,check_out',
+            ]);
+
+            $file = $validated['video'];
+            $fileName = time().'_'.preg_replace('/[^A-Za-z0-9._-]/', '_', $file->getClientOriginalName());
+            // Simpan ke storage/app/public/videos
+            $filePath = $file->storeAs('public/videos', $fileName);
+            $absolutePath = storage_path('app/'.$filePath);
+
+            // Kirim absolute path ke Python Backend
+            $response = Http::post('http://127.0.0.1:5000/api/python/process-video', [
+                'video_path' => $absolutePath,
+                'action' => $validated['action'],
+            ]);
+
+            if ($response->successful()) {
+                return response()->json($response->json());
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memproses video di backend Python: '.$response->body(),
+            ], 500);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat upload/proses video: '.$e->getMessage(),
+            ], 500);
+        }
     }
 
     public function getDashboardData(Request $request)
@@ -146,7 +182,7 @@ class AdminController extends Controller
                 ->orderBy("$table.check_in", 'desc')
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi");
 
-            if (in_array($filter, ['izin', 'sakit'])) {
+            if (in_array($filter, ['izin', 'sakit'], true)) {
                 $query->where("$table.status", $filter);
             }
 
@@ -217,7 +253,7 @@ class AdminController extends Controller
                 $query->whereBetween("$table.date", [$start, $end]);
             }
 
-            if (in_array($filter, ['izin', 'sakit'])) {
+            if (in_array($filter, ['izin', 'sakit'], true)) {
                 $query->where("$table.status", $filter);
             }
 
@@ -257,11 +293,16 @@ class AdminController extends Controller
         $endDate = $request->query('end', Carbon::now()->format('Y-m-d'));
         $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
 
-        $data = $mahasiswa->map(function ($m) use ($startDate, $endDate, $totalDays) {
-            $hadir = $m->attendances()
-                ->whereBetween('date', [$startDate, $endDate])
-                ->whereIn('status', ['present', 'hadir', 'izin'])
-                ->count();
+        // Pre-load all attendances in the date range to avoid N+1
+        $allAttendances = Attendance::whereBetween('date', [$startDate, $endDate])
+            ->whereIn('mahasiswa_id', $mahasiswa->pluck('id'))
+            ->selectRaw('mahasiswa_id, COUNT(*) as total_hadir')
+            ->whereIn('status', ['present', 'hadir', 'izin'])
+            ->groupBy('mahasiswa_id')
+            ->pluck('total_hadir', 'mahasiswa_id');
+
+        $data = $mahasiswa->map(function ($m) use ($totalDays, $allAttendances) {
+            $hadir = (int) ($allAttendances->get($m->id, 0));
 
             $persentase = $totalDays > 0 ? round(($hadir / $totalDays) * 100, 2) : 0;
 
@@ -324,18 +365,32 @@ class AdminController extends Controller
     public function storeMahasiswa(Request $request)
     {
         $validated = $request->validate([
-            'id' => 'required|string|unique:mahasiswa,id',
             'name' => 'required|string|max:255',
             'kompi' => 'required|string',
             'jurusan' => 'required|string',
             'prodi' => 'nullable|string|max:100',
-            'email' => 'nullable|email',
+            'email' => 'nullable|email|unique:mahasiswa,email',
             'no_telp_mahasiswa' => 'nullable|string',
             'no_telp_ortu' => 'nullable|string',
         ]);
 
+        $lastMahasiswa = Mahasiswa::orderBy('id', 'desc')->first();
+        $nextId = $lastMahasiswa ? (int) substr($lastMahasiswa->id, 3) + 1 : 1;
+        $validated['id'] = 'MHS'.str_pad($nextId, 3, '0', STR_PAD_LEFT);
+
         $validated['qr_code_id'] = $validated['id'];
         $mahasiswa = Mahasiswa::create($validated);
+
+        // Auto-create user account for this mahasiswa
+        User::create([
+            'username' => $mahasiswa->id,
+            'password_hash' => Hash::make('123456'),
+            'full_name' => $mahasiswa->name,
+            'email' => $mahasiswa->email,
+            'role' => 'mahasiswa',
+            'mahasiswa_id' => $mahasiswa->id,
+            'is_active' => 1,
+        ]);
 
         return response()->json([
             'success' => true,
@@ -343,6 +398,34 @@ class AdminController extends Controller
                 'qr_code_id' => $mahasiswa->qr_code_id,
                 'qr_image_base64' => $this->generateQrBase64($mahasiswa->qr_code_id, 200),
             ],
+            'message' => 'Mahasiswa dan akun user berhasil dibuat. Username: '.$mahasiswa->id.', Password default: 123456',
+        ]);
+    }
+
+    public function checkMahasiswa(Request $request)
+    {
+        $id = $request->query('id');
+        $email = $request->query('email');
+
+        $errors = [];
+
+        if ($id) {
+            $exists = Mahasiswa::where('id', $id)->exists();
+            if ($exists) {
+                $errors['id'] = "ID Mahasiswa '{$id}' sudah terdaftar";
+            }
+        }
+
+        if ($email) {
+            $exists = Mahasiswa::where('email', $email)->exists();
+            if ($exists) {
+                $errors['email'] = "Email '{$email}' sudah terdaftar";
+            }
+        }
+
+        return response()->json([
+            'success' => count($errors) === 0,
+            'errors' => $errors,
         ]);
     }
 
@@ -378,6 +461,46 @@ class AdminController extends Controller
         }
 
         return response()->json(['success' => false], 404);
+    }
+
+    public function updateMahasiswa(Request $request, $id)
+    {
+        $mahasiswa = Mahasiswa::find($id);
+        if (! $mahasiswa) {
+            return response()->json(['success' => false, 'message' => 'Mahasiswa tidak ditemukan'], 404);
+        }
+
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'kompi' => 'sometimes|required|string',
+            'jurusan' => 'sometimes|required|string',
+            'prodi' => 'nullable|string|max:100',
+            'email' => 'sometimes|required|email|unique:mahasiswa,email,'.$id.',id',
+            'no_telp_mahasiswa' => 'nullable|string',
+            'no_telp_ortu' => 'nullable|string',
+        ]);
+
+        $mahasiswa->update($validated);
+
+        // Update user account associated with this mahasiswa
+        $user = User::where('mahasiswa_id', $mahasiswa->id)->first();
+        if ($user) {
+            $updateData = [];
+            if (isset($validated['name']) && $validated['name'] !== $user->full_name) {
+                $updateData['full_name'] = $validated['name'];
+            }
+            if (isset($validated['email']) && $validated['email'] !== $user->email) {
+                $updateData['email'] = $validated['email'];
+            }
+            if (! empty($updateData)) {
+                $user->update($updateData);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $mahasiswa,
+        ]);
     }
 
     public function getMahasiswaQR($id)
@@ -619,15 +742,21 @@ class AdminController extends Controller
 
     public function storeCamera(Request $request)
     {
+        $validated = $request->validate([
+            'id' => 'required|string|max:50|unique:camera_streams,id',
+            'name' => 'required|string|max:255',
+            'camera_index' => 'required|integer|min:0|max:10',
+            'location' => 'nullable|string|max:255',
+        ]);
+
         try {
-            $data = $request->all();
-            // Store camera_index in rtsp_url field for compatibility
-            if (isset($data['camera_index'])) {
-                $data['rtsp_url'] = (string) $data['camera_index'];
-                unset($data['camera_index']);
-            }
-            // Set default values if not provided
-            $data['is_active'] = $data['is_active'] ?? 0;
+            $data = [
+                'id' => $validated['id'],
+                'name' => $validated['name'],
+                'rtsp_url' => (string) $validated['camera_index'],
+                'location' => $validated['location'] ?? null,
+                'is_active' => 0,
+            ];
             $c = CameraStream::create($data);
 
             return response()->json(['success' => true, 'data' => $c]);
@@ -638,13 +767,24 @@ class AdminController extends Controller
 
     public function updateCamera(Request $request, $id)
     {
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'camera_index' => 'sometimes|required|integer|min:0|max:10',
+            'location' => 'nullable|string|max:255',
+        ]);
+
         try {
-            $data = $request->all();
-            // Store camera_index in rtsp_url field for compatibility
-            if (isset($data['camera_index'])) {
-                $data['rtsp_url'] = (string) $data['camera_index'];
-                unset($data['camera_index']);
+            $data = [];
+            if (isset($validated['camera_index'])) {
+                $data['rtsp_url'] = (string) $validated['camera_index'];
             }
+            if (isset($validated['name'])) {
+                $data['name'] = $validated['name'];
+            }
+            if (isset($validated['location'])) {
+                $data['location'] = $validated['location'];
+            }
+
             CameraStream::where('id', $id)->update($data);
 
             return response()->json(['success' => true]);

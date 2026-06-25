@@ -87,7 +87,7 @@ class SertifikatController extends Controller
     {
         $user = Auth::user();
 
-        if ($user->role !== 'admin' && $user->mahasiswa_id != $mahasiswaId) {
+        if ($user->role !== 'admin' && (int) $user->mahasiswa_id !== (int) $mahasiswaId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Akses ditolak',
@@ -181,7 +181,7 @@ class SertifikatController extends Controller
         try {
             $user = Auth::user();
 
-            if ($user->role !== 'admin' && $user->mahasiswa_id != $mahasiswaId) {
+            if ($user->role !== 'admin' && (int) $user->mahasiswa_id !== (int) $mahasiswaId) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Akses ditolak',
@@ -260,7 +260,7 @@ class SertifikatController extends Controller
     {
         $user = Auth::user();
 
-        if ($user->role !== 'admin' && $user->mahasiswa_id != $mahasiswaId) {
+        if ($user->role !== 'admin' && (int) $user->mahasiswa_id !== (int) $mahasiswaId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Akses ditolak',

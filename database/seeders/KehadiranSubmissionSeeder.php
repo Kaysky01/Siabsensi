@@ -8,14 +8,11 @@ use Illuminate\Support\Facades\DB;
 
 class KehadiranSubmissionSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         DB::table('kehadiran_submissions')->insert([
             [
-                'mahasiswa_id' => 'MHS-004',
+                'mahasiswa_id' => 'MHS004',
                 'date' => Carbon::today(),
                 'check_in_time' => '08:00:00',
                 'check_out_time' => '17:00:00',
@@ -29,7 +26,7 @@ class KehadiranSubmissionSeeder extends Seeder
                 'updated_at' => Carbon::now(),
             ],
             [
-                'mahasiswa_id' => 'MHS-005',
+                'mahasiswa_id' => 'MHS005',
                 'date' => Carbon::yesterday(),
                 'check_in_time' => '07:45:00',
                 'check_out_time' => '16:30:00',
@@ -43,7 +40,7 @@ class KehadiranSubmissionSeeder extends Seeder
                 'updated_at' => Carbon::now(),
             ],
             [
-                'mahasiswa_id' => 'MHS-001',
+                'mahasiswa_id' => 'MHS001',
                 'date' => Carbon::today()->subDays(2),
                 'check_in_time' => '09:00:00',
                 'check_out_time' => '17:00:00',
