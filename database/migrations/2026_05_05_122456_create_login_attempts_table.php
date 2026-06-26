@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('login_attempts', function (Blueprint $table) {
             $table->integer('id')->autoIncrement();
-            $table->string('username', 50)->index('idx_username');
-            $table->string('ip_address', 45)->nullable()->index('idx_ip');
+            $table->string('username', 50)->index('idx_la_username');
+            $table->string('ip_address', 45)->nullable()->index('idx_la_ip');
             $table->tinyInteger('success')->nullable()->default(0);
-            $table->timestamp('attempted_at')->useCurrent()->index('idx_attempted');
+            $table->timestamp('attempted_at')->useCurrent()->index('idx_la_attempted');
         });
     }
 

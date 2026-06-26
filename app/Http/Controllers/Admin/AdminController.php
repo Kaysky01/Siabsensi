@@ -369,6 +369,7 @@ class AdminController extends Controller
             'kompi' => 'required|string',
             'jurusan' => 'required|string',
             'prodi' => 'nullable|string|max:100',
+            'tanggal_lahir' => 'required|date',
             'email' => 'nullable|email|unique:mahasiswa,email',
             'no_telp_mahasiswa' => 'nullable|string',
             'no_telp_ortu' => 'nullable|string',
@@ -381,10 +382,14 @@ class AdminController extends Controller
         $validated['qr_code_id'] = $validated['id'];
         $mahasiswa = Mahasiswa::create($validated);
 
+        // Generate password default dari tanggal_lahir (ddmmyyyy)
+        $dob = Carbon::parse($mahasiswa->tanggal_lahir);
+        $defaultPassword = $dob->format('dmY');
+
         // Auto-create user account for this mahasiswa
         User::create([
             'username' => $mahasiswa->id,
-            'password_hash' => Hash::make('123456'),
+            'password_hash' => Hash::make($defaultPassword),
             'full_name' => $mahasiswa->name,
             'email' => $mahasiswa->email,
             'role' => 'mahasiswa',
@@ -398,7 +403,7 @@ class AdminController extends Controller
                 'qr_code_id' => $mahasiswa->qr_code_id,
                 'qr_image_base64' => $this->generateQrBase64($mahasiswa->qr_code_id, 200),
             ],
-            'message' => 'Mahasiswa dan akun user berhasil dibuat. Username: '.$mahasiswa->id.', Password default: 123456',
+            'message' => 'Mahasiswa dan akun user berhasil dibuat. Username: '.$mahasiswa->id.', Password default: '.$defaultPassword,
         ]);
     }
 

@@ -269,7 +269,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // CRUD Mahasiswa (Admin)
     Route::post('/api/mahasiswa', [AdminController::class, 'storeMahasiswa']);
-    Route::put('/api/mahasiswa/{id}', [AdminController::class, 'updateMahasiswa']);
+    Route::put('/api/admin/mahasiswa/{id}', [AdminController::class, 'updateMahasiswa']);
     Route::post('/api/mahasiswa/check', [AdminController::class, 'checkMahasiswa']);
     Route::delete('/api/mahasiswa/{id}', [AdminController::class, 'deleteMahasiswa']);
     Route::get('/api/mahasiswa/{id}/qr', [AdminController::class, 'getMahasiswaQR']);

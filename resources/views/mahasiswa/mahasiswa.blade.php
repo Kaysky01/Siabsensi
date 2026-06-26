@@ -17,6 +17,10 @@
 
 <body>
 
+  <div id="skeleton-loader" class="skeleton-loader">
+    <div class="skeleton-content"></div>
+  </div>
+
   <div class="app">
 
     <!-- Sidebar -->
@@ -105,9 +109,9 @@
         </div>
 
         <div class="header-actions">
-            <button class="btn btn-ghost btn-sm" onclick="window.location.href='/logout'" style="color: #ff6b6b;">
-              <span class="material-symbols-outlined" style="font-size:16px;color:#ff6b6b">logout</span>
-              Logout
+            <button class="btn btn-ghost btn-sm" onclick="refreshDashboard()">
+              <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span>
+              Refresh
             </button>
         </div>
       </div>
@@ -176,32 +180,6 @@
             </div>
           </div>
 
-          <!-- Chart Kehadiran -->
-          <div class="panel">
-            <div class="section-header">
-              <div class="section-title">
-                <span class="material-symbols-outlined">bar_chart</span>
-                Grafik Kehadiran 7 Hari Terakhir
-              </div>
-            </div>
-            <div class="chart-container">
-              <canvas id="attendance-chart"></canvas>
-            </div>
-          </div>
-
-          <!-- Monthly Performance Chart -->
-          <div class="panel">
-            <div class="section-header">
-              <div class="section-title">
-                <span class="material-symbols-outlined">analytics</span>
-                Performa Bulanan
-              </div>
-            </div>
-            <div class="chart-container">
-              <canvas id="monthly-chart"></canvas>
-            </div>
-          </div>
-
           <!-- Recent Activity -->
           <div class="panel">
             <div class="section-header">
@@ -235,29 +213,31 @@
           </div>
 
           <div id="profile-form" style="display:none">
+            <!-- Posisikan yang TIDAK BISA diganti di atas -->
             <div class="form-row">
               <label class="form-label">ID Mahasiswa</label>
-              <input type="text" id="profile-id" class="form-input" disabled>
-            </div>
-
-            <div class="form-row">
-              <label class="form-label">Nama Lengkap *</label>
-              <input type="text" id="profile-name" class="form-input" placeholder="Nama Lengkap" disabled>
+              <input type="text" id="profile-id" class="form-input" style="background-color:#f5f5f5; cursor:not-allowed;" disabled>
             </div>
 
             <div class="form-row">
               <label class="form-label">kompi *</label>
-              <input type="text" id="profile-kompi" class="form-input" placeholder="kompi" disabled>
+              <input type="text" id="profile-kompi" class="form-input" placeholder="kompi" style="background-color:#f5f5f5; cursor:not-allowed;" disabled>
             </div>
 
             <div class="form-row">
               <label class="form-label">Jurusan *</label>
-              <input type="text" id="profile-jurusan" class="form-input" placeholder="Jurusan" disabled>
+              <input type="text" id="profile-jurusan" class="form-input" placeholder="Jurusan" style="background-color:#f5f5f5; cursor:not-allowed;" disabled>
             </div>
 
             <div class="form-row">
               <label class="form-label">Program Studi *</label>
-              <input type="text" id="profile-prodi" class="form-input" placeholder="Program Studi" disabled>
+              <input type="text" id="profile-prodi" class="form-input" placeholder="Program Studi" style="background-color:#f5f5f5; cursor:not-allowed;" disabled>
+            </div>
+
+            <!-- Posisikan yang BISA diganti di bawah -->
+            <div class="form-row" style="margin-top:24px; border-top:1px solid var(--border); padding-top:20px;">
+              <label class="form-label">Nama Lengkap *</label>
+              <input type="text" id="profile-name" class="form-input" placeholder="Nama Lengkap">
             </div>
 
             <div class="form-row">

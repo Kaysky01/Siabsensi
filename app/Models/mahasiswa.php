@@ -28,6 +28,7 @@ class Mahasiswa extends Model
         'kompi',
         'jurusan',
         'prodi',
+        'tanggal_lahir',
         'email',
         'no_telp_mahasiswa',
         'no_telp_ortu',
@@ -37,6 +38,7 @@ class Mahasiswa extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'tanggal_lahir' => 'date',
     ];
 
     // Relasi

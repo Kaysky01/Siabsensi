@@ -13,17 +13,17 @@ return new class extends Migration
     {
         Schema::create('kehadiran_submissions', function (Blueprint $table) {
             $table->integer('id')->autoIncrement();
-            $table->string('mahasiswa_id', 50)->index('idx_mahasiswa');
-            $table->date('date')->index('idx_date');
+            $table->string('mahasiswa_id', 50);
+            $table->date('date')->index('idx_kh_date');
             $table->time('check_in_time');
             $table->time('check_out_time');
             $table->text('keterangan');
             $table->text('bukti_path');
-            $table->enum('status', ['pending', 'approved', 'rejected'])->nullable()->default('pending')->index('idx_status');
+            $table->enum('status', ['pending', 'approved', 'rejected'])->nullable()->default('pending')->index('idx_kh_status');
             $table->string('verified_by', 100)->nullable();
             $table->dateTime('verified_at')->nullable();
             $table->text('rejection_reason')->nullable();
-            $table->timestamp('created_at')->useCurrent()->index('idx_created');
+            $table->timestamp('created_at')->useCurrent()->index('idx_kh_created');
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
     }

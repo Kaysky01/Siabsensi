@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('izin_submissions', function (Blueprint $table) {
             $table->integer('id')->autoIncrement();
-            $table->string('mahasiswa_id', 50)->index('idx_mahasiswa');
+            $table->string('mahasiswa_id', 50);
             $table->enum('submission_type', ['izin', 'sakit']);
             $table->date('date')->index('idx_date');
             $table->text('keterangan');

@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('sertifikat_history', function (Blueprint $table) {
             $table->integer('id')->autoIncrement();
-            $table->string('mahasiswa_id', 50)->index('idx_mahasiswa');
+            $table->string('mahasiswa_id', 50)->index('idx_sh_mahasiswa');
             $table->text('periode');
             $table->string('template', 50);
             $table->integer('total_hadir');
             $table->decimal('persentase', 5, 2);
-            $table->timestamp('created_at')->useCurrent()->index('idx_created');
+            $table->timestamp('created_at')->useCurrent()->index('idx_sh_created');
         });
     }
 

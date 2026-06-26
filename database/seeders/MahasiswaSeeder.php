@@ -40,6 +40,7 @@ class MahasiswaSeeder extends Seeder
             $nim = 'MHS' . str_pad($i, 3, '0', STR_PAD_LEFT);
             $jurusanAcak = $faker->randomElement($jurusan);
             $prodiAcak = $faker->randomElement($prodi);
+            $dob = $faker->dateTimeBetween('-25 years', '-18 years');
 
             $mahasiswaData[] = [
                 'id' => $nim,
@@ -47,10 +48,11 @@ class MahasiswaSeeder extends Seeder
                 'kompi' => $faker->randomElement($kompi),
                 'jurusan' => $jurusanAcak,
                 'prodi' => $prodiAcak,
+                'tanggal_lahir' => $dob->format('Y-m-d'),
                 'email' => strtolower(str_replace(' ', '', $nim)) . '@mail.test',
                 'no_telp_mahasiswa' => $faker->numerify('08##########'),
                 'no_telp_ortu' => $faker->numerify('08##########'),
-                'qr_code_id' => 'QR-' . $nim,
+                'qr_code_id' => 'QR-' . $nim . '-' . uniqid(),
                 'created_at' => Carbon::now()->subDays(rand(1, 365)),
                 'is_active' => $faker->boolean(90),
             ];
@@ -61,9 +63,10 @@ class MahasiswaSeeder extends Seeder
         // Auto-create users for these mahasiswa
         $userData = [];
         foreach ($mahasiswaData as $mhs) {
+            $dob = Carbon::parse($mhs['tanggal_lahir']);
             $userData[] = [
                 'username' => $mhs['id'],
-                'password_hash' => Hash::make('123456'),
+                'password_hash' => Hash::make($dob->format('dmY')),
                 'full_name' => $mhs['name'],
                 'email' => $mhs['email'],
                 'role' => 'mahasiswa',

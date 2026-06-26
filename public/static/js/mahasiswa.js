@@ -30,6 +30,8 @@ let attendanceReminderShown = false;
       } else {
         setTimeout(initializeMahasiswaPortal, 100);
       }
+      // Hide skeleton loader
+      document.getElementById('skeleton-loader').style.display = 'none';
     } else {
       console.error('[Mahasiswa Portal] ERROR: Data mahasiswa tidak ditemukan di response API.');
     }
@@ -665,8 +667,8 @@ async function loadDashboardData() {
       document.getElementById('stat-longest-streak').textContent = `${stats.streakTerpanjang || 0} hari`;
       document.getElementById('stat-late-count').textContent = `${stats.terlambat || 0} kali`;
       
-      loadAttendanceChart(mahasiswaId);
-      loadMonthlyChart(mahasiswaId);
+      // loadAttendanceChart(mahasiswaId);
+      // loadMonthlyChart(mahasiswaId);
       loadRecentActivity(mahasiswaId);
       loadTodayAttendanceStatus(mahasiswaId);
       
@@ -675,6 +677,11 @@ async function loadDashboardData() {
   } catch (e) {
     console.error('Error loading dashboard data:', e);
   }
+}
+
+function refreshDashboard() {
+  loadDashboardData();
+  toast('Dashboard diperbarui', 'Data statistik diperbarui', false);
 }
 
 async function loadTodayAttendanceStatus(mahasiswaId) {
@@ -1247,6 +1254,7 @@ async function updateProfile() {
   if (!currentMahasiswa) return;
   
   const mahasiswaId = currentMahasiswa.id;
+  const name = document.getElementById('profile-name').value.trim();
   const email = document.getElementById('profile-email').value.trim();
   const currentPassword = document.getElementById('profile-current-password').value;
   const newPassword = document.getElementById('profile-new-password').value;
@@ -1273,6 +1281,7 @@ async function updateProfile() {
   }
 
   const payload = {
+    name: name,
     email: email
   };
 
@@ -1373,7 +1382,7 @@ function renderRiwayatTable(data) {
   const tbody = document.getElementById('riwayat-table-body');
   
   if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Tidak ada data sesuai filter</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Belum ada riwayat absensi</td></tr>';
     return;
   }
 

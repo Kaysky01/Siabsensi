@@ -67,6 +67,9 @@ async function loadUserPermissions() {
       
       // Apply UI restrictions based on permissions
       applyRoleBasedUI();
+      
+      // Show welcome message
+      showWelcomeMessage();
 
       // Hide skeleton loader when permissions are ready
       const skel = document.getElementById('skeleton-loader');
@@ -78,6 +81,31 @@ async function loadUserPermissions() {
   } catch (e) {
     console.error('Error loading user permissions:', e);
     return false;
+  }
+}
+
+// ─── Show Welcome Message ───────────────────────────────────────────────────
+function showWelcomeMessage() {
+  const welcomeElement = document.getElementById('welcome-message');
+  if (welcomeElement && currentUser) {
+    const displayName = currentUser.full_name || currentUser.username || 'User';
+    const displayRole = currentUser.role === 'admin' ? 'Administrator' : 
+                        currentUser.role === 'timdis' ? 'Tim Disiplin' : 
+                        currentUser.role === 'garda' ? 'Garda' : currentUser.role;
+    const displayEmail = currentUser.email || '-';
+
+    welcomeElement.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 12px; margin-top: 8px;">
+        <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary);">account_circle</span>
+        <div>
+          <span style="font-weight: 600; color: var(--text);">${displayName}</span>
+          <span style="color: var(--text-muted); margin-left: 8px;">
+            ${currentUser.username} • ${displayRole} • ${displayEmail}
+          </span>
+        </div>
+      </div>
+    `;
+    console.log('[WELCOME] Welcome message updated in header');
   }
 }
 
@@ -1489,7 +1517,7 @@ async function removeMahasiswa(id) {
 
       if (isEdit) {
         const mhsId = document.getElementById('f-id').value.trim();
-        const res = await apiFetch(`/mahasiswa/${mhsId}`, { method: 'PUT', body: JSON.stringify(body) });
+        const res = await apiFetch(`/admin/mahasiswa/${mhsId}`, { method: 'PUT', body: JSON.stringify(body) });
         if (res?.success) {
           toast('Mahasiswa diperbarui!', `Data ${body.name} berhasil diperbarui`);
           closeModal('modal-mahasiswa');

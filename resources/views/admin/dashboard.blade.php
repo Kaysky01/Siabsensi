@@ -102,6 +102,7 @@
         <div class="nav-item" onclick="showPage('settings')">
           <span class="material-symbols-outlined icon">settings</span> Pengaturan
         </div>
+        <div class="nav-section">Keluar</div>
         <div class="nav-item" onclick="window.location.href='/logout'" style="color: #ff6b6b;">
           <span class="material-symbols-outlined icon" style="color: #ff6b6b;">logout</span> Logout
         </div>
@@ -179,6 +180,7 @@
           <div>
             <div class="page-title">Dashboard Absensi</div>
             <div class="page-sub" id="today-label">Loading...</div>
+            <div id="welcome-message"></div>
           </div>
           <div class="header-actions">
             <button class="btn btn-ghost btn-sm" onclick="refreshData()"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span> Refresh</button>

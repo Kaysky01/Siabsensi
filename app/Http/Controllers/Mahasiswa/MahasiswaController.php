@@ -87,16 +87,37 @@ class MahasiswaController extends Controller
     // Mengambil Data Aktivitas Terbaru
     public function getRecentActivity($id)
     {
+        $mahasiswa = Mahasiswa::find($id);
+        if (! $mahasiswa) {
+            return response()->json(['success' => false, 'message' => 'Mahasiswa tidak ditemukan'], 404);
+        }
+
+        // Ambil riwayat absensi terbaru (termasuk izin/sakit)
+        $attendances = $mahasiswa->attendances()
+            ->orderBy('date', 'desc')
+            ->take(5)
+            ->get();
+
+        $activities = $attendances->map(function ($item) {
+            $type = $item->status === 'present' ? 'checkin' : 'info';
+            $title = $item->status === 'present' ? 'Kehadiran' : 'Status: ' . ucfirst($item->status);
+            $desc = 'Tercatat pada tanggal ' . Carbon::parse($item->date)->format('d M Y');
+            
+            if ($item->check_in) {
+                $desc .= ' pukul ' . date('H:i', strtotime($item->check_in));
+            }
+
+            return [
+                'type' => $type,
+                'title' => $title,
+                'description' => $desc,
+                'timestamp' => $item->updated_at,
+            ];
+        });
+
         return response()->json([
             'success' => true,
-            'data' => [
-                [
-                    'type' => 'checkin',
-                    'title' => 'Check-In Tepat Waktu',
-                    'description' => 'Sistem mencatat kehadiran di gerbang.',
-                    'timestamp' => Carbon::now(),
-                ],
-            ],
+            'data' => $activities,
         ]);
     }
 
@@ -138,7 +159,8 @@ class MahasiswaController extends Controller
         }
 
         // Query untuk mengambil data
-        $query = $mahasiswa->attendances();
+        $query = $mahasiswa->attendances()
+            ->whereBetween('date', [Carbon::now()->startOfWeek()->toDateString(), Carbon::now()->endOfWeek()->toDateString()]);
 
         // --- PROSES FILTER ---
         if ($request->filled('bulan')) {
@@ -208,6 +230,7 @@ class MahasiswaController extends Controller
 
         // Validasi input
         $rules = [
+            'name' => 'required|string|max:255',
             'email' => 'nullable|email',
         ];
 
@@ -218,14 +241,16 @@ class MahasiswaController extends Controller
 
         $request->validate($rules);
 
-        // Update data mahasiswa (Hanya email yang bisa diubah oleh mahasiswa)
+        // Update data mahasiswa
         $mahasiswa->update([
+            'name' => $request->name,
             'email' => $request->email,
         ]);
 
         $targetUser = $mahasiswa->user;
         if ($targetUser) {
             $targetUser->update([
+                'full_name' => $request->name,
                 'email' => $request->email,
             ]);
         }
@@ -333,6 +358,16 @@ class MahasiswaController extends Controller
             $dateString = $date->toDateString();
             if (! $attendanceDates->has($dateString)) {
                 $missingDates[] = $dateString;
+                
+                // Otomatis buat entri Alpha
+                Attendance::create([
+                    'mahasiswa_id' => $mahasiswa->id,
+                    'date' => $dateString,
+                    'status' => 'alpha',
+                    'check_in' => null,
+                    'check_out' => null,
+                    'created_at' => Carbon::now(),
+                ]);
             }
         }
 
