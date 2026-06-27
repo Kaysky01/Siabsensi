@@ -131,6 +131,11 @@ class DatabaseManager:
             cursor.execute("ALTER TABLE attendance ADD COLUMN check_out_time TIME")
         except mysql.connector.Error:
             pass  # Column already exists
+            
+        try:
+            cursor.execute("ALTER TABLE attendance ADD COLUMN kegiatan_id BIGINT UNSIGNED NULL")
+        except mysql.connector.Error:
+            pass  # Column already exists
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS camera_streams (
@@ -229,46 +234,96 @@ class DatabaseManager:
         """Cari mahasiswa berdasarkan QR code (termasuk yang non-aktif)"""
         query = "SELECT * FROM mahasiswa WHERE qr_code_id = %s"
         return self._execute(query, (qr_code_id,), fetch_one=True)
+        
+    def get_active_kegiatan(self):
+        """Ambil daftar kegiatan PKKMB yang sedang aktif dari tabel kegiatan"""
+        try:
+            query = "SELECT id, nama, tanggal_pelaksanaan FROM kegiatan WHERE is_active = 1 ORDER BY tanggal_pelaksanaan ASC"
+            return self._execute(query, fetch_all=True)
+        except Exception as e:
+            logger.error(f"Failed to get active kegiatan: {e}")
+            return []
 
-    def record_attendance(self, mahasiswa_id, action, camera_id, snapshot_path, confidence):
+    def record_attendance(self, mahasiswa_id, action, camera_id, snapshot_path, confidence, kegiatan_id=None):
         """Record kehadiran"""
         today = date.today().isoformat()
+        
+        # Jika ada kegiatan_id, ambil tanggal pelaksanaannya dari DB agar absen sinkron dengan jadwal kegiatan
+        if kegiatan_id:
+            kegiatan = self._execute("SELECT tanggal_pelaksanaan FROM kegiatan WHERE id = %s", (kegiatan_id,), fetch_one=True)
+            if kegiatan and kegiatan['tanggal_pelaksanaan']:
+                # handle if tanggal_pelaksanaan is a datetime.date object or string
+                if hasattr(kegiatan['tanggal_pelaksanaan'], 'isoformat'):
+                    today = kegiatan['tanggal_pelaksanaan'].isoformat()
+                else:
+                    today = str(kegiatan['tanggal_pelaksanaan'])
+
         now = datetime.now()
         
         # Cek existing attendance
-        existing = self._execute(
-            "SELECT * FROM attendance WHERE mahasiswa_id = %s AND date = %s",
-            (mahasiswa_id, today),
-            fetch_one=True
-        )
+        if kegiatan_id:
+            existing = self._execute(
+                "SELECT * FROM attendance WHERE mahasiswa_id = %s AND kegiatan_id = %s",
+                (mahasiswa_id, kegiatan_id),
+                fetch_one=True
+            )
+        else:
+            existing = self._execute(
+                "SELECT * FROM attendance WHERE mahasiswa_id = %s AND date = %s",
+                (mahasiswa_id, today),
+                fetch_one=True
+            )
 
-        # Format waktu yang standar dan kompatibel dengan Laravel
+        # Format waktu yang standar dan kompatibel dengan Laravel/MySQL
         time_str = now.strftime('%Y-%m-%d %H:%M:%S')
         just_time_str = now.strftime('%H:%M:%S')
 
         if action == 'check_in':
             if existing:
-                logger.info(f"[{mahasiswa_id}] Sudah absen masuk hari ini.")
-                return {'status': 'already_checked_in', 'time': existing['check_in']}
+                logger.info(f"[{mahasiswa_id}] Sudah absen masuk untuk kegiatan/hari ini.")
+                
+                # Pastikan check_in diformat ke string bersih
+                checkin_time = existing['check_in']
+                if hasattr(checkin_time, 'strftime'):
+                    checkin_time = checkin_time.strftime('%H:%M:%S')
+                elif checkin_time:
+                    checkin_time = str(checkin_time)
+                else:
+                    checkin_time = just_time_str
+                    
+                return {'status': 'already_checked_in', 'time': checkin_time}
             
             self._execute("""
-                INSERT INTO attendance (mahasiswa_id, check_in, date, status, camera_id, snapshot_path, yolo_confidence)
-                VALUES (%s, %s, %s, 'hadir', %s, %s, %s)
-            """, (mahasiswa_id, now.isoformat(), today, camera_id, snapshot_path, confidence))
-            return {'status': 'checked_in', 'time': now.isoformat()}
+                INSERT INTO attendance (mahasiswa_id, check_in, check_in_time, date, status, camera_id, snapshot_path, yolo_confidence, kegiatan_id)
+                VALUES (%s, %s, %s, %s, 'hadir', %s, %s, %s, %s)
+            """, (mahasiswa_id, time_str, just_time_str, today, camera_id, snapshot_path, confidence, kegiatan_id))
+            return {'status': 'checked_in', 'time': just_time_str}
 
         elif action == 'check_out':
             if not existing:
                 logger.warning(f"[{mahasiswa_id}] Belum absen masuk!")
                 return {'status': 'not_checked_in'}
             if existing['check_out']:
-                return {'status': 'already_checked_out', 'time': existing['check_out']}
+                checkout_time = existing['check_out']
+                if hasattr(checkout_time, 'strftime'):
+                    checkout_time = checkout_time.strftime('%H:%M:%S')
+                elif checkout_time:
+                    checkout_time = str(checkout_time)
+                else:
+                    checkout_time = just_time_str
+                return {'status': 'already_checked_out', 'time': checkout_time}
             
-            self._execute("""
-                UPDATE attendance SET check_out = %s, check_out_time = %s, snapshot_path = %s
-                WHERE mahasiswa_id = %s AND date = %s
-            """, (time_str, just_time_str, snapshot_path, mahasiswa_id, today))
-            return {'status': 'checked_out', 'time': time_str}
+            if kegiatan_id:
+                self._execute("""
+                    UPDATE attendance SET check_out = %s, check_out_time = %s, snapshot_path = %s
+                    WHERE mahasiswa_id = %s AND kegiatan_id = %s
+                """, (time_str, just_time_str, snapshot_path, mahasiswa_id, kegiatan_id))
+            else:
+                self._execute("""
+                    UPDATE attendance SET check_out = %s, check_out_time = %s, snapshot_path = %s
+                    WHERE mahasiswa_id = %s AND date = %s
+                """, (time_str, just_time_str, snapshot_path, mahasiswa_id, today))
+            return {'status': 'checked_out', 'time': just_time_str}
 
     def update_camera_seen(self, cam_id):
         """Update last seen kamera"""

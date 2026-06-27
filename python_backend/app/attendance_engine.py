@@ -79,7 +79,7 @@ class QRCodeGenerator:
         img.save(filename)
 
         buffer = io.BytesIO()
-        img.save(buffer, format='PNG')
+        img.save(buffer)
         return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
     @staticmethod
@@ -291,6 +291,9 @@ class YOLOProcessor:
         return display
 
 class AttendanceProcessor:
+    # Jeda minimum antara check-in dan check-out (dalam detik): Dihilangkan sesuai request
+    CHECK_OUT_MIN_SECONDS = 0
+
     def __init__(self, db: DatabaseManager, yolo: YOLOProcessor):
         self.db = db
         self.yolo = yolo
@@ -324,16 +327,26 @@ class AttendanceProcessor:
     def _set_qr_cooldown(self, qr_data: str):
         self._qr_cooldowns[qr_data] = time.time()
 
-    # Jeda minimum antara check-in dan check-out (dalam detik): 1 jam = 3600
-    CHECK_OUT_MIN_SECONDS = 3600
-
-    def _determine_action(self, mahasiswa_id: str) -> str:
-        today = date.today().isoformat()
-        row = self.db._execute(
-            "SELECT check_in, check_out FROM attendance WHERE mahasiswa_id=%s AND date=%s",
-            (mahasiswa_id, today),
-            fetch_one=True
-        )
+    def _determine_action(self, mahasiswa_id: str, kegiatan_id=None) -> str:
+        """Tentukan apakah mahasiswa harus check_in, check_out, cooldown, atau none.
+        
+        Jika kegiatan_id diberikan, cari berdasarkan kegiatan_id.
+        Jika tidak, fallback ke tanggal hari ini.
+        """
+        if kegiatan_id:
+            row = self.db._execute(
+                "SELECT check_in, check_out FROM attendance WHERE mahasiswa_id=%s AND kegiatan_id=%s",
+                (mahasiswa_id, kegiatan_id),
+                fetch_one=True
+            )
+        else:
+            today = date.today().isoformat()
+            row = self.db._execute(
+                "SELECT check_in, check_out FROM attendance WHERE mahasiswa_id=%s AND date=%s",
+                (mahasiswa_id, today),
+                fetch_one=True
+            )
+        
         if not row or not row['check_in']:
             return 'check_in'
         if row['check_in'] and not row['check_out']:
@@ -344,8 +357,11 @@ class AttendanceProcessor:
                     check_in_time = datetime.fromisoformat(check_in_val.replace(' ', 'T'))
                 except Exception:
                     check_in_time = datetime.strptime(check_in_val, '%Y-%m-%d %H:%M:%S')
-            else:
+            elif hasattr(check_in_val, 'hour'):
+                # datetime object from MySQL
                 check_in_time = check_in_val
+            else:
+                check_in_time = datetime.now()
                 
             elapsed_seconds = (datetime.now() - check_in_time).total_seconds()
             if elapsed_seconds < self.CHECK_OUT_MIN_SECONDS:
@@ -355,6 +371,7 @@ class AttendanceProcessor:
                 )
                 return 'cooldown'
             return 'check_out'
+        # Sudah check_in dan check_out → selesai untuk sesi ini
         return 'none'
 
     def process_frame(self, camera_id: str, frame: np.ndarray) -> dict:

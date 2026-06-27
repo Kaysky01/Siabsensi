@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCTV Monitor (Siabsen)</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #0f172a; color: white; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+        
+        .top-bar { padding: 12px 24px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); flex-shrink: 0; }
+        
+        .controls { display: flex; align-items: center; gap: 12px; }
+        
+        select { padding: 8px 12px; border: 1px solid #475569; border-radius: 6px; outline: none; font-size: 13px; background: #334155; color: white; }
+        
+        button { padding: 8px 16px; border-radius: 6px; border: none; background: #3b82f6; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; gap: 6px; transition: 0.2s; }
+        button:hover { background: #2563eb; }
+        
+        .grid-container { flex: 1; padding: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 24px; overflow-y: auto; align-content: start; }
+        
+        .video-container { position:relative; border-radius:12px; overflow:hidden; min-height: 250px; background: #000; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2); border: 1px solid #334155; }
+        .video-overlay { position:absolute; bottom:0; left:0; width:100%; background:linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding:16px 12px 12px 12px; display:flex; justify-content:space-between; align-items:center; }
+        
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        
+        .scan-frame { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:60%; height:60%; }
+        .scan-frame::before, .scan-frame::after, .scan-frame span::before, .scan-frame span::after { content: ''; position: absolute; width: 40px; height: 40px; border-color: rgba(255,255,255,0.7); border-style: solid; }
+        .scan-frame::before { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 8px 0 0 0; }
+        .scan-frame::after { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 8px 0 0; }
+        .scan-frame span::before { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 8px; }
+        .scan-frame span::after { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 8px 0; }
+        
+        .scan-line { position: absolute; left: 10px; right: 10px; height: 2px; background: linear-gradient(to right, transparent, rgba(59,130,246,0.9), transparent); animation: scanMove 2s ease-in-out infinite; top: 0; }
+        @keyframes scanMove { 0% { top: 10px; } 50% { top: calc(100% - 10px); } 100% { top: 10px; } }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="font-size: 20px; font-weight: 800; color: white; letter-spacing: 1px;">CCTV MODE</div>
+            <div style="display: flex; align-items: center; gap: 6px; background: rgba(16,185,129,0.2); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(16,185,129,0.3);">
+                <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; animation: blink 1.5s infinite;"></div>
+                <span style="font-size: 11px; font-weight: 700; color: #34d399; letter-spacing: 0.5px;">LIVE FEED</span>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <span class="material-symbols-outlined" style="color: #94a3b8;">videocam</span>
+            <select id="camera-select">
+                <option value="">Mencari kamera...</option>
+            </select>
+            <button onclick="addCameraStream()">
+                <span class="material-symbols-outlined" style="font-size: 18px;">add</span> Tambah
+            </button>
+        </div>
+    </div>
+    
+    <div id="video-grid" class="grid-container">
+        <!-- Cameras will be appended here -->
+    </div>
+
+    <!-- Hidden elements needed by monitor.js so it doesn't crash -->
+    <div style="display:none;">
+        <span id="log-count">0</span>
+        <div id="recent-scans"></div>
+    </div>
+
+    <script src="/static/js/monitor.js?v=9"></script>
+</body>
+</html>

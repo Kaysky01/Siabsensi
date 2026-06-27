@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Absensi (Python Local)</title>
+    <link rel="stylesheet" href="/static/css/monitor.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <div class="monitor-layout">
+        <!-- Left: Camera Section -->
+        <div class="camera-section">
+            <!-- Header -->
+            <div class="header">
+                <div class="logo">
+                    <!-- Logo image from Laravel, for now using a placeholder or keep broken image -->
+                    <div class="logo-text">
+                        <div class="logo-title">SIABSEN</div>
+                        <div class="logo-sub">Python Local Monitoring</div>
+                    </div>
+                </div>
+                <div class="header-center">
+                    <div class="clock" id="clock">--:--:--</div>
+                    <div id="date-label">...</div>
+                </div>
+                <div class="header-right">
+                    <div class="status-badge">
+                        <div class="status-dot"></div>
+                        LOCAL LIVE
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">Total Hadir</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 1 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="stat-value" id="stat-masih">0</div>
+                        <div class="stat-label">Masih di Lokasi</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon amber">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 3h6v6H3z"></path>
+                            <path d="M15 3h6v6h-6z"></path>
+                            <path d="M3 15h6v6H3z"></path>
+                            <path d="M15 15h3"></path>
+                            <path d="M18 18h3"></path>
+                            <path d="M15 21h6"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="stat-value" id="stat-hadir">0</div>
+                        <div class="stat-label">Total Scan</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Camera Selection -->
+            <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.05); flex-wrap: wrap;">
+                
+                <!-- Kegiatan Selection -->
+                <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 200px;">
+                    <span class="material-symbols-outlined" style="color: #6b7280; font-size: 20px;">event_note</span>
+                    <select id="kegiatan-select" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; outline: none; font-family: inherit; font-size: 14px;">
+                        <option value="">Pilih Kegiatan/Sesi PKKMB...</option>
+                    </select>
+                </div>
+
+                <div style="width: 1px; height: 30px; background: #e5e7eb; margin: 0 4px;"></div>
+
+                <!-- Camera Selection -->
+                <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 250px;">
+                    <span class="material-symbols-outlined" style="color: #6b7280; font-size: 20px;">videocam</span>
+                    <select id="camera-select" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; outline: none; font-family: inherit; font-size: 14px;">
+                        <option value="">Mencari kamera...</option>
+                    </select>
+                </div>
+
+                <button onclick="addCameraStream()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap;">Tambah Kamera</button>
+                <a href="/cctv" target="_blank" style="padding: 8px 16px; background: #1f2937; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; text-decoration: none; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">desktop_windows</span> Mode CCTV
+                </a>
+            </div>
+
+            <!-- Video Grid -->
+            <div id="video-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; width: 100%; height: 100%; align-content: start; overflow-y: auto; padding-right: 8px; padding-bottom: 20px;">
+                <!-- Video containers injected here -->
+            </div>
+        </div>
+
+        <!-- Right: Log Section -->
+        <div class="log-section">
+            <div class="log-header">
+                <div class="log-header-top">
+                    <h2>Log Absensi (Local)</h2>
+                    <span class="log-count" id="log-count">0</span>
+                </div>
+                <p>Data tertahan sebelum disinkronkan ke Server</p>
+                <!-- Add sync button -->
+                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                    <button id="sync-button" onclick="syncDataToServer()" style="flex: 2; padding: 8px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Sync ke Server</button>
+                    <button onclick="clearLocalData()" style="flex: 1; padding: 8px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">Clear Data</button>
+                </div>
+                <!-- Tabs -->
+                <div class="log-tabs" style="display:flex; gap:8px; margin-top:16px; margin-bottom:10px;">
+                    <button id="tab-pending" onclick="switchMonitorTab('pending')" style="flex:1; padding:8px; background:var(--primary); color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600;">Belum Sync</button>
+                    <button id="tab-history" onclick="switchMonitorTab('history')" style="flex:1; padding:8px; background:#e5e7eb; color:#4b5563; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:600;">Riwayat</button>
+                </div>
+            </div>
+            
+            <div class="cooldown-notice" id="cooldown-notice">
+                <strong>⚠️ Catatan:</strong> Mahasiswa yang baru check-in harus menunggu 1 jam sebelum bisa check-out.
+            </div>
+
+            <div class="log-list" id="recent-scans">
+                <div class="empty-state">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                        <path d="M14 14h.01M14 17h3M17 14h3M20 17v3M17 20h3"/>
+                    </svg>
+                    <p>Belum ada absensi di sesi lokal ini</p>
+                </div>
+            </div>
+
+            <div class="log-footer">
+                <div class="footer-info">Python Monitor v1.0</div>
+                <div class="polling-indicator">
+                    <span id="polling-dot"></span>
+                    <span id="last-update">Menunggu...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="toast-notification">
+        <div class="toast-content">
+            <span class="material-symbols-outlined toast-icon">check_circle</span>
+            <div class="toast-message">
+                <div class="toast-title">Absensi Berhasil</div>
+                <div class="toast-text" id="toast-text">Tersimpan di local</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/monitor.js?v=9"></script>
+</body>
+</html>

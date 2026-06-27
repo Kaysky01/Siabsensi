@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, render_template
 from flask_cors import CORS
 import cv2
 import numpy as np
@@ -29,7 +29,7 @@ from app.attendance_engine import create_system, AttendanceProcessor
 from app.database_manager import DatabaseManager
 from app.config_db import MYSQL_CONFIG, YOLO_SETTINGS, RTSP_SETTINGS, reload_settings
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
 # Initialize system (try to connect to database, but allow running without it)
@@ -50,6 +50,64 @@ except Exception as e:
 # Camera stream thread
 camera_thread = None
 camera_running = False
+
+# In-memory attendance tracking (kegiatan_id -> {mahasiswa_id -> {'check_in': time, 'check_out': time}})
+# Ini digunakan agar Python bisa ingat status tanpa menulis ke DB
+local_attendance_state = {}
+
+def get_local_action(mahasiswa_id, kegiatan_id):
+    """Tentukan action berdasarkan in-memory state (bukan database).
+    
+    Returns: 'check_in', 'check_out', 'cooldown', atau 'already_checked_out'
+    """
+    key = str(kegiatan_id or 'default')
+    
+    if key not in local_attendance_state:
+        local_attendance_state[key] = {}
+    
+    session = local_attendance_state[key]
+    
+    if mahasiswa_id not in session:
+        # Belum ada record → check_in
+        session[mahasiswa_id] = {'check_in': datetime.now(), 'check_out': None}
+        return 'check_in'
+    
+    record = session[mahasiswa_id]
+    
+    if record['check_in'] and not record['check_out']:
+        # Sudah check_in, belum check_out → cek cooldown
+        elapsed = (datetime.now() - record['check_in']).total_seconds()
+        cooldown_seconds = YOLO_SETTINGS.get('qr_cooldown', 30)
+        if elapsed < cooldown_seconds:
+            return 'cooldown'
+        # Sudah lewat cooldown → check_out
+        record['check_out'] = datetime.now()
+        return 'check_out'
+    
+    if record['check_in'] and record['check_out']:
+        # Sudah selesai (masuk & keluar)
+        return 'already_checked_out'
+    
+    return 'check_in'
+
+def reset_local_attendance(kegiatan_id=None):
+    """Reset in-memory state (dipanggil saat clear data atau ganti kegiatan)"""
+    global local_attendance_state
+    if kegiatan_id:
+        key = str(kegiatan_id)
+        local_attendance_state.pop(key, None)
+    else:
+        local_attendance_state = {}
+
+@app.route('/monitor', methods=['GET'])
+def monitor_view():
+    """Serve the local monitor frontend"""
+    return render_template('monitor.html')
+
+@app.route('/cctv', methods=['GET'])
+def cctv_view():
+    """Serve the fullscreen CCTV frontend"""
+    return render_template('cctv.html')
 
 @app.route('/api/python/status', methods=['GET'])
 def status():
@@ -219,19 +277,37 @@ def detect_qr():
 
 @app.route('/api/python/attendance', methods=['POST'])
 def record_attendance():
-    """Record attendance to Laravel database"""
+    """Lookup mahasiswa & determine action — TIDAK menulis ke DB.
+    
+    Penulisan ke DB hanya dilakukan saat user menekan 'Sync ke Server'
+    yang memanggil Laravel /api/sync endpoint.
+    """
     try:
-        if db is None:
-            return jsonify({
-                'success': False,
-                'message': 'Database not connected - attendance recording disabled'
-            }), 503
-
         data = request.json
-        qr_code_id = data.get('mahasiswa_id')  # This is actually the QR code ID, not mahasiswa ID
-        confidence = data.get('confidence', 0.0)  # Get confidence from request
+        qr_code_id = data.get('mahasiswa_id')  # This is actually the QR code ID
+        confidence = data.get('confidence', 0.0)
+        kegiatan_id = data.get('kegiatan_id', None)
 
-        # Look up mahasiswa by QR code
+        from datetime import datetime
+        now = datetime.now()
+        time_str = now.strftime('%H:%M:%S')
+
+        if db is None:
+            # === MODE LOKAL TANPA DATABASE ===
+            return jsonify({
+                'success': True,
+                'message': 'Disimpan di lokal (menunggu sync)',
+                'result': {'status': 'checked_in', 'time': time_str},
+                'mahasiswa': {
+                    'id': qr_code_id,
+                    'name': 'Mahasiswa (' + str(qr_code_id) + ')',
+                    'kompi': 'Local',
+                    'jurusan': '-'
+                }
+            })
+
+        # === LOOKUP ONLY MODE ===
+        # Cari mahasiswa di database (READ-ONLY)
         mahasiswa = db.get_mahasiswa_by_qr(qr_code_id)
         if not mahasiswa:
             return jsonify({
@@ -246,46 +322,59 @@ def record_attendance():
                 'message': f"Mahasiswa '{mahasiswa.get('name')}' ({qr_code_id}) tidak aktif. Silakan hubungi Administrator."
             }), 403
 
-        # Use the actual mahasiswa_id from the database
         actual_mahasiswa_id = mahasiswa['id']
 
-        # Determine whether this should be a check-in or check-out
-        action = 'check_in'
-        if processor is not None:
-            action = processor._determine_action(actual_mahasiswa_id)
-            
-            # Stop execution if student is in 1-hour cooldown or already checked out
-            if action in ['none', 'cooldown']:
-                return jsonify({
-                    'success': True,
-                    'message': f'Attendance ignored ({action})',
-                    'result': {'status': action},
-                    'mahasiswa': {
-                        'id': mahasiswa['id'],
-                        'name': mahasiswa['name']
-                    }
-                })
+        # Determine action berdasarkan in-memory state (BUKAN database)
+        action = get_local_action(actual_mahasiswa_id, kegiatan_id)
+        
+        if action == 'cooldown':
+            return jsonify({
+                'success': True,
+                'message': f'Attendance ignored (cooldown)',
+                'result': {'status': 'cooldown'},
+                'mahasiswa': {
+                    'id': mahasiswa['id'],
+                    'name': mahasiswa['name']
+                }
+            })
+        
+        if action == 'already_checked_out':
+            return jsonify({
+                'success': True,
+                'message': f'Sudah selesai absen (masuk & keluar) untuk sesi ini',
+                'result': {'status': 'already_checked_out'},
+                'mahasiswa': {
+                    'id': mahasiswa['id'],
+                    'name': mahasiswa['name']
+                }
+            })
 
-        # Record attendance using DatabaseManager method
-        # Use NULL for camera_id to avoid foreign key constraint error
-        result = db.record_attendance(
-            actual_mahasiswa_id,
-            action,
-            None,  # camera_id (NULL to avoid foreign key constraint)
-            None,  # snapshot_path
-            confidence  # Use confidence from request
-        )
+        # action = 'check_in' atau 'check_out'
 
         return jsonify({
             'success': True,
             'message': 'Attendance recorded',
-            'result': result,
+            'result': {'status': status, 'time': time_str},
             'mahasiswa': {
                 'id': mahasiswa['id'],
                 'name': mahasiswa['name'],
                 'kompi': mahasiswa['kompi'],
                 'jurusan': mahasiswa['jurusan']
             }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/python/reset-state', methods=['POST'])
+def reset_attendance_state():
+    """Reset in-memory attendance tracking (dipanggil saat Clear Data atau ganti kegiatan)"""
+    try:
+        data = request.json or {}
+        kegiatan_id = data.get('kegiatan_id', None)
+        reset_local_attendance(kegiatan_id)
+        return jsonify({
+            'success': True,
+            'message': 'In-memory attendance state telah di-reset'
         })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -384,6 +473,83 @@ def process_video():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
+@app.route('/api/python/backup', methods=['POST'])
+def backup_to_excel():
+    """Backup local sync data to Excel file"""
+    try:
+        data = request.json.get('data', [])
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+            
+        import pandas as pd
+        import os
+        from datetime import datetime
+        
+        # Format the data for Excel
+        df = pd.DataFrame(data)
+        
+        # Ensure backups directory exists
+        backup_dir = os.path.join(str(Path(__file__).parent), 'backups')
+        os.makedirs(backup_dir, exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"absensi_backup_{timestamp}.xlsx"
+        filepath = os.path.join(backup_dir, filename)
+        
+        # Save to Excel
+        df.to_excel(filepath, index=False)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Backup berhasil disimpan ke {filename}',
+            'filename': filename
+        })
+    except Exception as e:
+        logger.error(f"Backup failed: {e}")
+        return jsonify({'success': False, 'message': f'Gagal backup: {str(e)}'}), 500
+
+@app.route('/api/python/backup', methods=['DELETE'])
+def clear_backup_files():
+    """Hapus semua file backup excel lokal"""
+    try:
+        import os
+        import glob
+        
+        backup_dir = os.path.join(str(Path(__file__).parent), 'backups')
+        files = glob.glob(os.path.join(backup_dir, '*.xlsx'))
+        
+        deleted = 0
+        for f in files:
+            try:
+                os.remove(f)
+                deleted += 1
+            except Exception as e:
+                logger.error(f"Gagal menghapus file {f}: {e}")
+                
+        return jsonify({
+            'success': True,
+            'message': f'Berhasil menghapus {deleted} file backup'
+        })
+    except Exception as e:
+        logger.error(f"Clear backups failed: {e}")
+        return jsonify({'success': False, 'message': f'Gagal menghapus backup: {str(e)}'}), 500
+
+@app.route('/api/python/kegiatan', methods=['GET'])
+def get_kegiatan():
+    """Mengambil daftar kegiatan aktif dari Laravel DB"""
+    try:
+        if db is None:
+            return jsonify({'success': False, 'message': 'Database not connected'}), 500
+        
+        kegiatans = db.get_active_kegiatan()
+        return jsonify({
+            'success': True,
+            'data': kegiatans
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 if __name__ == '__main__':
     print("=" * 60)
@@ -392,14 +558,14 @@ if __name__ == '__main__':
     print("=" * 60)
     print()
     print("Server akan berjalan di:")
-    print("  - http://127.0.0.1:5000")
+    print("  - http://0.0.0.0:5000")
     print()
     print("Tekan Ctrl+C untuk menghentikan server")
     print("=" * 60)
     print()
     
     app.run(
-        host='127.0.0.1',
+        host='0.0.0.0',
         port=5000,
         debug=True,
         threaded=True
