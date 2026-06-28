@@ -1,0 +1,1819 @@
+const API = '/api';
+let mahasiswaData = [];
+let currentMahasiswa = null; // Store current logged-in mahasiswa
+let attendanceReminderShown = false;
+
+// ─── Authentication Check & Pengambilan Data ────────────────────────────────
+(function() {
+  // Langsung minta data ke server menggunakan Session Cookies dari Laravel
+  fetch(API + '/auth/me', {
+    headers: { 
+      'Content-Type': 'application/json'
+    },
+    credentials: 'include' // Sangat penting! Ini yang membawa status login Laravel-mu ke API
+  })
+  .then(res => {
+    if (!res.ok) throw new Error('Gagal terhubung ke server');
+    return res.json();
+  })
+  .then(result => {
+    // Cek apakah data mahasiswa berhasil didapat
+    if (result && result.success && result.data && result.data.mahasiswa) {
+      currentMahasiswa = result.data.mahasiswa || result.data;
+      // Gunakan full_name jika name tidak ada
+      const namaMhs = currentMahasiswa.full_name || currentMahasiswa.name;
+      console.log('[Mahasiswa Portal] Data berhasil dimuat:', namaMhs);
+      
+      // Jalankan fungsi pengisian dashboard
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeMahasiswaPortal);
+      } else {
+        setTimeout(initializeMahasiswaPortal, 100);
+      }
+      // Hide skeleton loader
+      document.getElementById('skeleton-loader').style.display = 'none';
+    } else {
+      console.error('[Mahasiswa Portal] ERROR: Data mahasiswa tidak ditemukan di response API.');
+    }
+  })
+  .catch(err => {
+    console.error('Terjadi kesalahan saat memuat data:', err);
+  });
+})();
+
+// ─── API Helper Function ─────────────────────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(opts.headers || {})
+    };
+    
+    const r = await fetch(API + path, {
+      ...opts,
+      headers,
+      credentials: 'include'  // Include cookies session Laravel
+    });
+    return await r.json();
+  } catch (e) {
+    console.error('API fetch error:', e);
+    return null;
+  }
+}
+
+// ─── Toast Notification ──────────────────────────────────────────────────
+function toast(title, msg = '', isError = false) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  document.getElementById('toast-title').textContent = title;
+  document.getElementById('toast-msg').textContent = msg;
+  t.className = isError ? 'show error' : 'show';
+  setTimeout(() => t.className = '', 4000);
+}
+
+// ─── Modal ───────────────────────────────────────────────────────────────
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.remove('show');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.modal-backdrop').forEach(el => {
+    el.addEventListener('click', function (e) {
+      if (e.target === this) closeModal(this.id);
+    });
+  });
+});
+
+// ─── Initialize Mahasiswa Portal ─────────────────────────────────────────
+function initializeMahasiswaPortal() {
+  console.log('[INIT] Starting portal initialization...');
+  console.log('[INIT] currentMahasiswa:', currentMahasiswa);
+  
+  if (!currentMahasiswa) {
+    console.error('[INIT] ERROR: No mahasiswa data available');
+    return;
+  }
+  
+  console.log('[INIT] Initializing portal for:', currentMahasiswa.name);
+  
+  // Hide all mahasiswa selector dropdowns
+  console.log('[INIT] Hiding selectors...');
+  hideAllMahasiswaSelectors();
+  
+  // Show welcome message
+  console.log('[INIT] Showing welcome message...');
+  showWelcomeMessage();
+  
+  // Auto-load dashboard data
+  console.log('[INIT] Loading dashboard data...');
+  loadDashboardData();
+  checkAttendanceReminder();
+  
+  console.log('[INIT] Portal initialization complete!');
+}
+
+function hideAllMahasiswaSelectors() {
+  console.log('[HIDE] Hiding all mahasiswa selectors...');
+  
+  // List of all mahasiswa selector IDs
+  const selectorIds = [
+    'dashboard-mahasiswa-select',
+    'profile-mahasiswa-select', 
+    'riwayat-mahasiswa-select',
+    'izin-mahasiswa-select',
+    'kehadiran-mahasiswa-select',
+    'sertifikat-mahasiswa-select'
+  ];
+  
+  let hiddenCount = 0;
+  selectorIds.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      const container = element.closest('.form-row');
+      if (container) {
+        container.style.display = 'none';
+        hiddenCount++;
+        console.log(`[HIDE] Hidden: ${id}`);
+      } else {
+        console.warn(`[HIDE] Container not found for: ${id}`);
+      }
+    } else {
+      console.warn(`[HIDE] Element not found: ${id}`);
+    }
+  });
+  
+  console.log(`[HIDE] Total hidden: ${hiddenCount}/${selectorIds.length}`);
+}
+
+function showWelcomeMessage() {
+  console.log('[WELCOME] Creating welcome message...');
+  
+  const welcomeElement = document.getElementById('welcome-message');
+  if (welcomeElement && currentMahasiswa) {
+    const displayName = currentMahasiswa.full_name || currentMahasiswa.name || 'Mahasiswa';
+    const displayKelompok = currentMahasiswa.kompi || '-';
+    const displayProdi = currentMahasiswa.prodi || '-';
+    const displayJurusan = currentMahasiswa.jurusan || '-';
+
+    welcomeElement.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 12px; margin-top: 8px;">
+        <span class="material-symbols-outlined" style="font-size: 20px; color: var(--primary);">account_circle</span>
+        <div>
+          <span style="font-weight: 600; color: var(--text);">${displayName}</span>
+          <span style="color: var(--text-muted); margin-left: 8px;">
+            ${currentMahasiswa.id} • ${displayKelompok} • ${currentMahasiswa.jurusan || '-'} • ${displayProdi}
+          </span>
+        </div>
+      </div>
+    `;
+    console.log('[WELCOME] Welcome message updated in header');
+  }
+}
+
+async function checkAttendanceReminder() {
+  if (attendanceReminderShown || !currentMahasiswa) return;
+  attendanceReminderShown = true;
+
+  try {
+    const res = await fetch(API + '/mahasiswa/attendance-reminder', {
+      credentials: 'include'
+    });
+    if (!res.ok) return;
+
+    const result = await res.json();
+    if (!result.success || !result.data.should_show) return;
+
+    const dates = result.data.missing_dates;
+    if (!dates || dates.length === 0) return;
+
+    const formatDate = (d) => {
+      const dt = new Date(d + 'T00:00:00');
+      return dt.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    };
+
+    let contentHtml = '';
+    if (dates.length === 1) {
+      contentHtml = `
+        <div style="display:flex;align-items:flex-start;gap:14px;padding:20px;background:var(--danger-light,#fff0f0);border:1px solid var(--danger,#ef4444);border-radius:var(--radius-md,8px)">
+          <span class="material-symbols-outlined" style="font-size:32px;color:var(--danger,#ef4444);flex-shrink:0">warning</span>
+          <div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:6px">Peringatan! Anda belum melakukan absensi pada tanggal ${formatDate(dates[0])}.</div>
+            <div style="font-size:13px;color:var(--text-muted)">Silakan hubungi guru pembimbing atau lakukan konfirmasi jika diperlukan.</div>
+          </div>
+        </div>`;
+    } else {
+      const dateListHtml = dates.map(d => `<li style="padding:4px 0;font-family:var(--mono,monospace);font-size:13px">${formatDate(d)}</li>`).join('');
+      contentHtml = `
+        <div style="display:flex;align-items:flex-start;gap:14px;padding:20px;background:var(--danger-light,#fff0f0);border:1px solid var(--danger,#ef4444);border-radius:var(--radius-md,8px)">
+          <span class="material-symbols-outlined" style="font-size:32px;color:var(--danger,#ef4444);flex-shrink:0">warning</span>
+          <div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:6px">Peringatan! Anda belum melakukan absensi pada ${dates.length} tanggal berikut:</div>
+            <ul style="margin:8px 0 8px 18px;max-height:200px;overflow-y:auto">${dateListHtml}</ul>
+            <div style="font-size:13px;color:var(--text-muted)">Silakan hubungi guru pembimbing atau lakukan konfirmasi jika diperlukan.</div>
+          </div>
+        </div>`;
+    }
+
+    document.getElementById('attendance-reminder-content').innerHTML = contentHtml;
+    document.getElementById('modal-attendance-reminder').classList.add('show');
+  } catch (e) {
+    console.error('Error checking attendance reminder:', e);
+  }
+}
+
+// ─── Submit Izin ─────────────────────────────────────────────────────────
+async function submitIzin() {
+  if (!currentMahasiswa) {
+    return toast('Error: Data mahasiswa tidak ditemukan', '', true);
+  }
+  
+  const mahasiswaId = currentMahasiswa.id;
+  const type = document.getElementById('izin-type-select').value;
+  const date = document.getElementById('izin-date-input').value;
+  const keterangan = document.getElementById('izin-keterangan-input').value.trim();
+  const buktiFile = document.getElementById('izin-bukti-input').files[0];
+
+  // Validasi
+  if (!date) return toast('Tanggal wajib diisi', '', true);
+  if (!keterangan) return toast('Keterangan wajib diisi', '', true);
+  if (keterangan.length < 10) return toast('Keterangan terlalu singkat', 'Minimal 10 karakter', true);
+  
+  // Validasi bukti WAJIB
+  if (!buktiFile) {
+    return toast('Bukti wajib diupload', 'Upload surat dokter, surat izin, atau bukti pendukung lainnya', true);
+  }
+
+  // Validasi file bukti
+  const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+  if (!allowedTypes.includes(buktiFile.type)) {
+    return toast('Format file tidak didukung', 'Hanya JPG, PNG, PDF', true);
+  }
+  if (buktiFile.size > 10 * 1024 * 1024) {
+    return toast('File terlalu besar', 'Maksimal 10MB', true);
+  }
+
+  const formData = new FormData();
+  formData.append('mahasiswa_id', mahasiswaId);
+  formData.append('type', type);
+  formData.append('date', date);
+  formData.append('keterangan', keterangan);
+  formData.append('bukti', buktiFile);
+  formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+
+  // Disable button
+  const btn = document.querySelector('.btn-primary');
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-symbols-outlined icon-md" style="animation:spin 1s linear infinite">sync</span> Mengirim...';
+
+  try {
+    const res = await fetch(API + '/izin/submit', { 
+      method: 'POST', 
+      headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+      body: formData 
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      toast('Pengajuan berhasil dikirim!',
+        `${type === 'izin' ? 'Izin' : 'Sakit'} untuk tanggal ${date} sedang diproses`);
+      resetIzinForm();
+      loadMyIzinHistory();
+    } else {
+      toast('Gagal mengirim pengajuan', result.message, true);
+    }
+  } catch (e) {
+    toast('Gagal mengirim', 'Pastikan server berjalan', true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+}
+
+function resetIzinForm() {
+  document.getElementById('izin-type-select').value = 'izin';
+  document.getElementById('izin-date-input').value = new Date().toISOString().split('T')[0];
+  document.getElementById('izin-keterangan-input').value = '';
+  document.getElementById('izin-bukti-input').value = '';
+  document.getElementById('my-izin-table-body').innerHTML =
+    '<tr><td colspan="7" class="empty-state">Memuat riwayat...</td></tr>';
+}
+
+// ─── Load Riwayat ────────────────────────────────────────────────────────
+// Store submissions data for detail modal
+let mySubmissionsData = [];
+let myKehadiranData = [];
+
+async function loadMyIzinHistory() {
+  if (!currentMahasiswa) return;
+  
+  const mahasiswaId = currentMahasiswa.id;
+  const tbody = document.getElementById('my-izin-table-body');
+  tbody.innerHTML = '<tr><td colspan="8" class="loading-state"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+
+  try {
+    const res = await fetch(API + `/izin/mahasiswa/${mahasiswaId}`);
+    const result = await res.json();
+
+    if (!result.success || !result.data.submissions.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Belum ada pengajuan</td></tr>';
+      return;
+    }
+
+    mySubmissionsData = result.data.submissions;
+
+    tbody.innerHTML = result.data.submissions.map(s => {
+      const tglFormatted = s.date ? s.date.substring(0, 10) : '-';
+
+      const jenisBadge = s.submission_type === 'izin' 
+        ? '<span class="badge badge-blue">Izin</span>' 
+        : '<span class="badge badge-orange">Sakit</span>';
+
+      const statusBadge = {
+        pending:  '<span class="badge badge-yellow"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">schedule</span> Pending</span>',
+        approved: '<span class="badge badge-green"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check_circle</span> Disetujui</span>',
+        rejected: '<span class="badge badge-red"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">cancel</span> Ditolak</span>'
+      }[s.status] || s.status;
+
+      const verifiedBy = s.verified_by 
+        ? `<div style="font-weight:600">${s.verified_by}</div><div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">${s.verified_at ? new Date(s.verified_at).toLocaleDateString('id-ID', {day:'2-digit',month:'short',year:'numeric'}) : ''}</div>`
+        : '<span style="color:var(--text-muted)">—</span>';
+
+      return `<tr>
+        <td style="font-family:var(--font-mono);font-size:13px;font-weight:600">${tglFormatted}</td>
+        <td>${jenisBadge}</td>
+        <td><div style="font-weight:600">${currentMahasiswa.name}</div></td>
+        <td><span class="badge badge-blue">${currentMahasiswa.kompi}</span></td>
+        <td style="font-size:14px">${currentMahasiswa.jurusan}</td>
+        <td>${statusBadge}</td>
+        <td style="font-size:13px">${verifiedBy}</td>
+        <td>
+          <button class="btn btn-primary btn-sm" onclick="openDetailMahasiswaModal(${s.id})" title="Lihat Detail">
+            <span class="material-symbols-outlined" style="font-size:14px">visibility</span> Detail
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="8" class="error-state">Gagal memuat data</td></tr>';
+  }
+}
+
+// Open detail modal for mahasiswa
+function openDetailMahasiswaModal(submissionId) {
+  const submission = mySubmissionsData.find(s => s.id === submissionId);
+  if (!submission) {
+    toast('Data tidak ditemukan', '', true);
+    return;
+  }
+
+  // Fill mahasiswa info
+  document.getElementById('mhs-detail-mahasiswa-id').textContent = currentMahasiswa.id;
+  document.getElementById('mhs-detail-mahasiswa-name').textContent = currentMahasiswa.name;
+  document.getElementById('mhs-detail-mahasiswa-kompi').textContent = currentMahasiswa.kompi;
+  document.getElementById('mhs-detail-mahasiswa-jurusan').textContent = currentMahasiswa.jurusan;
+  document.getElementById('mhs-detail-mahasiswa-prodi').textContent = currentMahasiswa.prodi || '—';
+
+  // Fill pengajuan info
+  const typeBadge = submission.submission_type === 'izin'
+    ? '<span class="badge badge-blue"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">description</span> Izin</span>'
+    : '<span class="badge badge-orange"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">medical_services</span> Sakit</span>';
+  document.getElementById('mhs-detail-jenis').innerHTML = typeBadge;
+  
+  // Format Tanggal Izin agar rapi (YYYY-MM-DD)
+  const tglFormatted = submission.date ? submission.date.substring(0, 10) : '—';
+  document.getElementById('mhs-detail-tanggal').textContent = tglFormatted;
+
+  // Menggunakan created_at untuk Waktu Pengajuan
+  document.getElementById('mhs-detail-submitted-at').textContent = submission.created_at 
+    ? `pukul ${new Date(submission.created_at).toLocaleString('id-ID', {
+        hour: '2-digit', minute: '2-digit'
+      })}`
+    : '—';
+  
+  const statusBadge = {
+    pending:  '<span class="badge badge-yellow"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">schedule</span> Pending</span>',
+    approved: '<span class="badge badge-green"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check_circle</span> Disetujui</span>',
+    rejected: '<span class="badge badge-red"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">cancel</span> Ditolak</span>'
+  }[submission.status] || submission.status;
+  document.getElementById('mhs-detail-status').innerHTML = statusBadge;
+  document.getElementById('mhs-detail-keterangan').textContent = submission.keterangan;
+
+  // Fill bukti
+  const buktiContainer = document.getElementById('mhs-detail-bukti-container');
+  if (submission.bukti_path) {
+    const ext = submission.bukti_path.split('.').pop().toLowerCase();
+    const filename = submission.bukti_path.split(/[\\/]/).pop();
+    const url = API + `/izin/bukti/${filename}`;
+    
+    if (['jpg', 'jpeg', 'png'].includes(ext)) {
+      buktiContainer.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:var(--radius-md);border:2px solid var(--border)">`;
+    } else if (ext === 'pdf') {
+      buktiContainer.innerHTML = `
+        <div style="padding:30px">
+          <span class="material-symbols-outlined" style="font-size:64px;color:var(--danger)">picture_as_pdf</span>
+          <p style="margin-top:12px;font-weight:600">File PDF</p>
+          <a href="${url}" target="_blank" class="btn btn-primary" style="margin-top:12px;display:inline-flex;gap:6px">
+            <span class="material-symbols-outlined" style="font-size:16px">open_in_new</span> Buka PDF
+          </a>
+        </div>`;
+    }
+  } else {
+    buktiContainer.innerHTML = '<span style="color:var(--text-muted)">Tidak ada bukti</span>';
+  }
+
+  // Fill verification info
+  const verificationInfo = document.getElementById('mhs-detail-verification-info');
+  if (submission.status !== 'pending') {
+    verificationInfo.style.display = 'block';
+    document.getElementById('mhs-detail-verified-by').textContent = submission.verified_by || '—';
+    document.getElementById('mhs-detail-verified-at').textContent = submission.verified_at 
+      ? new Date(submission.verified_at).toLocaleString('id-ID')
+      : '—';
+    
+    // Show rejection reason if rejected
+    const rejectionContainer = document.getElementById('mhs-detail-rejection-reason-container');
+    if (submission.status === 'rejected' && submission.rejection_reason) {
+      rejectionContainer.style.display = 'block';
+      document.getElementById('mhs-detail-rejection-reason').textContent = submission.rejection_reason;
+    } else {
+      rejectionContainer.style.display = 'none';
+    }
+  } else {
+    verificationInfo.style.display = 'none';
+  }
+
+  // Open modal
+  document.getElementById('modal-detail-mahasiswa').classList.add('show');
+}
+
+function viewBukti(submissionId, buktiPath) {
+  const ext = buktiPath.split('.').pop().toLowerCase();
+  const filename = buktiPath.split(/[\\/]/).pop();
+  const url = API + `/izin/bukti/${filename}`;
+  const content = document.getElementById('bukti-content');
+
+  if (['jpg', 'jpeg', 'png'].includes(ext)) {
+    content.innerHTML = `<img src="${url}" class="bukti-image">`;
+  } else if (ext === 'pdf') {
+    content.innerHTML = `
+      <div class="bukti-pdf-container">
+        <span class="material-symbols-outlined bukti-pdf-icon">picture_as_pdf</span>
+        <p class="bukti-pdf-text">File PDF tidak bisa ditampilkan langsung.</p>
+        <a href="${url}" target="_blank" class="btn btn-primary bukti-pdf-button">
+          <span class="material-symbols-outlined icon-md">open_in_new</span> Buka PDF
+        </a>
+      </div>`;
+  } else {
+    content.innerHTML = '<p class="text-muted">Format file tidak dikenali</p>';
+  }
+
+  document.getElementById('modal-bukti').classList.add('show');
+}
+
+// ─── Event Listeners ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  // Set default date
+  document.getElementById('izin-date-input').value = new Date().toISOString().split('T')[0];
+  
+  // Auto-load izin history when section is shown
+  // Will be triggered by initializeMahasiswaPortal
+});
+
+
+// ─── Tab Switching ───────────────────────────────────────────────────────────
+function switchTab(tab) {
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  
+  // Show/hide forms
+  if (tab === 'izin') {
+    document.getElementById('form-izin').style.display = 'block';
+    document.getElementById('form-kehadiran').style.display = 'none';
+  } else {
+    document.getElementById('form-izin').style.display = 'none';
+    document.getElementById('form-kehadiran').style.display = 'block';
+  }
+}
+
+// ─── Kehadiran Manual Functions ──────────────────────────────────────────────
+async function submitKehadiran() {
+  if (!currentMahasiswa) {
+    return toast('Error: Data mahasiswa tidak ditemukan', '', true);
+  }
+  
+  const mahasiswaId = currentMahasiswa.id;
+  const date = document.getElementById('kehadiran-date-input').value;
+  const checkIn = document.getElementById('kehadiran-checkin-input').value;
+  const checkOut = document.getElementById('kehadiran-checkout-input').value;
+  const keterangan = document.getElementById('kehadiran-keterangan-input').value.trim();
+  const buktiFile = document.getElementById('kehadiran-bukti-input').files[0];
+
+  // Validasi
+  if (!date) {
+    toast('Tanggal wajib diisi', '', true);
+    return;
+  }
+  if (!checkIn) {
+    toast('Jam masuk wajib diisi', '', true);
+    return;
+  }
+  if (!checkOut) {
+    toast('Jam keluar wajib diisi', '', true);
+    return;
+  }
+  if (!keterangan || keterangan.length < 10) {
+    toast('Keterangan minimal 10 karakter', '', true);
+    return;
+  }
+  if (!buktiFile) {
+    toast('Bukti wajib diupload', '', true);
+    return;
+  }
+
+  // Validasi ukuran file
+  if (buktiFile.size > 10 * 1024 * 1024) {
+    toast('Ukuran file maksimal 10MB', '', true);
+    return;
+  }
+
+  // Prepare FormData
+  const formData = new FormData();
+  formData.append('mahasiswa_id', mahasiswaId);
+  formData.append('date', date);
+  formData.append('check_in_time', checkIn);
+  formData.append('check_out_time', checkOut);
+  formData.append('keterangan', keterangan);
+  formData.append('bukti', buktiFile);
+
+  try {
+    const res = await fetch(API + '/kehadiran/submit', {
+      method: 'POST',
+      headers: { 
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content 
+      },
+      body: formData
+    });
+
+    const result = await res.json();
+
+    if (result.success) {
+      toast('Pengajuan Berhasil!', 'Menunggu verifikasi dari Tim Disiplin');
+      resetKehadiranForm();
+      loadMyKehadiranHistory(); // Reload history
+    } else {
+      toast('Gagal mengirim pengajuan', result.message, true);
+    }
+  } catch (error) {
+    toast('Error', 'Terjadi kesalahan saat mengirim pengajuan', true);
+    console.error(error);
+  }
+}
+
+function resetKehadiranForm() {
+  document.getElementById('kehadiran-date-input').value = '';
+  document.getElementById('kehadiran-checkin-input').value = '';
+  document.getElementById('kehadiran-checkout-input').value = '';
+  document.getElementById('kehadiran-keterangan-input').value = '';
+  document.getElementById('kehadiran-bukti-input').value = '';
+}
+
+async function loadMyKehadiranHistory() {
+  if (!currentMahasiswa) return;
+  
+  const mahasiswaId = currentMahasiswa.id;
+  const tbody = document.getElementById('my-kehadiran-table-body');
+
+  tbody.innerHTML = '<tr><td colspan="7" class="loading-state"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+
+  try {
+    const res = await fetch(API + `/kehadiran/mahasiswa/${mahasiswaId}`);
+    const result = await res.json();
+
+    if (!result.success || !result.data.submissions || result.data.submissions.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Belum ada pengajuan kehadiran</td></tr>';
+      return;
+    }
+
+    myKehadiranData = result.data.submissions;
+
+    tbody.innerHTML = result.data.submissions.map(s => {
+      
+      const tglFormatted = s.date ? s.date.substring(0, 10) : '-';
+
+      const statusBadge = {
+        pending:  '<span class="badge badge-yellow"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">schedule</span> Pending</span>',
+        approved: '<span class="badge badge-green"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check_circle</span> Disetujui</span>',
+        rejected: '<span class="badge badge-red"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">cancel</span> Ditolak</span>'
+      }[s.status] || s.status;
+
+      const verifiedBy = s.verified_by 
+        ? `<div style="font-weight:600">${s.verified_by}</div><div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">${s.verified_at ? new Date(s.verified_at).toLocaleDateString('id-ID', {day:'2-digit',month:'short',year:'numeric'}) : ''}</div>`
+        : '<span style="color:var(--text-muted)">—</span>';
+
+      return `<tr>
+        <td style="font-family:var(--font-mono);font-size:13px;font-weight:600">${tglFormatted}</td>
+        <td>
+          <div style="font-weight:600">${currentMahasiswa.name}</div>
+        </td>
+        <td><span class="badge badge-blue">${currentMahasiswa.kompi}</span></td>
+        <td style="font-size:14px">${currentMahasiswa.jurusan}</td>
+        <td>${statusBadge}</td>
+        <td style="font-size:13px">${verifiedBy}</td>
+        <td>
+          <button class="btn btn-primary btn-sm" onclick="openDetailKehadiranModal(${s.id})" title="Lihat Detail">
+            <span class="material-symbols-outlined" style="font-size:14px">visibility</span>
+            Detail
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    console.error('Error loading kehadiran history:', e);
+    tbody.innerHTML = '<tr><td colspan="7" class="error-state">Gagal memuat data</td></tr>';
+  }
+}
+
+// ─── Dashboard Functions ─────────────────────────────────────────────────
+async function loadDashboardData() {
+  if (!currentMahasiswa) return;
+  const mahasiswaId = currentMahasiswa.id;
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/statistics`, {
+      credentials: 'include'
+    });
+    
+    // PENGAMAN: Jika API belum dibuat di Laravel (404), hentikan eksekusi chart di sini
+    if (!res.ok) {
+      console.warn('⚠️ API Statistik belum tersedia. Silakan buat route di Laravel.');
+      document.getElementById('dashboard-stats').style.display = 'block';
+      return; 
+    }
+
+    const result = await res.json();
+    if (result.success) {
+      const stats = result.data;
+      document.getElementById('stat-total-hadir').textContent = stats.totalHadir || 0;
+      document.getElementById('stat-bulan-ini').textContent = stats.hadirBulanIni || 0;
+      document.getElementById('stat-izin-sakit').textContent = stats.totalIzin || 0;
+      document.getElementById('stat-tidak-hadir').textContent = stats.tidakHadir || 0;
+      document.getElementById('stat-percentage').textContent = `${stats.persentaseKehadiran || 0}%`;
+      document.getElementById('stat-avg-duration').textContent = stats.rataRataDurasi || '0 jam';
+      document.getElementById('stat-longest-streak').textContent = `${stats.streakTerpanjang || 0} hari`;
+      document.getElementById('stat-late-count').textContent = `${stats.terlambat || 0} kali`;
+      
+      // loadAttendanceChart(mahasiswaId);
+      // loadMonthlyChart(mahasiswaId);
+      loadRecentActivity(mahasiswaId);
+      loadTodayAttendanceStatus(mahasiswaId);
+      
+      document.getElementById('dashboard-stats').style.display = 'block';
+    }
+  } catch (e) {
+    console.error('Error loading dashboard data:', e);
+  }
+}
+
+function refreshDashboard() {
+  loadDashboardData();
+  toast('Dashboard diperbarui', 'Data statistik diperbarui', false);
+}
+
+async function loadTodayAttendanceStatus(mahasiswaId) {
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/today-attendance`, {
+      credentials: 'include'
+    });
+    
+    const result = await res.json();
+    if (result.success) {
+      const status = result.data;
+      const statusElement = document.getElementById('today-attendance-status');
+      
+      if (statusElement) {
+        let statusHtml = '';
+        if (status.status === 'pending') {
+          statusHtml = `
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:var(--warning-light);border:1px solid var(--warning);border-radius:var(--radius-md)">
+              <span class="material-symbols-outlined" style="color:var(--warning);font-size:20px">schedule</span>
+              <div>
+                <div style="font-weight:600;color:var(--text)">Belum Diabsen</div>
+                <div style="font-size:12px;color:var(--text-muted)">Menunggu admin scan QR</div>
+              </div>
+            </div>
+          `;
+        } else if (status.status === 'alpha') {
+          statusHtml = `
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:var(--danger-light);border:1px solid var(--danger);border-radius:var(--radius-md)">
+              <span class="material-symbols-outlined" style="color:var(--danger);font-size:20px">cancel</span>
+              <div>
+                <div style="font-weight:600;color:var(--text)">Alpha</div>
+                <div style="font-size:12px;color:var(--text-muted)">Tidak hadir hari ini</div>
+              </div>
+            </div>
+          `;
+        } else {
+          statusHtml = `
+            <div style="display:flex;align-items:center;gap:8px;padding:12px;background:var(--success-light);border:1px solid var(--success);border-radius:var(--radius-md)">
+              <span class="material-symbols-outlined" style="color:var(--success);font-size:20px">check_circle</span>
+              <div>
+                <div style="font-weight:600;color:var(--text)">Hadir</div>
+                <div style="font-size:12px;color:var(--text-muted)">Sudah diabsen oleh admin</div>
+              </div>
+            </div>
+          `;
+        }
+        statusElement.innerHTML = statusHtml;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading today attendance status:', e);
+  }
+}
+
+async function loadAttendanceChart(mahasiswaId) {
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/chart/weekly`);
+    const result = await res.json();
+    
+    if (result.success && result.data) {
+      renderAttendanceChart(result.data);
+    }
+  } catch (e) {
+    console.error('Error loading attendance chart:', e);
+  }
+}
+
+async function loadMonthlyChart(mahasiswaId) {
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/chart/monthly`);
+    const result = await res.json();
+    
+    if (result.success && result.data) {
+      renderMonthlyChart(result.data);
+    }
+  } catch (e) {
+    console.error('Error loading monthly chart:', e);
+  }
+}
+
+async function loadRecentActivity(mahasiswaId) {
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/activity`);
+    const result = await res.json();
+    
+    if (result.success && result.data) {
+      renderRecentActivity(result.data);
+    }
+  } catch (e) {
+    console.error('Error loading recent activity:', e);
+  }
+}
+
+function renderAttendanceChart(data) {
+  const canvas = document.getElementById('attendance-chart');
+  const ctx = canvas.getContext('2d');
+  
+  // Simple chart implementation (you can replace with Chart.js)
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Set canvas size
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 200;
+  
+  const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+  const values = data.attendance || [0, 0, 0, 0, 0, 0, 0];
+  const maxValue = Math.max(...values, 1);
+  
+  const barWidth = canvas.width / days.length * 0.6;
+  const barSpacing = canvas.width / days.length * 0.4;
+  
+  ctx.fillStyle = '#2D5BFF';
+  
+  values.forEach((value, index) => {
+    const barHeight = (value / maxValue) * (canvas.height - 40);
+    const x = index * (barWidth + barSpacing) + barSpacing / 2;
+    const y = canvas.height - barHeight - 20;
+    
+    ctx.fillRect(x, y, barWidth, barHeight);
+    
+    // Draw labels
+    ctx.fillStyle = '#6B7A90';
+    ctx.font = '12px DM Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText(days[index], x + barWidth / 2, canvas.height - 5);
+    
+    ctx.fillStyle = '#2D5BFF';
+  });
+}
+
+function renderMonthlyChart(data) {
+  const canvas = document.getElementById('monthly-chart');
+  const ctx = canvas.getContext('2d');
+  
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 200;
+  
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'];
+  const values = data.monthly || [0, 0, 0, 0, 0, 0];
+  const maxValue = Math.max(...values, 1);
+  
+  const barWidth = canvas.width / months.length * 0.6;
+  const barSpacing = canvas.width / months.length * 0.4;
+  
+  ctx.fillStyle = '#06D6A0';
+  
+  values.forEach((value, index) => {
+    const barHeight = (value / maxValue) * (canvas.height - 40);
+    const x = index * (barWidth + barSpacing) + barSpacing / 2;
+    const y = canvas.height - barHeight - 20;
+    
+    ctx.fillRect(x, y, barWidth, barHeight);
+    
+    ctx.fillStyle = '#6B7A90';
+    ctx.font = '12px DM Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText(months[index], x + barWidth / 2, canvas.height - 5);
+    
+    ctx.fillStyle = '#06D6A0';
+  });
+}
+
+function renderRecentActivity(activities) {
+  const container = document.getElementById('recent-activity');
+  
+  if (!activities || activities.length === 0) {
+    container.innerHTML = '<div class="empty-state">Belum ada aktivitas</div>';
+    return;
+  }
+  
+  container.innerHTML = activities.map(activity => `
+    <div class="activity-item">
+      <div class="activity-icon" style="background:${getActivityColor(activity.type)};color:white">
+        <span class="material-symbols-outlined">${getActivityIcon(activity.type)}</span>
+      </div>
+      <div class="activity-content">
+        <div class="activity-title">${activity.title}</div>
+        <div class="activity-desc">${activity.description}</div>
+        <div class="activity-time">${formatDateTime(activity.timestamp)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function getActivityColor(type) {
+  const colors = {
+    'checkin': '#06D6A0',
+    'checkout': '#2D5BFF',
+    'izin': '#FFD23F',
+    'sakit': '#EF476F',
+    'late': '#FF6B35'
+  };
+  return colors[type] || '#6B7A90';
+}
+
+function getActivityIcon(type) {
+  const icons = {
+    'checkin': 'login',
+    'checkout': 'logout',
+    'izin': 'edit_note',
+    'sakit': 'medical_services',
+    'late': 'schedule'
+  };
+  return icons[type] || 'notifications';
+}
+
+// ─── Sertifikat Functions ────────────────────────────────────────────────
+function isSertifikatWeekend(date = new Date()) {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function setSertifikatHistoryVisibility() {
+  const panel = document.getElementById('sertifikat-history-panel');
+  if (!panel) return;
+
+  panel.style.display = isSertifikatWeekend() ? 'block' : 'none';
+}
+
+function toggleSertifikatPeriodeFields(selected) {
+  ['weekly', 'monthly', 'semester', 'yearly', 'custom'].forEach(type => {
+    const element = document.getElementById(`periode-${type}`);
+    if (element) {
+      element.style.display = selected === type ? 'block' : 'none';
+    }
+  });
+}
+
+async function loadSertifikatData() {
+  if (!currentMahasiswa) return;
+  
+  document.getElementById('sertifikat-options').style.display = 'block';
+  setSertifikatHistoryVisibility();
+  updateSertifikatPreview();
+
+  if (isSertifikatWeekend()) {
+    loadSertifikatHistory(currentMahasiswa.id);
+  }
+}
+
+async function updateSertifikatPreview() {
+  if (!currentMahasiswa) return;
+  
+  const mahasiswaId = currentMahasiswa.id;
+  const periode = getSertifikatPeriode();
+  if (!periode) return;
+  
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(periode)
+    });
+    
+    const result = await res.json();
+    if (result.success) {
+      const stats = result.data || result.stats || {};
+      document.getElementById('preview-total-hadir').textContent = stats.totalHadir || 0;
+      document.getElementById('preview-persentase').textContent = `${stats.persentase || 0}%`;
+      document.getElementById('preview-total-izin').textContent = stats.totalIzin || 0;
+      document.getElementById('preview-total-hari').textContent = stats.totalHari || 0;
+      
+      document.getElementById('sertifikat-preview').style.display = 'block';
+    }
+  } catch (e) {
+    console.error('Error updating sertifikat preview:', e);
+  }
+}
+
+function getSertifikatPeriode() {
+  const periodeType = document.getElementById('sertifikat-periode').value;
+  
+  switch (periodeType) {
+    case 'weekly':
+      return {
+        type: 'weekly'
+      };
+    case 'monthly':
+      return {
+        type: 'monthly',
+        month: document.getElementById('sertifikat-bulan').value,
+        year: document.getElementById('sertifikat-tahun-monthly').value
+      };
+    case 'semester':
+      return {
+        type: 'semester',
+        semester: document.getElementById('sertifikat-semester').value,
+        year: document.getElementById('sertifikat-tahun-semester').value
+      };
+    case 'yearly':
+      return {
+        type: 'yearly',
+        year: document.getElementById('sertifikat-tahun-yearly').value
+      };
+    case 'custom':
+      return {
+        type: 'custom',
+        startDate: document.getElementById('sertifikat-start-date').value,
+        endDate: document.getElementById('sertifikat-end-date').value
+      };
+    default:
+      return null;
+  }
+}
+
+let sertifikatPreviewObjectUrl = null;
+
+function getSertifikatPayload() {
+  const periode = getSertifikatPeriode();
+  return periode ? { ...periode } : null;
+}
+
+async function openSertifikatPreviewModal(event) {
+  if (!currentMahasiswa) {
+    toast('Error: Data mahasiswa tidak ditemukan', '', true);
+    return;
+  }
+  
+  const mahasiswaId = currentMahasiswa.id;
+  const payload = getSertifikatPayload();
+  
+  if (!payload) {
+    toast('Lengkapi periode', 'Pilih periode sertifikat', true);
+    return;
+  }
+  
+  const btn = event.currentTarget || event.target;
+  btn.classList.add('btn-loading');
+  btn.disabled = true;
+  
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/preview-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+    
+    if (res.ok) {
+      const blob = await res.blob();
+      if (sertifikatPreviewObjectUrl) {
+        window.URL.revokeObjectURL(sertifikatPreviewObjectUrl);
+      }
+      sertifikatPreviewObjectUrl = window.URL.createObjectURL(blob);
+      document.getElementById('sertifikat-preview-image').src = sertifikatPreviewObjectUrl;
+      document.getElementById('modal-sertifikat-preview').classList.add('show');
+    } else {
+      const result = await res.json();
+      toast('Gagal memuat preview sertifikat', result.message || 'Terjadi kesalahan', true);
+    }
+  } catch (e) {
+    console.error('Error previewing sertifikat:', e);
+    toast('Gagal memuat preview sertifikat', 'Pastikan server berjalan', true);
+  } finally {
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
+  }
+}
+
+function closeSertifikatPreviewModal() {
+  document.getElementById('modal-sertifikat-preview').classList.remove('show');
+  document.getElementById('sertifikat-preview-image').src = '';
+
+  if (sertifikatPreviewObjectUrl) {
+    window.URL.revokeObjectURL(sertifikatPreviewObjectUrl);
+    sertifikatPreviewObjectUrl = null;
+  }
+}
+
+async function downloadSertifikatFromPreview(event) {
+  if (!currentMahasiswa) {
+    toast('Error: Data mahasiswa tidak ditemukan', '', true);
+    return;
+  }
+
+  const mahasiswaId = currentMahasiswa.id;
+  const payload = getSertifikatPayload();
+
+  if (!payload) {
+    toast('Lengkapi periode', 'Pilih periode sertifikat', true);
+    return;
+  }
+
+  const btn = event.currentTarget || event.target;
+  btn.classList.add('btn-loading');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sertifikat_${mahasiswaId}_${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast('Sertifikat berhasil diunduh', 'File PNG telah disimpan');
+      closeSertifikatPreviewModal();
+      loadSertifikatHistory(mahasiswaId);
+    } else {
+      const result = await res.json();
+      toast('Gagal download sertifikat', result.message || 'Terjadi kesalahan', true);
+    }
+  } catch (e) {
+    console.error('Error downloading sertifikat:', e);
+    toast('Gagal download sertifikat', 'Pastikan server berjalan', true);
+  } finally {
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
+  }
+}
+
+async function loadSertifikatHistory(mahasiswaId) {
+  if (!isSertifikatWeekend()) {
+    setSertifikatHistoryVisibility();
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/sertifikat/history`, {
+      credentials: 'include'
+    });
+    const result = await res.json();
+    
+    if (result.success) {
+      renderSertifikatHistory(result.data || []);
+    }
+  } catch (e) {
+    console.error('Error loading sertifikat history:', e);
+  }
+}
+
+function renderSertifikatHistory(history) {
+  const tbody = document.getElementById('sertifikat-history-table');
+  
+  if (history.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada sertifikat yang diunduh</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = history.map(item => `
+    <tr>
+      <td>${formatDateTime(item.created_at)}</td>
+      <td>${formatPeriode(item.periode)}</td>
+      <td>${item.total_hadir}</td>
+      <td>${item.persentase}%</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="downloadSertifikatHistory('${item.id}')">
+          <span class="material-symbols-outlined">download</span>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function formatPeriode(periode) {
+  if (!periode) return '-';
+
+  let p = null;
+  try {
+    p = JSON.parse(periode);
+  } catch (e) {
+    return periode;
+  }
+
+  switch (p.type) {
+    case 'weekly':
+      return 'Mingguan';
+    case 'monthly':
+      return `${getMonthName(p.month)} ${p.year}`;
+    case 'semester':
+      return `${p.semester} ${p.year}`;
+    case 'yearly':
+      return p.year;
+    case 'custom':
+      return `${p.startDate} - ${p.endDate}`;
+    default:
+      return '-';
+  }
+}
+
+function getMonthName(month) {
+  const months = {
+    '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April',
+    '05': 'Mei', '06': 'Juni', '07': 'Juli', '08': 'Agustus',
+    '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Desember'
+  };
+  return months[month] || month;
+}
+
+async function downloadSertifikatHistory(historyId) {
+  try {
+    const res = await fetch(`${API}/sertifikat/download/${historyId}`, {
+      credentials: 'include'
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sertifikat_${historyId}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }
+  } catch (e) {
+    console.error('Error downloading sertifikat:', e);
+    toast('Gagal download sertifikat', 'Terjadi kesalahan', true);
+  }
+}
+
+// ─── Utility Functions ───────────────────────────────────────────────────
+function formatDateTime(dateString) {
+  const date = new Date(dateString);
+  return date.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// ─── Enhanced Profile Functions ──────────────────────────────────────────
+async function loadProfileData() {
+  if (!currentMahasiswa) return;
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${currentMahasiswa.id}`);
+
+    // 👇 Tambahkan 3 baris pengaman ini 👇
+    if (!res.ok) {
+        throw new Error('API Profile gagal dipanggil atau belum dibuat (404)');
+    }
+
+    const result = await res.json();
+    
+    if (result.success && result.data) {
+      const mhs = result.data;
+      document.getElementById('profile-id').value = mhs.mahasiswa_id || mhs.id;
+      document.getElementById('profile-name').value = mhs.name || '';
+      document.getElementById('profile-kompi').value = mhs.kompi || '';
+      document.getElementById('profile-jurusan').value = mhs.jurusan || '';
+      document.getElementById('profile-prodi').value = mhs.prodi || '';
+      document.getElementById('profile-email').value = mhs.email || '';
+      
+      document.getElementById('profile-form').style.display = 'block';
+    }
+  } catch (e) {
+    console.error('Error loading profile:', e);
+    toast('Gagal memuat profil', 'Pastikan server berjalan', true);
+  }
+}
+
+async function updateProfile() {
+  if (!currentMahasiswa) return;
+  
+  const mahasiswaId = currentMahasiswa.id;
+  const name = document.getElementById('profile-name').value.trim();
+  const email = document.getElementById('profile-email').value.trim();
+  const currentPassword = document.getElementById('profile-current-password').value;
+  const newPassword = document.getElementById('profile-new-password').value;
+  const newPasswordConfirm = document.getElementById('profile-new-password-confirmation').value;
+
+  // Validasi password jika ingin mengubah
+  if (currentPassword || newPassword || newPasswordConfirm) {
+    if (!currentPassword) {
+      toast('Password saat ini wajib diisi', 'Masukkan password saat ini untuk verifikasi', true);
+      return;
+    }
+    if (!newPassword) {
+      toast('Password baru wajib diisi', '', true);
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast('Password terlalu singkat', 'Minimal 6 karakter', true);
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      toast('Konfirmasi password tidak cocok', 'Pastikan kedua password sama', true);
+      return;
+    }
+  }
+
+  const payload = {
+    name: name,
+    email: email
+  };
+
+  if (newPassword) {
+    payload.current_password = currentPassword;
+    payload.new_password = newPassword;
+    payload.new_password_confirmation = newPasswordConfirm;
+  }
+
+  const btn = event.target;
+  btn.classList.add('btn-loading');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content 
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+    if (result.success) {
+      toast('Profil berhasil diperbarui', 'Data telah disimpan');
+      // Update currentMahasiswa email
+      currentMahasiswa.email = email;
+      // Update welcome message
+      showWelcomeMessage();
+      // Reset password fields
+      document.getElementById('profile-current-password').value = '';
+      document.getElementById('profile-new-password').value = '';
+      document.getElementById('profile-new-password-confirmation').value = '';
+    } else {
+      toast('Gagal memperbarui profil', result.message || 'Terjadi kesalahan', true);
+    }
+  } catch (e) {
+    console.error('Error updating profile:', e);
+    toast('Gagal memperbarui profil', 'Pastikan server berjalan', true);
+  } finally {
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
+  }
+}
+
+// Initialize enhanced features on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Populate all mahasiswa dropdowns
+  loadMahasiswa();
+  
+  // Add event listeners for sertifikat periode changes
+  const periodeInputs = [
+    'sertifikat-bulan', 'sertifikat-tahun-monthly',
+    'sertifikat-semester', 'sertifikat-tahun-semester',
+    'sertifikat-tahun-yearly',
+    'sertifikat-start-date', 'sertifikat-end-date'
+  ];
+  
+  periodeInputs.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.addEventListener('change', updateSertifikatPreview);
+    }
+  });
+});
+// ─── Enhanced Riwayat Functions ──────────────────────────────────────────
+async function loadRiwayatData() {
+  if (!currentMahasiswa) return;
+
+  document.getElementById('riwayat-table-container').style.display = 'block';
+  
+  // Load initial data (tanpa filter)
+  await loadRiwayatTanpaFilter();
+}
+
+async function loadRiwayatTanpaFilter() {
+  if (!currentMahasiswa) return;
+  
+  const mahasiswaId = currentMahasiswa.id;
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/riwayat`);
+    const result = await res.json();
+
+    if (result.success) {
+      renderRiwayatTable(result.data || []);
+    } else {
+      toast('Gagal memuat riwayat', result.message || 'Terjadi kesalahan', true);
+    }
+  } catch (e) {
+    console.error('Error loading riwayat:', e);
+    toast('Gagal memuat riwayat', 'Pastikan server berjalan', true);
+  }
+}
+
+function renderRiwayatTable(data) {
+  const tbody = document.getElementById('riwayat-table-body');
+  
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Belum ada riwayat absensi</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map((row, index) => {
+    const jamMasuk = row.check_in_time; // Sudah dalam format H:i dari PHP
+    const jamKeluar = row.check_out_time; // Sudah dalam format H:i dari PHP
+    const durasi = calculateDuration(jamMasuk, jamKeluar);
+    
+    // Perbaikan deteksi status agar sesuai database-mu
+    const statusDB = (row.status || '').toLowerCase();
+    let statusLabel = 'Tidak Hadir';
+    let statusClass = 'badge-danger';
+    
+    if (statusDB === 'present' || statusDB === 'hadir') {
+      statusLabel = 'Hadir';
+      statusClass = 'badge-success';
+    } else if (statusDB === 'izin') {
+      statusLabel = 'Izin';
+      statusClass = 'badge-warning';
+    } else if (statusDB === 'sakit') {
+      statusLabel = 'Sakit';
+      statusClass = 'badge-warning';
+    }
+
+    return `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${row.date_str}</td>
+        <td>${row.hari}</td>
+        <td>${jamMasuk}</td>
+        <td>${jamKeluar}</td>
+        <td>${durasi}</td>
+        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function calculateDuration(checkIn, checkOut) {
+  // Jika salah satu jam adalah '-', jangan hitung apa-apa
+  if (!checkIn || !checkOut || checkIn === '-' || checkOut === '-') {
+    return '-'; 
+  }
+  
+  // Gunakan format yang valid untuk Date
+  const start = new Date(`2000-01-01T${checkIn}:00`);
+  const end = new Date(`2000-01-01T${checkOut}:00`);
+  
+  // Jika waktu keluar lebih kecil dari waktu masuk, asumsikan lewat tengah malam
+  if (end < start) {
+    end.setDate(end.getDate() + 1);
+  }
+  
+  const diffMs = end - start;
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  
+  return `${diffHours}j ${diffMinutes}m`;
+}
+
+// ─── Enhanced Izin Functions (REMOVED - using version with currentMahasiswa above) ─────────────────────────────────────────────
+// ─── Navigation Functions ────────────────────────────────────────────────
+function showSection(sectionName) {
+  // Hide all sections
+  const sections = ['dashboard', 'profile', 'riwayat', 'izin', 'kehadiran', 'qr-code', 'kegiatan', 'sertifikat'];
+  sections.forEach(section => {
+    const element = document.getElementById(`section-${section}`);
+    if (element) {
+      element.style.display = 'none';
+    }
+  });
+
+  if (sectionName !== 'sertifikat') {
+    const sertifikatHistoryPanel = document.getElementById('sertifikat-history-panel');
+    if (sertifikatHistoryPanel) {
+      sertifikatHistoryPanel.style.display = 'none';
+    }
+  }
+  
+  // Remove active class from all nav items
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  
+  // Show selected section
+  const targetSection = document.getElementById(`section-${sectionName}`);
+  if (targetSection) {
+    targetSection.style.display = 'block';
+  }
+  
+  // Add active class to selected nav item
+  const navItem = document.getElementById(`nav-${sectionName}`);
+  if (navItem) {
+    navItem.classList.add('active');
+  }
+  
+  // Load data on section show
+  if (sectionName === 'kegiatan') loadKegiatanAktif();
+  
+  // Auto-load data for the section
+  if (currentMahasiswa) {
+    switch(sectionName) {
+      case 'dashboard':
+        loadDashboardData();
+        break;
+      case 'profile':
+        loadProfileData();
+        break;
+      case 'riwayat':
+        loadRiwayatData();
+        break;
+      case 'izin':
+        loadMyIzinHistory();
+        break;
+      case 'kehadiran':
+        loadMyKehadiranHistory();
+        break;
+      case 'qr-code':
+        loadQRCode();
+        break;
+      case 'sertifikat':
+        loadSertifikatData();
+        break;
+    }
+  }
+}
+
+// ─── Load Mahasiswa Data ─────────────────────────────────────────────────
+async function loadMahasiswa() {
+  // This function is not needed anymore since we use currentMahasiswa
+  // But keep it for compatibility
+  console.log('[LOAD] loadMahasiswa called - using currentMahasiswa instead');
+}
+
+function populateYearDropdowns() {
+  const currentYear = new Date().getFullYear();
+  const years = [];
+  
+  for (let year = currentYear; year >= currentYear - 5; year--) {
+    years.push(year);
+  }
+  
+  // Populate all year dropdowns
+  const yearSelects = [
+    'sertifikat-tahun-monthly',
+    'sertifikat-tahun-semester',
+    'sertifikat-tahun-yearly'
+  ];
+  
+  yearSelects.forEach(id => {
+    const select = document.getElementById(id);
+    if (select) {
+      select.innerHTML = years.map(year => 
+        `<option value="${year}">${year}</option>`
+      ).join('');
+    }
+  });
+}
+
+function openDetailKehadiranModal(submissionId) {
+  // 1. Cari data dari variabel global
+  const submission = myKehadiranData.find(s => s.id === submissionId);
+  
+  if (!submission) {
+    toast('Data tidak ditemukan', '', true);
+    return;
+  }
+
+  // 2. Isi Data Mahasiswa (Ambil dari currentMahasiswa)
+  document.getElementById('khd-detail-mahasiswa-id').textContent = currentMahasiswa.id;
+  document.getElementById('khd-detail-mahasiswa-name').textContent = currentMahasiswa.name;
+  document.getElementById('khd-detail-mahasiswa-kompi').textContent = currentMahasiswa.kompi;
+  document.getElementById('khd-detail-mahasiswa-jurusan').textContent = currentMahasiswa.jurusan;
+  document.getElementById('khd-detail-mahasiswa-prodi').textContent = currentMahasiswa.prodi || '—';
+
+  // 3. Isi Data Spesifik Kehadiran
+  const tglFormatted = submission.date ? submission.date.substring(0, 10) : '—';
+  document.getElementById('khd-detail-tanggal').textContent = tglFormatted;
+  
+  // Menampilkan Jam Masuk dan Keluar
+  document.getElementById('khd-detail-checkin').textContent = submission.check_in_time || '—';
+  document.getElementById('khd-detail-checkout').textContent = submission.check_out_time || '—';
+
+  // Menampilkan waktu submit (created_at)
+  document.getElementById('khd-detail-submitted-at').textContent = submission.created_at 
+    ? `pukul ${new Date(submission.created_at).toLocaleString('id-ID', {
+        hour: '2-digit', minute: '2-digit'
+      })}`
+    : '—';
+  
+  // Status Badge
+  const statusBadge = {
+    pending:  '<span class="badge badge-yellow"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">schedule</span> Pending</span>',
+    approved: '<span class="badge badge-green"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">check_circle</span> Disetujui</span>',
+    rejected: '<span class="badge badge-red"><span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">cancel</span> Ditolak</span>'
+  }[submission.status] || submission.status;
+  document.getElementById('khd-detail-status').innerHTML = statusBadge;
+  
+  document.getElementById('khd-detail-keterangan').textContent = submission.keterangan || '—';
+
+  // 4. Isi Bukti Gambar / PDF
+  const buktiContainer = document.getElementById('khd-detail-bukti-container');
+  if (submission.bukti_path) {
+    const ext = submission.bukti_path.split('.').pop().toLowerCase();
+    const filename = submission.bukti_path.split(/[\\/]/).pop();
+    
+    // PERHATIAN: Gunakan rute kehadiran, bukan rute izin
+    const url = API + `/kehadiran/bukti/${filename}`;
+    
+    if (['jpg', 'jpeg', 'png'].includes(ext)) {
+      buktiContainer.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:var(--radius-md);border:2px solid var(--border)">`;
+    } else if (ext === 'pdf') {
+      buktiContainer.innerHTML = `
+        <div style="padding:30px">
+          <span class="material-symbols-outlined" style="font-size:64px;color:var(--danger)">picture_as_pdf</span>
+          <p style="margin-top:12px;font-weight:600">File PDF</p>
+          <a href="${url}" target="_blank" class="btn btn-primary" style="margin-top:12px;display:inline-flex;gap:6px">
+            <span class="material-symbols-outlined" style="font-size:16px">open_in_new</span> Buka PDF
+          </a>
+        </div>`;
+    }
+  } else {
+    buktiContainer.innerHTML = '<span style="color:var(--text-muted)">Tidak ada bukti</span>';
+  }
+
+  // 5. Isi Info Verifikasi
+  const verificationInfo = document.getElementById('khd-detail-verification-info');
+  if (submission.status !== 'pending') {
+    verificationInfo.style.display = 'block';
+    document.getElementById('khd-detail-verified-by').textContent = submission.verified_by || '—';
+    document.getElementById('khd-detail-verified-at').textContent = submission.verified_at 
+      ? new Date(submission.verified_at).toLocaleString('id-ID')
+      : '—';
+    
+    // Tampilkan alasan penolakan jika status rejected
+    const rejectionContainer = document.getElementById('khd-detail-rejection-reason-container');
+    if (submission.status === 'rejected' && submission.rejection_reason) {
+      rejectionContainer.style.display = 'block';
+      document.getElementById('khd-detail-rejection-reason').textContent = submission.rejection_reason;
+    } else {
+      rejectionContainer.style.display = 'none';
+    }
+  } else {
+    verificationInfo.style.display = 'none';
+  }
+
+  // 6. Buka Modal
+  document.getElementById('modal-detail-kehadiran').classList.add('show');
+}
+
+// ─── QR Code Functions ─────────────────────────────────────────────────────
+async function loadQRCode() {
+  if (!currentMahasiswa) {
+    console.error('No current mahasiswa data');
+    return;
+  }
+
+  const mahasiswaId = currentMahasiswa.id;
+  const qrCodeImage = document.getElementById('qr-code-image');
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/qr-code`, {
+      credentials: 'include'
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      qrCodeImage.src = url;
+    } else {
+      const result = await res.json();
+      console.error('Failed to load QR code:', result.message);
+      qrCodeImage.src = '';
+      alert('Gagal memuat QR Code: ' + result.message);
+    }
+  } catch (e) {
+    console.error('Error loading QR code:', e);
+    qrCodeImage.src = '';
+    alert('Gagal memuat QR Code. Pastikan server berjalan.');
+  }
+}
+
+async function downloadQRCode() {
+  if (!currentMahasiswa) {
+    console.error('No current mahasiswa data');
+    return;
+  }
+
+  const mahasiswaId = currentMahasiswa.id;
+
+  try {
+    const res = await fetch(`${API}/mahasiswa/${mahasiswaId}/qr-code`, {
+      credentials: 'include'
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `qr_code_${currentMahasiswa.id}_${currentMahasiswa.name.replace(/\s+/g, '_')}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      const result = await res.json();
+      alert('Gagal download QR Code: ' + result.message);
+    }
+  } catch (e) {
+    console.error('Error downloading QR code:', e);
+    alert('Gagal download QR Code. Pastikan server berjalan.');
+  }
+}
+
+// ─── Initialize Page ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  // Load mahasiswa data for all dropdowns (not needed anymore with auto-login)
+  loadMahasiswa();
+  
+  // Show dashboard by default
+  showSection('dashboard');
+  
+  // Initialize year dropdowns for sertifikat
+  populateYearDropdowns();
+  
+  // Set current month as default for sertifikat
+  const currentMonth = String(new Date().getMonth() + 1).padStart(2, '0');
+  const monthSelect = document.getElementById('sertifikat-bulan');
+  if (monthSelect) {
+    monthSelect.value = currentMonth;
+  }
+  
+  // Add event listeners for sertifikat periode changes
+  const periodeInputs = [
+    'sertifikat-bulan', 'sertifikat-tahun-monthly',
+    'sertifikat-semester', 'sertifikat-tahun-semester', 
+    'sertifikat-tahun-yearly',
+    'sertifikat-start-date', 'sertifikat-end-date'
+  ];
+  
+  periodeInputs.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.addEventListener('change', updateSertifikatPreview);
+    }
+  });
+  
+  // Add event listener for sertifikat periode type change
+  const periodeSelect = document.getElementById('sertifikat-periode');
+  if (periodeSelect) {
+    periodeSelect.addEventListener('change', function() {
+      toggleSertifikatPeriodeFields(this.value);
+      updateSertifikatPreview();
+    });
+    
+    // Trigger initial display
+    periodeSelect.dispatchEvent(new Event('change'));
+  }
+  
+  // Initialize current time display
+  updateCurrentTime();
+  setInterval(updateCurrentTime, 1000);
+});
+
+// ─── Update Current Time ─────────────────────────────────────────────────
+function updateCurrentTime() {
+  const timeElement = document.getElementById('current-time');
+  if (timeElement) {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    const dateString = now.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+    timeElement.textContent = `${dateString} ${timeString}`;
+  }
+}
+
+// --- Absensi Kegiatan ---------------------------------------------------------
+
+async function loadKegiatanAktif() {
+  if (!currentMahasiswa) return;
+  // Load active kegiatan
+  const aktifRes = await fetch(API + '/kegiatan/aktif', { credentials: 'include' });
+  const aktif = await aktifRes.json();
+  const container = document.getElementById('kegiatan-aktif-container');
+  if (aktif.success && aktif.data.length > 0) {
+    container.innerHTML = aktif.data.map(function(k) {
+      var wajib = k.wajib_hadir ? '<span class=\"badge badge-red\">Wajib</span>' : '<span class=\"badge badge-yellow\">Opsional</span>';
+      return '<div class=\"panel\" style=\"margin-bottom:16px;background:var(--primary-light);border:1px solid var(--primary)\"><div style=\"display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px\"><div><div style=\"font-size:18px;font-weight:700;color:var(--primary)\">' + k.nama + '</div><div style=\"font-size:13px;color:var(--text-muted);margin-top:4px\">' + k.tanggal_pelaksanaan + ' | ' + k.jam_mulai + ' - ' + k.jam_selesai + ' | ' + wajib + '</div></div><button class=\"btn btn-primary\" onclick=\"absenKegiatan(' + k.id + ')\"><span class=\"material-symbols-outlined\" style=\"font-size:16px;vertical-align:middle\">how_to_reg</span> Absen Sekarang</button></div></div>';
+    }).join('');
+  } else {
+    container.innerHTML = '<div class=\"empty-state\"><span class=\"material-symbols-outlined\" style=\"font-size:40px;color:var(--muted)\">event_busy</span><p style=\"margin-top:12px\">Tidak ada kegiatan yang sedang berlangsung saat ini</p></div>';
+  }
+  // Load riwayat
+  loadRiwayatKegiatan();
+}
+
+async function absenKegiatan(kegiatanId) {
+  if (!currentMahasiswa) return;
+  const res = await fetch(API + '/kegiatan/absen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').content },
+    credentials: 'include',
+    body: JSON.stringify({ kegiatan_id: kegiatanId, mahasiswa_id: currentMahasiswa.id })
+  });
+  const result = await res.json();
+  if (result.success) {
+    toast('Absensi Berhasil', result.message);
+    loadKegiatanAktif();
+  } else {
+    toast('Gagal', result.message || 'Terjadi kesalahan', true);
+  }
+}
+
+async function loadRiwayatKegiatan() {
+  if (!currentMahasiswa) return;
+  const res = await fetch(API + '/mahasiswa/' + currentMahasiswa.id + '/riwayat-kegiatan', { credentials: 'include' });
+  const result = await res.json();
+  const tbody = document.getElementById('riwayat-kegiatan-tbody');
+  if (result.success && result.data.length > 0) {
+    tbody.innerHTML = result.data.map(function(r) {
+      return '<tr><td style=\"font-family:var(--mono)\">' + r.tanggal + '</td><td style=\"font-weight:600\">' + r.nama_kegiatan + '</td><td style=\"font-family:var(--mono)\">' + r.jam_mulai + ' - ' + r.jam_selesai + '</td><td style=\"font-family:var(--mono)\">' + new Date(r.absen_at).toLocaleString('id-ID') + '</td></tr>';
+    }).join('');
+  } else {
+    tbody.innerHTML = '<tr><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:30px\">Belum ada riwayat absensi kegiatan</td></tr>';
+  }
+}
