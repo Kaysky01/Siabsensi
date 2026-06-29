@@ -84,19 +84,31 @@ class Mahasiswa extends Model
         return max(0, $alphaCount);
     }
 
-    public function canGetCertificate($startDate, $endDate)
+    public function canGetCertificate($startDate = null, $endDate = null)
     {
-        $totalDays = \App\Models\Kegiatan::whereBetween('tanggal_pelaksanaan', [$startDate, $endDate])->count();
-        if ($totalDays == 0) {
-            $totalDays = Carbon::parse($startDate)->diffInDays(Carbon::parse($endDate)) + 1;
-        }
+        if ($this->sertifikat_status === 'locked') return false;
+        if ($this->sertifikat_status === 'unlocked') return true;
+
+        $totalDays = \App\Models\Kegiatan::count();
+        
+        // Prevent auto-unlock if no activities exist
+        if ($totalDays == 0) return false;
 
         $attendanceCount = $this->attendances()
-            ->whereBetween('date', [$startDate, $endDate])
-            ->whereIn('status', ['present', 'izin', 'hadir'])
+            ->where(function ($query) {
+                $query->whereIn('status', ['izin', 'sakit'])
+                      ->orWhere(function ($q) {
+                          $q->whereIn('status', ['present', 'hadir'])
+                            ->whereNotNull('check_in')
+                            ->whereNotNull('check_out');
+                      });
+            })
             ->count();
 
-        $persentase = $totalDays > 0 ? ($attendanceCount / $totalDays) * 100 : 0;
+        // Prevent auto-unlock when there are 0 valid attendances
+        if ($attendanceCount == 0) return false;
+
+        $persentase = ($attendanceCount / $totalDays) * 100;
 
         return $persentase >= 80;
     }

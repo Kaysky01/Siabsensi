@@ -27,7 +27,7 @@
       <tr>
         <td>{{ Carbon\Carbon::parse($kehadiran->created_at)->format('d M Y') }}</td>
         <td>{{ Carbon\Carbon::parse($kehadiran->date)->format('d M Y') }}</td>
-        <td>{{ $kehadiran->reason }}</td>
+        <td>{{ $kehadiran->keterangan }}</td>
         <td>
           @if($kehadiran->status === 'approved')
             <span class="badge badge-success">Disetujui</span>

@@ -193,10 +193,13 @@ class SertifikatController extends Controller
 
         $downloadDate = Carbon::parse($sertifikat->created_at)->locale('id')->translatedFormat('d F Y');
         $pngContent = $this->generateCertificatePng($mahasiswa, $downloadDate);
-
-        return response($pngContent)
-            ->header('Content-Type', 'image/png')
-            ->header('Content-Disposition', 'attachment; filename="sertifikat_'.$mahasiswa->id.'_'.time().'.png"');
+        $base64 = base64_encode($pngContent);
+        
+        $html = '<!DOCTYPE html><html><head><style>@page { margin: 0; size: A4 landscape; } body { margin: 0; padding: 0; background: #fff; text-align: center; } img { width: 100%; height: auto; max-height: 100%; object-fit: contain; display: block; margin: auto; }</style></head><body><img src="data:image/png;base64,' . $base64 . '"></body></html>';
+        
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', 'landscape');
+        
+        return $pdf->download('Sertifikat_PKKMB_' . $mahasiswa->id . '_' . time() . '.pdf');
     }
 
     public function previewImage(Request $request, $mahasiswaId)
@@ -272,10 +275,13 @@ class SertifikatController extends Controller
             $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
 
             $pngContent = $this->generateCertificatePng($mahasiswa, Carbon::now()->locale('id')->translatedFormat('d F Y'));
-
-            return response($pngContent)
-                ->header('Content-Type', 'image/png')
-                ->header('Content-Disposition', 'inline; filename="sertifikat_preview.png"');
+            $base64 = base64_encode($pngContent);
+            
+            $html = '<!DOCTYPE html><html><head><style>@page { margin: 0; size: A4 landscape; } body { margin: 0; padding: 0; background: #fff; text-align: center; } img { width: 100%; height: auto; max-height: 100%; object-fit: contain; display: block; margin: auto; }</style></head><body><img src="data:image/png;base64,' . $base64 . '"></body></html>';
+            
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', 'landscape');
+            
+            return $pdf->stream('Sertifikat_Preview.pdf');
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -337,10 +343,13 @@ class SertifikatController extends Controller
 
         $downloadDate = Carbon::parse($sertifikat->created_at)->locale('id')->translatedFormat('d F Y');
         $pngContent = $this->generateCertificatePng($mahasiswa, $downloadDate);
-
-        return response($pngContent)
-            ->header('Content-Type', 'image/png')
-            ->header('Content-Disposition', 'attachment; filename="sertifikat_'.$historyId.'.png"');
+        $base64 = base64_encode($pngContent);
+        
+        $html = '<!DOCTYPE html><html><head><style>@page { margin: 0; size: A4 landscape; } body { margin: 0; padding: 0; background: #fff; text-align: center; } img { width: 100%; height: auto; max-height: 100%; object-fit: contain; display: block; margin: auto; }</style></head><body><img src="data:image/png;base64,' . $base64 . '"></body></html>';
+        
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', 'landscape');
+        
+        return $pdf->download('Sertifikat_PKKMB_' . $mahasiswa->id . '_' . $historyId . '.pdf');
     }
 
     private function generateCertificatePng($mahasiswa, ?string $downloadDate = null)

@@ -3,7 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Attendance;
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -14,7 +14,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class AttendanceExport implements FromCollection, WithColumnWidths, WithHeadings, WithMapping, WithStyles, WithTitle
+class AttendanceExport implements FromQuery, WithColumnWidths, WithHeadings, WithMapping, WithStyles, WithTitle
 {
     protected $startDate;
 
@@ -28,9 +28,9 @@ class AttendanceExport implements FromCollection, WithColumnWidths, WithHeadings
         $this->endDate = $endDate;
     }
 
-    public function collection()
+    public function query()
     {
-        $query = Attendance::with(['mahasiswa']);
+        $query = Attendance::query()->with(['mahasiswa']);
 
         if ($this->startDate && $this->endDate) {
             $query->whereBetween('date', [$this->startDate, $this->endDate]);
@@ -40,7 +40,7 @@ class AttendanceExport implements FromCollection, WithColumnWidths, WithHeadings
             $query->whereDate('date', '<=', $this->endDate);
         }
 
-        return $query->orderBy('date', 'desc')->get();
+        return $query->orderBy('date', 'desc');
     }
 
     public function map($attendance): array

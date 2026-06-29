@@ -22,6 +22,8 @@ class MasterDataController extends Controller
     {
         $request->validate(['nama' => 'required|string|max:255']);
         Jurusan::create(['nama' => $request->nama]);
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan');
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan_prodi');
         return back()->with('success', 'Jurusan berhasil ditambahkan.');
     }
 
@@ -29,12 +31,17 @@ class MasterDataController extends Controller
     {
         $request->validate(['nama' => 'required|string|max:255']);
         Jurusan::findOrFail($id)->update(['nama' => $request->nama]);
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan');
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan_prodi');
         return back()->with('success', 'Jurusan berhasil diperbarui.');
     }
 
     public function destroyJurusan($id)
     {
         Jurusan::findOrFail($id)->delete();
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan');
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan_prodi');
+        \Illuminate\Support\Facades\Cache::forget('master_prodi');
         return back()->with('success', 'Jurusan beserta Prodinya berhasil dihapus.');
     }
 
@@ -45,6 +52,8 @@ class MasterDataController extends Controller
             'nama' => 'required|string|max:255'
         ]);
         Prodi::create($request->only('jurusan_id', 'nama'));
+        \Illuminate\Support\Facades\Cache::forget('master_prodi');
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan_prodi');
         return back()->with('success', 'Prodi berhasil ditambahkan.');
     }
 
@@ -55,12 +64,16 @@ class MasterDataController extends Controller
             'nama' => 'required|string|max:255'
         ]);
         Prodi::findOrFail($id)->update($request->only('jurusan_id', 'nama'));
+        \Illuminate\Support\Facades\Cache::forget('master_prodi');
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan_prodi');
         return back()->with('success', 'Prodi berhasil diperbarui.');
     }
 
     public function destroyProdi($id)
     {
         Prodi::findOrFail($id)->delete();
+        \Illuminate\Support\Facades\Cache::forget('master_prodi');
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan_prodi');
         return back()->with('success', 'Prodi berhasil dihapus.');
     }
 
@@ -93,6 +106,7 @@ class MasterDataController extends Controller
             User::whereIn('username', $request->garda_ids)->update(['assigned_kompi' => $kompi->nama]);
         }
 
+        \Illuminate\Support\Facades\Cache::forget('master_kompi');
         return back()->with('success', 'Kompi berhasil ditambahkan.');
     }
 
@@ -118,6 +132,7 @@ class MasterDataController extends Controller
             User::whereIn('username', $request->garda_ids)->update(['assigned_kompi' => $kompi->nama]);
         }
 
+        \Illuminate\Support\Facades\Cache::forget('master_kompi');
         return back()->with('success', 'Kompi berhasil diperbarui.');
     }
 
@@ -127,6 +142,7 @@ class MasterDataController extends Controller
         User::where('assigned_kompi', $kompi->nama)->update(['assigned_kompi' => null]);
         $kompi->delete();
 
+        \Illuminate\Support\Facades\Cache::forget('master_kompi');
         return back()->with('success', 'Kompi berhasil dihapus.');
     }
 }

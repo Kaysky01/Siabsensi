@@ -54,5 +54,9 @@
       </tbody>
     </table>
   </div>
+  
+  <div style="margin-top: 16px;">
+    {{ $attendances->links('pagination::bootstrap-4') }}
+  </div>
 </section>
 @endsection

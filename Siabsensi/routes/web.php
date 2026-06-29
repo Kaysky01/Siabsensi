@@ -75,6 +75,8 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::get('/monitoring-kegiatan', [AdminController::class, 'monitoringKegiatan'])->name('admin.monitoring-kegiatan');
     Route::get('/monitoring-kegiatan/{id}', [AdminController::class, 'monitoringKegiatanDetail'])->name('admin.monitoring-kegiatan.detail');
     Route::get('/kelulusan', [AdminController::class, 'kelulusan'])->name('admin.kelulusan');
+    Route::post('/sertifikat/toggle-lock/{id}', [AdminController::class, 'toggleSertifikatLock'])->name('admin.sertifikat.toggle-lock');
+    Route::post('/sertifikat/bulk-toggle', [AdminController::class, 'bulkToggleSertifikatLock'])->name('admin.sertifikat.bulk-toggle');
     Route::get('/izin-timdis', [AdminController::class, 'izinTimdis'])->name('admin.izin-timdis');
     Route::get('/kehadiran-timdis', [AdminController::class, 'kehadiranTimdis'])->name('admin.kehadiran-timdis');
     Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
@@ -142,6 +144,13 @@ Route::middleware(['auth', 'role:mahasiswa'])->prefix('mahasiswa')->group(functi
     Route::get('/kegiatan', [MahasiswaController::class, 'kegiatan'])->name('mahasiswa.kegiatan');
 
     Route::get('/sertifikat', [MahasiswaController::class, 'sertifikat'])->name('mahasiswa.sertifikat');
+});
+
+// ─── MAHASISWA API (Sertifikat) ────────────────────────────────
+Route::middleware(['auth', 'role:mahasiswa,admin'])->group(function () {
+    Route::post('/api/mahasiswa/{id}/sertifikat/generate', [SertifikatController::class, 'generate']);
+    Route::get('/api/mahasiswa/{id}/sertifikat/preview/pdf', [SertifikatController::class, 'previewPdf']);
+    Route::get('/api/sertifikat/download/{historyId}', [SertifikatController::class, 'download']);
 });
 
 // ─── PUBLIC API (untuk Python Backend — langsung konek ke DB, tapi beberapa mungkin diperlukan) ──
@@ -226,3 +235,13 @@ Route::post('/api/sync', function (Request $request) {
 Route::middleware(['auth'])->group(function () {
     Route::get('/api/auth/me', [AuthController::class, 'me'])->name('api.auth.me');
 });
+
+// Fallback route untuk melayani file storage (mengatasi symlink error/403 Forbidden di Windows)
+Route::get('/file-bukti/{path}', function ($path) {
+    $filePath = storage_path('app/public/' . $path);
+    if (!file_exists($filePath)) {
+        abort(404);
+    }
+    return response()->file($filePath);
+})->where('path', '.*');
+
