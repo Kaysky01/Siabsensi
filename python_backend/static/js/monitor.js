@@ -1,4 +1,4 @@
-const API_URL = 'https://pkkmb.polinela.ac.id/api'; // Laravel Server API
+const API_URL = 'http://127.0.0.1:8000/api'; // Laravel Server API
 const PYTHON_API_URL = 'http://127.0.0.1:5000/api/python';
 const LOCAL_STORAGE_KEY = 'siabsen_local_sync_data';
 const COOLDOWN_MS = 10 * 1000; // 10 detik (sebelumnya 1 jam)
