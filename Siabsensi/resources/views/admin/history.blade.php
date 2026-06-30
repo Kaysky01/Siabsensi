@@ -37,7 +37,7 @@
       <tbody>
         @forelse($attendances as $i => $att)
         <tr>
-          <td>{{ $i + 1 }}</td>
+          <td>{{ $attendances->firstItem() + $i }}</td>
           <td><div class="mhs-name">{{ $att->name }}</div></td>
           <td><span class="badge badge-blue">{{ $att->kompi }}</span></td>
           <td style="font-size:13px">{{ $att->date ?? '-' }}</td>

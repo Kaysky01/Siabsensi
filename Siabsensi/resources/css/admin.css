@@ -298,9 +298,9 @@ a {
     display: flex;
     align-items: center;
     gap: var(--space-md);
-    margin-bottom: var(--space-xl);
-    padding-bottom: var(--space-sm);
-    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--space-md);
+    padding-bottom: 0;
+    border-bottom: none;
 }
 
 .top-navbar-title {

@@ -73,19 +73,33 @@
             <div style="display:flex;gap:4px">
               @foreach($allKegiatan as $keg)
                 @php
-                  $att = $m->attendances->where('kegiatan_id', $keg->id)->first();
-                  if(!$att) {
+                  $att = $m->attendances->filter(function($a) use ($keg) {
+                      return $a->kegiatan_id == $keg->id || \Carbon\Carbon::parse($a->date)->format('Y-m-d') === \Carbon\Carbon::parse($keg->tanggal_pelaksanaan)->format('Y-m-d');
+                  })->first();
+
+                  if(!$att || $att->status === 'alpha') {
                     // Alpha (Merah)
                     $color = '#ef4444';
                     $title = $keg->nama . ' - Alpha';
+                  } else if ($att->status === 'izin') {
+                    // Izin (Biru)
+                    $color = '#3b82f6';
+                    $title = $keg->nama . ' - Izin';
+                  } else if ($att->status === 'sakit') {
+                    // Sakit (Kuning)
+                    $color = '#eab308';
+                    $title = $keg->nama . ' - Sakit';
                   } else if(!$att->check_out) {
                     // Baru Masuk (Hitam)
                     $color = '#1f2937';
-                    $title = $keg->nama . ' - Masuk (Belum Keluar)';
+                    $jamMasuk = $att->check_in ? \Carbon\Carbon::parse($att->check_in)->format('H:i') : '-';
+                    $title = $keg->nama . ' - Masuk (' . $jamMasuk . ')';
                   } else {
                     // Lengkap (Hijau)
                     $color = '#10b981';
-                    $title = $keg->nama . ' - Hadir Penuh';
+                    $jamMasuk = $att->check_in ? \Carbon\Carbon::parse($att->check_in)->format('H:i') : '-';
+                    $jamKeluar = $att->check_out ? \Carbon\Carbon::parse($att->check_out)->format('H:i') : '-';
+                    $title = $keg->nama . ' - Lengkap (In: ' . $jamMasuk . ', Out: ' . $jamKeluar . ')';
                   }
                 @endphp
                 <div style="width: 14px; height: 14px; background-color: {{ $color }}; border-radius: 50%; display:inline-block; border: 1px solid rgba(0,0,0,0.1);" title="{{ $title }}"></div>

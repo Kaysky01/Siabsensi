@@ -89,14 +89,14 @@ class AdminController extends Controller
                 $q->select(DB::raw(1))->from($table)
                     ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
                     ->whereDate("$table.date", $date);
-            })->get();
+            })->paginate(20)->withQueryString();
         } elseif (in_array($filter, ['izin', 'sakit'])) {
             $attendances = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereDate("$table.date", $date)
                 ->where("$table.status", $filter)
                 ->orderBy("$table.check_in", 'desc')
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
-                ->get();
+                ->paginate(20)->withQueryString();
         } else {
             $attendances = Mahasiswa::leftJoin($table, function ($join) use ($table, $mhsTable, $date) {
                 $join->on("$table.mahasiswa_id", '=', "$mhsTable.id")
@@ -105,7 +105,7 @@ class AdminController extends Controller
                 "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.id as mahasiswa_id",
                 "$table.check_in", "$table.check_out", "$table.camera_id",
                 DB::raw("COALESCE($table.status, 'alpha') as status")
-            )->orderBy("$table.check_in", 'desc')->get();
+            )->orderBy("$table.check_in", 'desc')->paginate(20)->withQueryString();
         }
 
         return view('admin.attendance', compact('attendances', 'date', 'filter'));
@@ -129,9 +129,7 @@ class AdminController extends Controller
             $query->where('prodi', $request->prodi);
         }
 
-        $allKegiatan = \Illuminate\Support\Facades\Cache::remember('master_kegiatan', 3600, function() {
-            return \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan')->get();
-        });
+        $allKegiatan = \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan')->get();
         
         $mahasiswaList = $query->orderBy('name')->paginate(20)->withQueryString();
 
@@ -365,7 +363,7 @@ class AdminController extends Controller
         }
 
         $allKegiatan = \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan')->get();
-        $mahasiswaList = $query->with('attendances')->orderBy('name')->get();
+        $mahasiswaList = $query->with('attendances')->orderBy('name')->paginate(20)->withQueryString();
 
         return view('admin.mahasiswa-saya', compact('mahasiswaList', 'allKegiatan'));
     }
@@ -373,7 +371,7 @@ class AdminController extends Controller
     // ─── KOMPI MANAGEMENT ────────────────────────────────────────────────────
     public function kompiManagement(Request $request)
     {
-        $mahasiswaList = Mahasiswa::orderBy('kompi')->orderBy('name')->get();
+        $mahasiswaList = Mahasiswa::orderBy('kompi')->orderBy('name')->paginate(20)->withQueryString();
         $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
 
         return view('admin.kompi-management', compact('mahasiswaList', 'kompiOptions'));
@@ -442,7 +440,7 @@ class AdminController extends Controller
                 $q->select(DB::raw(1))->from($table)
                     ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
                     ->whereBetween("$table.date", [$start, $end]);
-            })->paginate(50)->withQueryString();
+            })->paginate(20)->withQueryString();
         } else {
             $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereBetween("$table.date", [$start, $end])
@@ -454,7 +452,7 @@ class AdminController extends Controller
                 $query->where("$table.status", $filter);
             }
 
-            $attendances = $query->paginate(50)->withQueryString();
+            $attendances = $query->paginate(20)->withQueryString();
         }
 
         return view('admin.history', compact('attendances', 'start', 'end', 'filter'));
@@ -502,7 +500,7 @@ class AdminController extends Controller
         if ($filterProdi) $query->where('prodi', $filterProdi);
         if ($filterJurusan) $query->where('jurusan', $filterJurusan);
 
-        $mahasiswaPaginator = $query->paginate(50)->withQueryString();
+        $mahasiswaPaginator = $query->paginate(20)->withQueryString();
         // Menghitung seluruh jumlah kegiatan tanpa filter tanggal
         $totalDays = \App\Models\Kegiatan::count();
         if ($totalDays == 0) {
@@ -590,7 +588,7 @@ class AdminController extends Controller
             $query->where("$izinTable.status", $filterStatus);
         }
 
-        $submissions = $query->paginate(50)->withQueryString();
+        $submissions = $query->paginate(20)->withQueryString();
         $stats = [
             'pending' => IzinSubmission::where('status', 'pending')->count(),
             'approved' => IzinSubmission::where('status', 'approved')->count(),
@@ -643,7 +641,7 @@ class AdminController extends Controller
             $query->where("$khdTable.status", $filterStatus);
         }
 
-        $submissions = $query->paginate(50)->withQueryString();
+        $submissions = $query->paginate(20)->withQueryString();
         $stats = [
             'pending' => KehadiranSubmission::where('status', 'pending')->count(),
             'approved' => KehadiranSubmission::where('status', 'approved')->count(),
@@ -705,7 +703,7 @@ class AdminController extends Controller
             $query->where('is_active', $request->status);
         }
 
-        $usersList = $query->orderBy('created_at', 'desc')->paginate(50)->withQueryString();
+        $usersList = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
         $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
 
         $statsAdmin = User::where('role', 'admin')->count();
