@@ -133,7 +133,7 @@ class AdminController extends Controller
             return \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan')->get();
         });
         
-        $mahasiswaList = $query->orderBy('name')->paginate(50)->withQueryString();
+        $mahasiswaList = $query->orderBy('name')->paginate(20)->withQueryString();
 
         $kompiOptions = \Illuminate\Support\Facades\Cache::remember('master_kompi', 3600, function() {
             return \App\Models\Kompi::pluck('nama')->sort()->values();

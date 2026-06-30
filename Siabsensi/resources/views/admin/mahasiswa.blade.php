@@ -6,7 +6,7 @@
   <div class="page-header">
     <div>
       <div class="page-title">Data Mahasiswa</div>
-      <div class="page-sub">Manajemen data mahasiswa ({{ $mahasiswaList->count() }} total)</div>
+      <div class="page-sub">Manajemen data mahasiswa ({{ $mahasiswaList->total() }} total, menampilkan {{ $mahasiswaList->count() }} data)</div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-secondary btn-sm" onclick="document.getElementById('modal-import-csv').classList.add('show')">
@@ -120,7 +120,7 @@
   </div>
   
   <div style="margin-top: 16px;">
-    {{ $mahasiswaList->links('pagination::bootstrap-4') }}
+    {{ $mahasiswaList->links('vendor.pagination.custom') }}
   </div>
 </section>
 
