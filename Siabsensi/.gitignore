@@ -27,3 +27,4 @@ venv/
 __pycache__/
 *.pyc
 AGENTS.md
+Lib/site-packages/
