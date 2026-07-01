@@ -123,6 +123,12 @@
 
         @if($user->role === 'admin')
         <div class="nav-section">Sistem</div>
+        <a href="{{ route('admin.schedule.index') }}" class="nav-item {{ request()->routeIs('admin.schedule.*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">schedule</span> Jadwal Absensi
+        </a>
+        <a href="{{ route('admin.late-report') }}" class="nav-item {{ request()->routeIs('admin.late-report*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">schedule_send</span> Laporan Keterlambatan
+        </a>
         <a href="{{ route('admin.users') }}" class="nav-item {{ request()->routeIs('admin.users') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">manage_accounts</span> Admin Management
         </a>

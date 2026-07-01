@@ -18,6 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Sangat penting untuk hosting: Percayai SSL/Proxy agar sesi tidak terputus
         $middleware->trustProxies(at: '*');
+        
+        // Add request logging
+        $middleware->web(\App\Http\Middleware\LogRequests::class);
 
         // 1. Redirect untuk Guest (Belum Login) jika mencoba akses halaman yang diproteksi
         $middleware->redirectGuestsTo('/login');

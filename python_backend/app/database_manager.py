@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.config_db import MYSQL_CONFIG
+from app.timezone_utils import get_current_time, get_current_date, format_datetime
 
 logger = logging.getLogger('DatabaseManager')
 
@@ -244,9 +245,9 @@ class DatabaseManager:
             logger.error(f"Failed to get active kegiatan: {e}")
             return []
 
-    def record_attendance(self, mahasiswa_id, action, camera_id, snapshot_path, confidence, kegiatan_id=None):
-        """Record kehadiran"""
-        today = date.today().isoformat()
+    def record_attendance(self, mahasiswa_id, action, camera_id, snapshot_path, confidence, kegiatan_id=None, is_late=False, late_duration=0):
+        """Record kehadiran dengan late tracking (timezone-aware)"""
+        today = get_current_date().isoformat()
         
         # Jika ada kegiatan_id, ambil tanggal pelaksanaannya dari DB agar absen sinkron dengan jadwal kegiatan
         if kegiatan_id:
@@ -258,7 +259,7 @@ class DatabaseManager:
                 else:
                     today = str(kegiatan['tanggal_pelaksanaan'])
 
-        now = datetime.now()
+        now = get_current_time()
         
         # Cek existing attendance
         if kegiatan_id:
@@ -274,8 +275,8 @@ class DatabaseManager:
                 fetch_one=True
             )
 
-        # Format waktu yang standar dan kompatibel dengan Laravel/MySQL
-        time_str = now.strftime('%Y-%m-%d %H:%M:%S')
+        # Format waktu yang standar dan kompatibel dengan Laravel/MySQL (timezone-aware)
+        time_str = format_datetime(now, '%Y-%m-%d %H:%M:%S')
         just_time_str = now.strftime('%H:%M:%S')
 
         if action == 'check_in':
@@ -294,10 +295,10 @@ class DatabaseManager:
                 return {'status': 'already_checked_in', 'time': checkin_time}
             
             self._execute("""
-                INSERT INTO attendance (mahasiswa_id, check_in, check_in_time, date, status, camera_id, snapshot_path, yolo_confidence, kegiatan_id)
-                VALUES (%s, %s, %s, %s, 'hadir', %s, %s, %s, %s)
-            """, (mahasiswa_id, time_str, just_time_str, today, camera_id, snapshot_path, confidence, kegiatan_id))
-            return {'status': 'checked_in', 'time': just_time_str}
+                INSERT INTO attendance (mahasiswa_id, check_in, check_in_time, date, status, camera_id, snapshot_path, yolo_confidence, kegiatan_id, is_late, late_duration)
+                VALUES (%s, %s, %s, %s, 'hadir', %s, %s, %s, %s, %s, %s)
+            """, (mahasiswa_id, time_str, just_time_str, today, camera_id, snapshot_path, confidence, kegiatan_id, is_late, late_duration))
+            return {'status': 'checked_in', 'time': just_time_str, 'is_late': is_late, 'late_duration': late_duration}
 
         elif action == 'check_out':
             if not existing:
@@ -331,3 +332,54 @@ class DatabaseManager:
             "UPDATE camera_streams SET last_seen = %s WHERE id = %s",
             (datetime.now().isoformat(), cam_id)
         )
+
+    # ========== ATTENDANCE SCHEDULE METHODS ==========
+    
+    def get_schedule_for_day(self, day_of_week: int):
+        """
+        Get schedule for specific day of week (ISO-8601: 1=Monday, 7=Sunday)
+        Returns dict with schedule details or None if no active schedule
+        """
+        query = """
+            SELECT id, day_of_week, check_in_start, check_in_end, 
+                   check_out_start, check_out_end, is_active
+            FROM attendance_schedules
+            WHERE day_of_week = %s AND is_active = 1
+            LIMIT 1
+        """
+        return self._execute(query, (day_of_week,), fetch_one=True)
+    
+    def get_today_schedule(self):
+        """
+        Get schedule for today based on current day of week
+        Returns dict with schedule or None
+        """
+        from datetime import datetime
+        # ISO-8601: Monday=1, Sunday=7
+        today_dow = datetime.now().isoweekday()
+        return self.get_schedule_for_day(today_dow)
+    
+    def get_all_schedules(self):
+        """Get all schedules (active and inactive) ordered by day"""
+        query = """
+            SELECT id, day_of_week, check_in_start, check_in_end,
+                   check_out_start, check_out_end, is_active
+            FROM attendance_schedules
+            ORDER BY day_of_week ASC
+        """
+        return self._execute(query, fetch_all=True)
+    
+    def get_system_config(self, config_key: str, default_value=None):
+        """Get system config value by key"""
+        query = "SELECT config_value FROM system_config WHERE config_key = %s"
+        result = self._execute(query, (config_key,), fetch_one=True)
+        return result['config_value'] if result else default_value
+    
+    def get_grace_period_minutes(self) -> int:
+        """Get grace period in minutes from system config"""
+        value = self.get_system_config('attendance_grace_period_minutes', '40')
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid grace period value: {value}, using default 40")
+            return 40

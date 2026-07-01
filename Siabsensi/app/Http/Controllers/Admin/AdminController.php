@@ -835,4 +835,209 @@ class AdminController extends Controller
             ]
         ]);
     }
+
+    // ─── LATE STATUS OVERRIDE ────────────────────────────────────────────────
+    public function overrideLateStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'attendance_id' => 'required|integer|exists:attendance,id',
+            'override_reason' => 'required|string|min:10|max:500',
+        ], [
+            'attendance_id.required' => 'ID attendance wajib diisi',
+            'attendance_id.exists' => 'Data attendance tidak ditemukan',
+            'override_reason.required' => 'Alasan override wajib diisi',
+            'override_reason.min' => 'Alasan override minimal 10 karakter',
+            'override_reason.max' => 'Alasan override maksimal 500 karakter',
+        ]);
+
+        $attendance = Attendance::findOrFail($validated['attendance_id']);
+
+        // Validate that attendance is actually late and not already overridden
+        if (!$attendance->is_late) {
+            return redirect()->back()->with('error', 'Attendance ini tidak memiliki status telat');
+        }
+
+        if ($attendance->late_overridden) {
+            return redirect()->back()->with('error', 'Status telat sudah di-override sebelumnya');
+        }
+
+        // Update attendance with override info
+        $attendance->late_overridden = true;
+        $attendance->overridden_by = auth()->user()->username;
+        $attendance->override_reason = $validated['override_reason'];
+        $attendance->override_timestamp = now();
+        $attendance->save();
+
+        $mahasiswaName = $attendance->mahasiswa->name ?? 'Unknown';
+        return redirect()->back()->with('success', "Status telat untuk {$mahasiswaName} berhasil di-override");
+    }
+
+    public function cancelOverrideLateStatus(Request $request, $attendanceId)
+    {
+        $attendance = Attendance::findOrFail($attendanceId);
+
+        if (!$attendance->late_overridden) {
+            return redirect()->back()->with('error', 'Attendance ini tidak memiliki override');
+        }
+
+        // Cancel override
+        $attendance->late_overridden = false;
+        $attendance->overridden_by = null;
+        $attendance->override_reason = null;
+        $attendance->override_timestamp = null;
+        $attendance->save();
+
+        $mahasiswaName = $attendance->mahasiswa->name ?? 'Unknown';
+        return redirect()->back()->with('success', "Override untuk {$mahasiswaName} berhasil dibatalkan");
+    }
+
+    // ─── LATE ATTENDANCE REPORT ──────────────────────────────────────────────
+    public function lateAttendanceReport(Request $request)
+    {
+        $start = $request->get('start', Carbon::now()->startOfMonth()->toDateString());
+        $end = $request->get('end', Carbon::today()->toDateString());
+        $filterKompi = $request->get('kompi');
+        $filterJurusan = $request->get('jurusan');
+
+        $table = (new Attendance)->getTable();
+        $mhsTable = (new Mahasiswa)->getTable();
+
+        // Build query for late attendance
+        $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+            ->whereBetween("$table.date", [$start, $end])
+            ->where("$table.is_late", true)
+            ->where(function ($q) use ($table) {
+                $q->where("$table.late_overridden", false)
+                  ->orWhereNull("$table.late_overridden");
+            })
+            ->select(
+                "$mhsTable.id as mahasiswa_id",
+                "$mhsTable.name",
+                "$mhsTable.kompi",
+                "$mhsTable.jurusan",
+                DB::raw("COUNT($table.id) as total_late"),
+                DB::raw("AVG($table.late_duration) as avg_late_duration"),
+                DB::raw("MAX($table.late_duration) as max_late_duration"),
+                DB::raw("MIN($table.late_duration) as min_late_duration")
+            )
+            ->groupBy("$mhsTable.id", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
+
+        // Apply filters
+        if ($filterKompi) {
+            $query->where("$mhsTable.kompi", $filterKompi);
+        }
+        if ($filterJurusan) {
+            $query->where("$mhsTable.jurusan", $filterJurusan);
+        }
+
+        $lateReports = $query->orderBy('total_late', 'desc')->paginate(20)->withQueryString();
+
+        // Calculate summary statistics
+        $summaryQuery = Attendance::whereBetween('date', [$start, $end]);
+        
+        $totalLateOccurrences = $summaryQuery->where('is_late', true)
+            ->where(function ($q) {
+                $q->where('late_overridden', false)->orWhereNull('late_overridden');
+            })->count();
+        
+        $totalOverrides = Attendance::whereBetween('date', [$start, $end])
+            ->where('is_late', true)
+            ->where('late_overridden', true)
+            ->count();
+        
+        $avgLateDuration = $summaryQuery->where('is_late', true)
+            ->where(function ($q) {
+                $q->where('late_overridden', false)->orWhereNull('late_overridden');
+            })->avg('late_duration');
+
+        // Get filter options
+        $kompiOptions = Mahasiswa::distinct()->pluck('kompi')->filter()->sort()->values();
+        $jurusanOptions = Mahasiswa::distinct()->pluck('jurusan')->filter()->sort()->values();
+
+        return view('admin.late-attendance-report', compact(
+            'lateReports',
+            'start',
+            'end',
+            'filterKompi',
+            'filterJurusan',
+            'totalLateOccurrences',
+            'totalOverrides',
+            'avgLateDuration',
+            'kompiOptions',
+            'jurusanOptions'
+        ));
+    }
+
+    public function exportLateAttendanceReport(Request $request)
+    {
+        $start = $request->get('start', Carbon::now()->startOfMonth()->toDateString());
+        $end = $request->get('end', Carbon::today()->toDateString());
+        $filterKompi = $request->get('kompi');
+        $filterJurusan = $request->get('jurusan');
+
+        $table = (new Attendance)->getTable();
+        $mhsTable = (new Mahasiswa)->getTable();
+
+        // Build query for late attendance
+        $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+            ->whereBetween("$table.date", [$start, $end])
+            ->where("$table.is_late", true)
+            ->where(function ($q) use ($table) {
+                $q->where("$table.late_overridden", false)
+                  ->orWhereNull("$table.late_overridden");
+            })
+            ->select(
+                "$mhsTable.id as mahasiswa_id",
+                "$mhsTable.name",
+                "$mhsTable.kompi",
+                "$mhsTable.jurusan",
+                DB::raw("COUNT($table.id) as total_late"),
+                DB::raw("AVG($table.late_duration) as avg_late_duration"),
+                DB::raw("MAX($table.late_duration) as max_late_duration"),
+                DB::raw("MIN($table.late_duration) as min_late_duration")
+            )
+            ->groupBy("$mhsTable.id", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
+
+        // Apply filters
+        if ($filterKompi) {
+            $query->where("$mhsTable.kompi", $filterKompi);
+        }
+        if ($filterJurusan) {
+            $query->where("$mhsTable.jurusan", $filterJurusan);
+        }
+
+        $lateReports = $query->orderBy('total_late', 'desc')->get();
+
+        // Generate CSV
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="Laporan_Keterlambatan_' . Carbon::now()->format('YmdHis') . '.csv"',
+        ];
+
+        $columns = ['ID Mahasiswa', 'Nama', 'Kompi', 'Jurusan', 'Total Telat', 'Rata-rata Durasi (menit)', 'Durasi Maksimal (menit)', 'Durasi Minimal (menit)'];
+
+        $callback = function () use ($lateReports, $columns) {
+            $file = fopen('php://output', 'w');
+            // Add BOM for Excel UTF-8 support
+            fputs($file, "\xEF\xBB\xBF");
+            fputcsv($file, $columns, ';');
+
+            foreach ($lateReports as $report) {
+                fputcsv($file, [
+                    $report->mahasiswa_id,
+                    $report->name,
+                    $report->kompi,
+                    $report->jurusan,
+                    $report->total_late,
+                    round($report->avg_late_duration, 2),
+                    $report->max_late_duration,
+                    $report->min_late_duration,
+                ], ';');
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
 }

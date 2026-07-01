@@ -2,7 +2,11 @@ const API_URL = 'http://127.0.0.1:8000/api'; // Laravel Server API
 const PYTHON_API_URL = 'http://127.0.0.1:5000/api/python';
 const LOCAL_STORAGE_KEY = 'siabsen_local_sync_data';
 const COOLDOWN_MS = 10 * 1000; // 10 detik (sebelumnya 1 jam)
-const beepSound = new Audio('/static/sounds/beep.mp3'); // File harus ada di: static/sounds/beep.mp3
+
+// Audio beep untuk notifikasi
+const beepSound = new Audio('/static/sounds/beep.mp3');
+beepSound.volume = 1.0; // Set volume 70%
+let isAudioUnlocked = false;
 
 let lastActionCount = 0;
 let pollingActive = false;
@@ -389,6 +393,8 @@ function saveToLocalSync(responseData) {
         check_in: ['checked_in', 'already_checked_in'].includes(responseData.result.status) ? actionTime : null,
         check_out: ['checked_out', 'already_checked_out'].includes(responseData.result.status) ? actionTime : null,
         action: responseData.result.status,
+        is_late: responseData.result.is_late || false,
+        late_duration: responseData.result.late_duration || 0,
         synced: false
     };
 
@@ -462,22 +468,66 @@ async function syncDataToServer() {
 
         if (res.ok) {
             const resData = await res.json();
-            // Tandai sudah sukses sync
-            data.forEach(d => {
-                if (!d.synced) d.synced = true;
-            });
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-
-            if (typeof Swal !== 'undefined') {
-                Swal.fire({
-                    title: 'Berhasil!',
-                    text: `Sinkronisasi ${unsynced.length} data absensi ke server berhasil.`,
-                    icon: 'success',
-                    confirmButtonColor: '#10b981'
+            
+            // Check for rejections
+            const rejectedCount = resData.rejected_count || 0;
+            const syncedCount = resData.synced_count || 0;
+            const rejectionReasons = resData.rejection_reasons || [];
+            
+            if (rejectedCount > 0) {
+                // Some data was rejected
+                console.warn("Beberapa data ditolak:", rejectionReasons);
+                
+                // Mark only successfully synced data
+                // For now, mark all as synced since we don't know which ones were rejected
+                // In production, Laravel should return IDs of successfully synced records
+                data.forEach(d => {
+                    if (!d.synced) d.synced = true;
                 });
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+                
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Sinkronisasi Selesai',
+                        html: `
+                            <div style="text-align:left;margin:16px 0;">
+                                <p><strong style="color:#10b981;">✓ Berhasil:</strong> ${syncedCount} data</p>
+                                <p><strong style="color:#ef4444;">✗ Ditolak:</strong> ${rejectedCount} data</p>
+                                ${rejectionReasons.length > 0 ? `
+                                    <div style="margin-top:12px;padding:12px;background:#fef2f2;border-radius:8px;max-height:200px;overflow-y:auto;text-align:left;">
+                                        <strong style="color:#991b1b;">Alasan Penolakan:</strong>
+                                        <ul style="margin:8px 0;padding-left:20px;font-size:13px;color:#991b1b;">
+                                            ${rejectionReasons.map(r => `<li>${r}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `,
+                        icon: syncedCount > 0 ? 'warning' : 'error',
+                        confirmButtonColor: '#3b82f6'
+                    });
+                } else {
+                    showToast(`Sinkronisasi selesai: ${syncedCount} berhasil, ${rejectedCount} ditolak`, "#f59e0b");
+                }
             } else {
-                showToast("Sinkronisasi berhasil!", "#10b981");
+                // All data synced successfully
+                data.forEach(d => {
+                    if (!d.synced) d.synced = true;
+                });
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Berhasil!',
+                        text: `Sinkronisasi ${syncedCount} data absensi ke server berhasil.`,
+                        icon: 'success',
+                        confirmButtonColor: '#10b981'
+                    });
+                } else {
+                    showToast("Sinkronisasi berhasil!", "#10b981");
+                }
             }
+            
             if (btn) btn.textContent = 'Sync ke Server';
 
             // Re-render
@@ -718,6 +768,16 @@ function renderRecentScans(attendanceData) {
                 </div>`;
         }
 
+        // Tampilkan badge terlambat jika is_late = true
+        let lateBadge = '';
+        if (record.is_late && !isCheckout) {
+            const lateDuration = record.late_duration || 0;
+            lateBadge = `
+                <div style="margin-top:6px;font-size:10px;color:#991b1b;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;padding:3px 8px;display:inline-block;font-weight:600;">
+                    <span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle">warning</span> TERLAMBAT ${lateDuration} menit
+                </div>`;
+        }
+
         return `
             <div class="log-item ${isCheckout ? 'checkout' : ''} ${inCooldown ? '' : ''}">
                 <div class="log-avatar">${initials}</div>
@@ -727,6 +787,7 @@ function renderRecentScans(attendanceData) {
                         <span>${record.kompi || '—'}</span>
                         <span class="action-badge ${isCheckout ? 'keluar' : 'masuk'}">${actionText}</span>
                     </div>
+                    ${lateBadge}
                     ${cooldownBadge}
                 </div>
                 <div class="scan-time">${timeShow}</div>
@@ -834,21 +895,20 @@ async function fetchLatestAttendance() {
 }
 
 // ===== SUARA BEEP SAAT ABSEN BARU =====
-let isAudioUnlocked = false;
-
 function aktifkanSuara() {
     const alertBox = document.getElementById('audio-alert');
     if (alertBox) alertBox.remove();
 
+    // Preload dan test audio untuk unlock di browser
     beepSound.load();
-    beepSound.volume = 0;
+    beepSound.volume = 0.01; // Volume sangat kecil untuk test
     beepSound.play()
         .then(() => {
             beepSound.pause();
             beepSound.currentTime = 0;
-            beepSound.volume = 1;
+            beepSound.volume = 0.7; // Set volume normal
             isAudioUnlocked = true;
-            console.info('[SIABSEN] Audio berhasil diaktifkan.');
+            console.info('[SIABSEN] Audio berhasil diaktifkan ✓');
         })
         .catch(err => {
             isAudioUnlocked = false;
@@ -857,10 +917,17 @@ function aktifkanSuara() {
 }
 
 function playBeep() {
-    if (!isAudioUnlocked) return;
+    if (!isAudioUnlocked) {
+        console.warn('[SIABSEN] Audio belum diaktifkan. Klik "Aktifkan Suara" terlebih dahulu.');
+        return;
+    }
+    
     try {
+        // Reset ke awal dan play
         beepSound.currentTime = 0;
-        beepSound.play().catch(err => console.warn('Gagal memutar beep:', err));
+        beepSound.play().catch(err => {
+            console.warn('Gagal memutar beep:', err);
+        });
     } catch (err) {
         console.warn('Error audio:', err);
     }

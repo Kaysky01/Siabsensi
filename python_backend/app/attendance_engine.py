@@ -21,6 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.database_manager import DatabaseManager
 from app.config_db import YOLO_SETTINGS, RTSP_SETTINGS
+from app.time_validator import TimeValidator
+from app.timezone_utils import get_current_time, get_current_date, format_datetime
 
 logging.basicConfig(
     level=logging.INFO,
@@ -215,7 +217,7 @@ class WebcamStream:
         ret, frame = self.get_frame()
         if not ret:
             return ''
-        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        ts = get_current_time().strftime('%Y%m%d_%H%M%S')
         filename = SNAPSHOT_DIR / f"{mahasiswa_id}_{self.camera_id}_{ts}.jpg"
         cv2.imwrite(str(filename), frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
         return str(filename)
@@ -257,7 +259,7 @@ class YOLOProcessor:
 
         # Header bar
         cv2.rectangle(display, (0, 0), (W, 45), (45, 90, 180), -1)
-        cv2.putText(display, f"SISTEM ABSENSI QR CODE  |  {datetime.now().strftime('%Y-%m-%d  %H:%M:%S')}",
+        cv2.putText(display, f"SISTEM ABSENSI QR CODE  |  {get_current_time().strftime('%Y-%m-%d  %H:%M:%S')}",
                     (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
         # Draw YOLO detected QR papers
@@ -297,6 +299,7 @@ class AttendanceProcessor:
     def __init__(self, db: DatabaseManager, yolo: YOLOProcessor):
         self.db = db
         self.yolo = yolo
+        self.time_validator = TimeValidator(db)  # Initialize time validator
         self.cameras: dict[str, WebcamStream] = {}  # Changed from RTSPCameraStream
         self._qr_cooldowns: dict[str, float] = {}
         self._processing = False
@@ -327,30 +330,76 @@ class AttendanceProcessor:
     def _set_qr_cooldown(self, qr_data: str):
         self._qr_cooldowns[qr_data] = time.time()
 
-    def _determine_action(self, mahasiswa_id: str, kegiatan_id=None) -> str:
-        """Tentukan apakah mahasiswa harus check_in, check_out, cooldown, atau none.
-        
-        Jika kegiatan_id diberikan, cari berdasarkan kegiatan_id.
-        Jika tidak, fallback ke tanggal hari ini.
+    def _determine_action(self, mahasiswa_id: str, kegiatan_id=None) -> tuple[str, dict]:
         """
+        Tentukan apakah mahasiswa harus check_in, check_out, cooldown, atau none.
+        Returns tuple: (action, validation_result)
+        
+        Jika kegiatan_id diberikan, bypass schedule validation (untuk absensi kegiatan persesi).
+        Jika tidak, validate terhadap daily schedule.
+        """
+        # Log untuk debugging
+        logger.info(f"[_determine_action] mahasiswa_id={mahasiswa_id}, kegiatan_id={kegiatan_id}")
+        
+        # For kegiatan-based attendance, bypass schedule validation
         if kegiatan_id:
+            logger.info(f"[{mahasiswa_id}] KEGIATAN MODE - Bypass schedule validation (kegiatan_id={kegiatan_id})")
             row = self.db._execute(
                 "SELECT check_in, check_out FROM attendance WHERE mahasiswa_id=%s AND kegiatan_id=%s",
                 (mahasiswa_id, kegiatan_id),
                 fetch_one=True
             )
-        else:
-            today = date.today().isoformat()
-            row = self.db._execute(
-                "SELECT check_in, check_out FROM attendance WHERE mahasiswa_id=%s AND date=%s",
-                (mahasiswa_id, today),
-                fetch_one=True
-            )
+            if not row or not row['check_in']:
+                return ('check_in', {'allowed': True, 'is_late': False, 'late_duration': 0, 'bypass_schedule': True})
+            if row['check_in'] and not row['check_out']:
+                elapsed_seconds = (get_current_time() - row['check_in']).total_seconds()
+                if elapsed_seconds < self.CHECK_OUT_MIN_SECONDS:
+                    remaining = int(self.CHECK_OUT_MIN_SECONDS - elapsed_seconds)
+                    return ('cooldown', {'reason': 'cooldown', 'remaining_seconds': remaining})
+                return ('check_out', {'allowed': True, 'bypass_schedule': True})
+            return ('none', {'reason': 'already_complete'})
         
+        # For daily attendance, validate against schedule
+        logger.info(f"[{mahasiswa_id}] DAILY MODE - Validating against schedule")
+        today = date.today().isoformat()
+        row = self.db._execute(
+            "SELECT check_in, check_out FROM attendance WHERE mahasiswa_id=%s AND date=%s",
+            (mahasiswa_id, today),
+            fetch_one=True
+        )
+        
+        # Get today's schedule - MUST check if exists first
+        schedule = self.db.get_today_schedule()
+        logger.info(f"[{mahasiswa_id}] Schedule for today: {schedule}")
+        
+        # CRITICAL: Reject if no schedule exists for today
+        if not schedule:
+            logger.warning(f"[{mahasiswa_id}] No schedule configured for today")
+            # Return appropriate rejection based on whether user needs check-in or check-out
+            if not row or not row['check_in']:
+                return ('check_in', {
+                    'allowed': False,
+                    'is_late': False,
+                    'late_duration': 0,
+                    'reason': 'no_schedule',
+                    'message': 'Tidak ada jadwal absensi untuk hari ini'
+                })
+            else:
+                return ('check_out', {
+                    'allowed': False,
+                    'reason': 'no_schedule',
+                    'message': 'Tidak ada jadwal absensi untuk hari ini'
+                })
+        
+        # Determine action
         if not row or not row['check_in']:
-            return 'check_in'
+            # Need check-in - validate time
+            validation = self.time_validator.validate_check_in(get_current_time(), schedule)
+            logger.info(f"[{mahasiswa_id}] Check-in validation result: {validation}")
+            return ('check_in', validation)
+        
         if row['check_in'] and not row['check_out']:
-            # Hitung selisih waktu sejak check_in
+            # Need check-out - but check cooldown first
             check_in_val = row['check_in']
             if isinstance(check_in_val, str):
                 try:
@@ -358,21 +407,23 @@ class AttendanceProcessor:
                 except Exception:
                     check_in_time = datetime.strptime(check_in_val, '%Y-%m-%d %H:%M:%S')
             elif hasattr(check_in_val, 'hour'):
-                # datetime object from MySQL
                 check_in_time = check_in_val
             else:
-                check_in_time = datetime.now()
-                
-            elapsed_seconds = (datetime.now() - check_in_time).total_seconds()
+                check_in_time = get_current_time()
+            
+            elapsed_seconds = (get_current_time() - check_in_time).total_seconds()
             if elapsed_seconds < self.CHECK_OUT_MIN_SECONDS:
                 remaining = int(self.CHECK_OUT_MIN_SECONDS - elapsed_seconds)
-                logger.info(
-                    f"[{mahasiswa_id}] Cooldown check-out: sisa {remaining // 60} menit {remaining % 60} detik."
-                )
-                return 'cooldown'
-            return 'check_out'
-        # Sudah check_in dan check_out → selesai untuk sesi ini
-        return 'none'
+                logger.info(f"[{mahasiswa_id}] Cooldown check-out: sisa {remaining // 60} menit {remaining % 60} detik.")
+                return ('cooldown', {'reason': 'cooldown', 'remaining_seconds': remaining})
+            
+            # Validate check-out time
+            validation = self.time_validator.validate_check_out(get_current_time(), schedule)
+            logger.info(f"[{mahasiswa_id}] Check-out validation result: {validation}")
+            return ('check_out', validation)
+        
+        # Already complete
+        return ('none', {'reason': 'already_complete'})
 
     def process_frame(self, camera_id: str, frame: np.ndarray) -> dict:
         """
@@ -381,7 +432,7 @@ class AttendanceProcessor:
         """
         result = {
             'camera_id': camera_id,
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': get_current_time().isoformat(),
             'qr_papers_detected': 0,
             'qr_scanned': None,
             'attendance': None
@@ -412,15 +463,24 @@ class AttendanceProcessor:
                     logger.warning(f"QR tidak dikenal: {qr_data}")
                     continue
 
-                # Tentukan action (check_in atau check_out)
-                action = self._determine_action(mahasiswa['id'])
+                # Tentukan action (check_in atau check_out) dengan validasi waktu
+                action, validation = self._determine_action(mahasiswa['id'])
+                
+                # Handle rejection
+                if action in ['check_in', 'check_out'] and not validation.get('allowed', False):
+                    logger.warning(f"[{mahasiswa['name']}] {action.upper()} DITOLAK: {validation.get('message', 'Unknown reason')}")
+                    self._set_qr_cooldown(qr_data)  # Set cooldown to prevent spam
+                    continue
+                
                 if action == 'none':
                     logger.info(f"[{mahasiswa['name']}] Sudah selesai absen hari ini.")
-                    self._set_qr_cooldown(qr_data)  # tetap set cooldown 30 detik
+                    self._set_qr_cooldown(qr_data)
                     continue
+                
                 if action == 'cooldown':
-                    logger.info(f"[{mahasiswa['name']}] Ditolak: masih dalam jeda 1 jam sejak check-in.")
-                    self._set_qr_cooldown(qr_data)  # blokir spam scan selama 30 detik
+                    remaining = validation.get('remaining_seconds', 0)
+                    logger.info(f"[{mahasiswa['name']}] Ditolak: masih dalam jeda {remaining} detik sejak check-in.")
+                    self._set_qr_cooldown(qr_data)
                     continue
 
                 # Ambil confidence tertinggi dari QR paper yang terdeteksi
@@ -428,10 +488,17 @@ class AttendanceProcessor:
                 
                 # Simpan snapshot
                 snapshot = self.cameras[camera_id].save_snapshot(mahasiswa['id'])
+                
+                # Extract late info from validation
+                is_late = validation.get('is_late', False)
+                late_duration = validation.get('late_duration', 0)
 
-                # Record attendance
+                # Record attendance with late tracking
                 att_result = self.db.record_attendance(
-                    mahasiswa['id'], action, camera_id, snapshot, max_conf
+                    mahasiswa['id'], action, camera_id, snapshot, max_conf,
+                    kegiatan_id=None,  # For daily attendance, kegiatan_id is None
+                    is_late=is_late,
+                    late_duration=late_duration
                 )
 
                 # Set cooldown
@@ -443,10 +510,15 @@ class AttendanceProcessor:
                     'mahasiswa': mahasiswa,
                     'action': action,
                     'result': att_result,
-                    'confidence': max_conf
+                    'confidence': max_conf,
+                    'is_late': is_late,
+                    'late_duration': late_duration,
+                    'validation_message': validation.get('message', '')
                 }
 
                 log_msg = f"[{camera_id}] {mahasiswa['name']} — {action.upper()} | QR Conf: {max_conf:.2%}"
+                if is_late:
+                    log_msg += f" | TELAT {late_duration} menit"
                 logger.info(log_msg)
                 break  # Proses satu QR per frame
 

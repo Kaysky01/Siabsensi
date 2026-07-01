@@ -58,9 +58,80 @@ local_attendance_state = {}
 def get_local_action(mahasiswa_id, kegiatan_id):
     """Tentukan action berdasarkan in-memory state (bukan database).
     
-    Returns: 'check_in', 'check_out', 'cooldown', atau 'already_checked_out'
+    Returns: 
+    - 'check_in', 'check_out', 'cooldown', 'already_checked_out' (success cases)
+    - tuple ('rejected', reason, message) for rejection cases
+    - tuple ('check_in', is_late, late_duration) for check_in with late info
     """
-    key = str(kegiatan_id or 'default')
+    # For kegiatan-based attendance, bypass schedule validation
+    if kegiatan_id:
+        key = str(kegiatan_id)
+        
+        if key not in local_attendance_state:
+            local_attendance_state[key] = {}
+        
+        session = local_attendance_state[key]
+        
+        if mahasiswa_id not in session:
+            # Belum ada record → check_in
+            session[mahasiswa_id] = {'check_in': datetime.now(), 'check_out': None}
+            return 'check_in'
+        
+        record = session[mahasiswa_id]
+        
+        if record['check_in'] and not record['check_out']:
+            # Sudah check_in, belum check_out → cek cooldown
+            elapsed = (datetime.now() - record['check_in']).total_seconds()
+            cooldown_seconds = YOLO_SETTINGS.get('qr_cooldown', 30)
+            if elapsed < cooldown_seconds:
+                return 'cooldown'
+            # Sudah lewat cooldown → check_out
+            record['check_out'] = datetime.now()
+            return 'check_out'
+        
+        if record['check_in'] and record['check_out']:
+            # Sudah selesai (masuk & keluar)
+            return 'already_checked_out'
+        
+        return 'check_in'
+    
+    # For daily attendance, check schedule first
+    if db:
+        schedule = db.get_today_schedule()
+        if not schedule:
+            logger.warning(f"[{mahasiswa_id}] No schedule configured for today (local mode)")
+            return ('rejected', 'no_schedule', 'Tidak ada jadwal absensi untuk hari ini')
+        
+        # Validate check-in time against schedule
+        from app.timezone_utils import get_current_time
+        from app.time_validator import TimeValidator
+        
+        time_validator = TimeValidator(db)
+        validation_result = time_validator.validate_check_in(get_current_time(), schedule)
+        
+        if not validation_result.get('allowed', False):
+            reason = validation_result.get('reason', 'unknown')
+            message = validation_result.get('message', 'Waktu absensi tidak valid')
+            logger.warning(f"[{mahasiswa_id}] Check-in rejected in local mode: {reason} - {message}")
+            
+            # Return specific rejection message based on reason
+            if reason == 'too_late':
+                return ('rejected', 'too_late', 'Absensi sudah ditutup')
+            elif reason == 'too_early':
+                return ('rejected', 'too_early', message)
+            else:
+                return ('rejected', reason, message)
+        
+        # Check if late (allowed but late)
+        is_late = validation_result.get('is_late', False)
+        late_duration = validation_result.get('late_duration', 0)
+    else:
+        # No database - assume not late
+        is_late = False
+        late_duration = 0
+    
+    # Continue with normal local state logic
+    key = 'default'
     
     if key not in local_attendance_state:
         local_attendance_state[key] = {}
@@ -69,8 +140,14 @@ def get_local_action(mahasiswa_id, kegiatan_id):
     
     if mahasiswa_id not in session:
         # Belum ada record → check_in
-        session[mahasiswa_id] = {'check_in': datetime.now(), 'check_out': None}
-        return 'check_in'
+        session[mahasiswa_id] = {
+            'check_in': datetime.now(), 
+            'check_out': None,
+            'is_late': is_late,
+            'late_duration': late_duration
+        }
+        # Return tuple with late info for check_in
+        return ('check_in', is_late, late_duration)
     
     record = session[mahasiswa_id]
     
@@ -326,6 +403,42 @@ def record_attendance():
 
         # Determine action berdasarkan in-memory state (BUKAN database)
         action = get_local_action(actual_mahasiswa_id, kegiatan_id)
+        
+        # Handle rejection (tuple response)
+        if isinstance(action, tuple) and action[0] == 'rejected':
+            _, reason, message = action
+            return jsonify({
+                'success': False,
+                'message': message,
+                'reason': reason
+            }), 403
+        
+        # Handle check_in with late info (tuple response)
+        if isinstance(action, tuple) and action[0] == 'check_in':
+            _, is_late, late_duration = action
+            return jsonify({
+                'success': True,
+                'message': 'Attendance recorded',
+                'result': {
+                    'status': 'checked_in', 
+                    'time': time_str,
+                    'is_late': is_late,
+                    'late_duration': late_duration
+                },
+                'mahasiswa': {
+                    'id': mahasiswa['id'],
+                    'name': mahasiswa['name'],
+                    'kompi': mahasiswa['kompi'],
+                    'jurusan': mahasiswa['jurusan']
+                }
+            })
+        
+        # Handle old string responses for backward compatibility
+        if action == 'no_schedule':
+            return jsonify({
+                'success': False,
+                'message': 'Tidak ada jadwal absensi untuk hari ini'
+            }), 403
         
         if action == 'cooldown':
             return jsonify({

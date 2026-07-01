@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AttendanceScheduleController;
 use App\Http\Controllers\Admin\MasterDataController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\KegiatanController;
@@ -81,6 +82,20 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::get('/kehadiran-timdis', [AdminController::class, 'kehadiranTimdis'])->name('admin.kehadiran-timdis');
     Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
     Route::get('/settings', [AdminController::class, 'settings'])->name('admin.settings');
+    
+    // Attendance Schedule
+    Route::get('/schedule', [AttendanceScheduleController::class, 'index'])->name('admin.schedule.index');
+    
+    // Debug route
+    Route::any('/schedule/test-route', function(\Illuminate\Http\Request $request) {
+        return response()->json([
+            'status' => 'Route works!',
+            'method' => $request->method(),
+            'auth' => auth()->check(),
+            'user' => auth()->user()->username ?? 'guest',
+            'role' => auth()->user()->role ?? 'none',
+        ]);
+    })->name('admin.schedule.test');
 
     // Redirect legacy dashboard URLs
     Route::get('/timdis/dashboard', fn() => redirect()->route('admin.dashboard'));
@@ -95,6 +110,22 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     // Verifikasi Izin & Kehadiran
     Route::post('/izin/verify', [AdminController::class, 'verifyIzin'])->name('admin.izin.verify');
     Route::post('/kehadiran/verify', [AdminController::class, 'verifyKehadiran'])->name('admin.kehadiran.verify');
+    
+    // Attendance Schedule CRUD (accessible by admin, timdis, garda)
+    Route::post('/schedule', [AttendanceScheduleController::class, 'store'])->name('admin.schedule.store');
+    Route::post('/schedule/save-all', [AttendanceScheduleController::class, 'bulkUpdate'])->name('admin.schedule.bulkUpdate');
+    Route::post('/schedule/grace-period', [AttendanceScheduleController::class, 'updateGracePeriod'])->name('admin.schedule.gracePeriod');
+    Route::post('/schedule/{dayOfWeek}/toggle', [AttendanceScheduleController::class, 'toggleActive'])->name('admin.schedule.toggle');
+    Route::delete('/schedule/{dayOfWeek}', [AttendanceScheduleController::class, 'destroy'])->name('admin.schedule.destroy');
+    
+    // Test route untuk debugging
+    Route::post('/test-post', function(\Illuminate\Http\Request $request) {
+        \Log::info('Test POST route called', [
+            'user' => auth()->user()->username ?? 'guest',
+            'all_input' => $request->all()
+        ]);
+        return response()->json(['success' => true, 'message' => 'POST route works!', 'user' => auth()->user()->username]);
+    })->name('admin.test.post');
 });
 
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
@@ -102,9 +133,6 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/mahasiswa', [AdminController::class, 'storeMahasiswa'])->name('admin.mahasiswa.store');
     Route::put('/mahasiswa/{id}', [AdminController::class, 'updateMahasiswa'])->name('admin.mahasiswa.update');
     Route::delete('/mahasiswa/{id}', [AdminController::class, 'deleteMahasiswa'])->name('admin.mahasiswa.destroy');
-
-    // Bulk Update Kompi
-    Route::post('/kompi/bulk-update', [AdminController::class, 'bulkUpdateKompi'])->name('admin.kompi.bulkUpdate');
 
     // Users CRUD
     Route::post('/users', [AdminController::class, 'storeUser'])->name('admin.users.store');
@@ -115,6 +143,14 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
 
     // Settings
     Route::post('/settings/save', [AdminController::class, 'saveSettings'])->name('admin.settings.save');
+    
+    // Late Status Override
+    Route::post('/attendance/override-late', [AdminController::class, 'overrideLateStatus'])->name('admin.attendance.overrideLate');
+    Route::post('/attendance/{attendanceId}/cancel-override', [AdminController::class, 'cancelOverrideLateStatus'])->name('admin.attendance.cancelOverride');
+    
+    // Late Attendance Report
+    Route::get('/late-report', [AdminController::class, 'lateAttendanceReport'])->name('admin.late-report');
+    Route::get('/late-report/export', [AdminController::class, 'exportLateAttendanceReport'])->name('admin.late-report.export');
 
     // Kegiatan CRUD
     Route::post('/kegiatan', [KegiatanController::class, 'store'])->name('admin.kegiatan.store');
@@ -166,10 +202,20 @@ Route::get('/api/kegiatan', function () {
     }
 });
 
+// Handle CORS preflight for /api/sync
+Route::options('/api/sync', function () {
+    return response()->json([], 200)
+        ->header('Access-Control-Allow-Origin', '*')
+        ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept');
+});
+
 Route::post('/api/sync', function (Request $request) {
     try {
         $data = $request->input('data', []);
         $syncedCount = 0;
+        $rejectedCount = 0;
+        $rejectionReasons = [];
         
         foreach ($data as $record) {
             if (!isset($record['mahasiswa_id'])) continue;
@@ -181,13 +227,18 @@ Route::post('/api/sync', function (Request $request) {
                 $cleanId = str_replace(['QR-', '-'], '', $qrOrId);
                 $mahasiswa = Mahasiswa::where('id', $cleanId)->first();
             }
-            if (!$mahasiswa) continue;
+            if (!$mahasiswa) {
+                $rejectedCount++;
+                $rejectionReasons[] = "Mahasiswa tidak ditemukan: {$qrOrId}";
+                continue;
+            }
             
             $mahasiswaId = $mahasiswa->id;
             
             $kegiatanId = $record['kegiatan_id'] ?? null;
             $kegiatanDate = Carbon::today()->format('Y-m-d');
             
+            // For kegiatan-based attendance, bypass schedule validation
             if ($kegiatanId) {
                 $kegiatan = \App\Models\Kegiatan::find($kegiatanId);
                 if ($kegiatan) {
@@ -198,6 +249,72 @@ Route::post('/api/sync', function (Request $request) {
                     ->where('kegiatan_id', $kegiatanId)
                     ->first();
             } else {
+                // For daily attendance, VALIDATE AGAINST SCHEDULE
+                $dayOfWeek = Carbon::today()->dayOfWeekIso; // 1=Monday, 7=Sunday
+                $schedule = \App\Models\AttendanceSchedule::where('day_of_week', $dayOfWeek)
+                    ->where('is_active', 1)
+                    ->first();
+                
+                // Reject if no schedule for today
+                if (!$schedule) {
+                    $rejectedCount++;
+                    $rejectionReasons[] = "Tidak ada jadwal untuk hari ini (Mahasiswa: {$mahasiswa->name})";
+                    \Log::warning("Attendance sync rejected - No schedule for today", [
+                        'mahasiswa_id' => $mahasiswaId,
+                        'mahasiswa_name' => $mahasiswa->name,
+                        'day_of_week' => $dayOfWeek
+                    ]);
+                    continue;
+                }
+                
+                // Get grace period
+                $gracePeriod = \App\Models\SystemConfig::getGracePeriodMinutes();
+                
+                // Validate check-in time if this is a check-in
+                $checkIn = isset($record['check_in']) ? Carbon::parse($record['check_in']) : Carbon::now();
+                $checkInTime = $checkIn->format('H:i:s');
+                
+                // Parse schedule times
+                $checkInStart = Carbon::parse($schedule->check_in_start)->format('H:i:s');
+                $checkInEnd = Carbon::parse($schedule->check_in_end)->format('H:i:s');
+                $graceEndTime = Carbon::parse($schedule->check_in_end)->addMinutes($gracePeriod)->format('H:i:s');
+                
+                // Check if too early
+                if ($checkInTime < $checkInStart) {
+                    $rejectedCount++;
+                    $rejectionReasons[] = "Check-in terlalu awal (Mahasiswa: {$mahasiswa->name}, Waktu: {$checkInTime}, Batas mulai: {$checkInStart})";
+                    \Log::warning("Attendance sync rejected - Too early", [
+                        'mahasiswa_id' => $mahasiswaId,
+                        'mahasiswa_name' => $mahasiswa->name,
+                        'check_in_time' => $checkInTime,
+                        'schedule_start' => $checkInStart
+                    ]);
+                    continue;
+                }
+                
+                // Check if too late (after grace period)
+                if ($checkInTime > $graceEndTime) {
+                    $rejectedCount++;
+                    $rejectionReasons[] = "Check-in terlambat melewati batas (Mahasiswa: {$mahasiswa->name}, Waktu: {$checkInTime}, Batas akhir: {$graceEndTime})";
+                    \Log::warning("Attendance sync rejected - Too late", [
+                        'mahasiswa_id' => $mahasiswaId,
+                        'mahasiswa_name' => $mahasiswa->name,
+                        'check_in_time' => $checkInTime,
+                        'grace_end_time' => $graceEndTime,
+                        'grace_period' => $gracePeriod
+                    ]);
+                    continue;
+                }
+                
+                // Determine if late
+                $isLate = $checkInTime > $checkInEnd;
+                $lateDuration = 0;
+                if ($isLate) {
+                    $start = Carbon::parse($checkInEnd);
+                    $end = Carbon::parse($checkInTime);
+                    $lateDuration = $start->diffInMinutes($end);
+                }
+                
                 $attendance = Attendance::where('mahasiswa_id', $mahasiswaId)
                     ->where('date', $kegiatanDate)
                     ->first();
@@ -207,27 +324,73 @@ Route::post('/api/sync', function (Request $request) {
             $checkOut = isset($record['check_out']) ? Carbon::parse($record['check_out'])->toDateTimeString() : null;
 
             if ($attendance) {
-                $attendance->update([
-                    'status' => 'hadir', // Konsisten dengan status python
+                $updateData = [
+                    'status' => 'hadir',
                     'check_in' => $attendance->check_in ?? $checkIn ?? Carbon::now()->toDateTimeString(),
                     'check_out' => $checkOut ?: $attendance->check_out,
-                ]);
+                ];
+                
+                // Add late info - prioritize from Python backend, fallback to Laravel calculation
+                if (!$kegiatanId) {
+                    if (isset($record['is_late'])) {
+                        // Use data from Python backend
+                        $updateData['is_late'] = $record['is_late'];
+                        $updateData['late_duration'] = $record['late_duration'] ?? 0;
+                    } elseif (isset($isLate)) {
+                        // Use Laravel calculation
+                        $updateData['is_late'] = $isLate;
+                        $updateData['late_duration'] = $lateDuration;
+                    }
+                }
+                
+                $attendance->update($updateData);
             } else if ($checkIn) {
-                Attendance::create([
+                $createData = [
                     'mahasiswa_id' => $mahasiswaId,
                     'kegiatan_id' => $kegiatanId,
                     'date' => $kegiatanDate,
                     'check_in' => $checkIn,
                     'check_out' => $checkOut,
                     'status' => 'hadir',
-                ]);
+                ];
+                
+                // Add late info - prioritize from Python backend, fallback to Laravel calculation
+                if (!$kegiatanId) {
+                    if (isset($record['is_late'])) {
+                        // Use data from Python backend
+                        $createData['is_late'] = $record['is_late'];
+                        $createData['late_duration'] = $record['late_duration'] ?? 0;
+                    } elseif (isset($isLate)) {
+                        // Use Laravel calculation
+                        $createData['is_late'] = $isLate;
+                        $createData['late_duration'] = $lateDuration;
+                    }
+                }
+                
+                Attendance::create($createData);
             }
             $syncedCount++;
         }
 
-        return response()->json(['success' => true, 'message' => "Synced $syncedCount records", 'synced_count' => $syncedCount]);
+        $message = "Synced {$syncedCount} records";
+        if ($rejectedCount > 0) {
+            $message .= ", rejected {$rejectedCount} records";
+        }
+        
+        return response()->json([
+            'success' => true, 
+            'message' => $message,
+            'synced_count' => $syncedCount,
+            'rejected_count' => $rejectedCount,
+            'rejection_reasons' => $rejectionReasons
+        ])->header('Access-Control-Allow-Origin', '*')
+          ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+          ->header('Access-Control-Allow-Headers', 'Content-Type, Accept');
     } catch (\Throwable $e) {
-        return response()->json(['success' => false, 'message' => 'Failed: ' . $e->getMessage()], 500);
+        return response()->json(['success' => false, 'message' => 'Failed: ' . $e->getMessage()], 500)
+            ->header('Access-Control-Allow-Origin', '*')
+            ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+            ->header('Access-Control-Allow-Headers', 'Content-Type, Accept');
     }
 });
 
