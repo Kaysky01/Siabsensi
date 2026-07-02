@@ -19,7 +19,7 @@
     </div>
     
     <div style="display:flex; justify-content:center; gap:16px;">
-      <button class="btn btn-ghost" onclick="alert('Fitur preview sedang dalam pengembangan SSR.')">Preview Sertifikat</button>
+      <a href="{{ url('/api/mahasiswa/' . $mahasiswa->id . '/sertifikat/preview/pdf') }}" target="_blank" class="btn btn-ghost">Preview Sertifikat</a>
       <form action="{{ url('/api/mahasiswa/' . $mahasiswa->id . '/sertifikat/generate') }}" method="POST">
         @csrf
         <button type="submit" class="btn btn-primary">

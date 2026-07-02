@@ -17,7 +17,7 @@
     <thead>
       <tr>
         <th>Tanggal Pengajuan</th>
-        <th>Mulai - Sampai</th>
+        <th>Tanggal Izin</th>
         <th>Jenis</th>
         <th>Alasan</th>
         <th>Status</th>
@@ -27,9 +27,9 @@
       @forelse($riwayatIzin as $izin)
       <tr>
         <td>{{ Carbon\Carbon::parse($izin->created_at)->format('d M Y') }}</td>
-        <td>{{ Carbon\Carbon::parse($izin->start_date)->format('d M Y') }} s/d {{ Carbon\Carbon::parse($izin->end_date)->format('d M Y') }}</td>
+        <td>{{ Carbon\Carbon::parse($izin->date)->format('d M Y') }}</td>
         <td>{{ ucfirst($izin->type) }}</td>
-        <td>{{ $izin->reason }}</td>
+        <td>{{ $izin->keterangan }}</td>
         <td>
           @if($izin->status === 'approved')
             <span class="badge badge-success">Disetujui</span>
@@ -66,15 +66,9 @@
         </div>
       </div>
       
-      <div class="form-row-2">
-        <div class="form-row">
-          <label class="form-label">Tanggal Mulai</label>
-          <input type="date" name="start_date" class="form-input" required min="{{ date('Y-m-d') }}">
-        </div>
-        <div class="form-row">
-          <label class="form-label">Tanggal Selesai</label>
-          <input type="date" name="end_date" class="form-input" required min="{{ date('Y-m-d') }}">
-        </div>
+      <div class="form-row">
+        <label class="form-label">Tanggal Izin/Sakit</label>
+        <input type="date" name="date" class="form-input" required min="{{ date('Y-m-d') }}">
       </div>
       
       <div class="form-row">

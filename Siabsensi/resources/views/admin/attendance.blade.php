@@ -5,7 +5,10 @@
 <section>
   <div class="page-header">
     <div>
-      <div class="page-title">Absensi Hari Ini</div>
+      <div class="page-title" style="display:flex; align-items:center; gap:8px;">
+        Absensi Hari Ini
+        <span style="display:inline-block; width:10px; height:10px; background-color:var(--danger); border-radius:50%; animation: pulse 1.5s infinite;" title="Live Detection Active"></span>
+      </div>
       <div class="page-sub">{{ Carbon\Carbon::parse($date)->translatedFormat('l, d F Y') }}</div>
     </div>
     <div class="header-actions">
@@ -80,5 +83,23 @@
       </tbody>
     </table>
   </div>
+  <div style="margin-top: 16px;">
+    {{ $attendances->links('pagination::bootstrap-4') }}
+  </div>
 </section>
+
+<style>
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+</style>
+
+<script>
+  // Auto-refresh the page every 30 seconds to show live updates from YOLO
+  setTimeout(function(){
+      window.location.reload();
+  }, 30000);
+</script>
 @endsection

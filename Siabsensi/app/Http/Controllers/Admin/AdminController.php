@@ -98,7 +98,7 @@ class AdminController extends Controller
                 ->whereIn("$table.status", $statusFilter)
                 ->orderBy("$table.check_in", 'desc')
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
-                ->get();
+                ->paginate(20)->withQueryString();
         } else {
             $attendances = Mahasiswa::leftJoin($table, function ($join) use ($table, $mhsTable, $date) {
                 $join->on("$table.mahasiswa_id", '=', "$mhsTable.id")
@@ -107,7 +107,7 @@ class AdminController extends Controller
                 "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.id as mahasiswa_id",
                 "$table.check_in", "$table.check_out", "$table.camera_id",
                 DB::raw("COALESCE($table.status, 'alpha') as status")
-            )->orderBy("$table.check_in", 'desc')->get();
+            )->orderBy("$table.check_in", 'desc')->paginate(20)->withQueryString();
         }
 
         return view('admin.attendance', compact('attendances', 'date', 'filter'));
@@ -132,13 +132,24 @@ class AdminController extends Controller
         }
 
         $allKegiatan = \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan')->get();
-        $mahasiswaList = $query->with('attendances')->orderBy('name')->get();
-
-        $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
-        $jurusanOptions = \App\Models\Jurusan::pluck('nama')->sort()->values();
-        $prodiOptions = \App\Models\Prodi::pluck('nama')->sort()->values();
         
-        $jurusanWithProdi = \App\Models\Jurusan::with('prodi')->get();
+        $mahasiswaList = $query->orderBy('name')->paginate(20)->withQueryString();
+
+        $kompiOptions = \Illuminate\Support\Facades\Cache::remember('master_kompi', 3600, function() {
+            return \App\Models\Kompi::pluck('nama')->sort()->values();
+        });
+        
+        $jurusanOptions = \Illuminate\Support\Facades\Cache::remember('master_jurusan', 3600, function() {
+            return \App\Models\Jurusan::pluck('nama')->sort()->values();
+        });
+        
+        $prodiOptions = \Illuminate\Support\Facades\Cache::remember('master_prodi', 3600, function() {
+            return \App\Models\Prodi::pluck('nama')->sort()->values();
+        });
+        
+        $jurusanWithProdi = \Illuminate\Support\Facades\Cache::remember('master_jurusan_prodi', 3600, function() {
+            return \App\Models\Jurusan::with('prodi')->get();
+        });
 
         return view('admin.mahasiswa', compact('mahasiswaList', 'kompiOptions', 'jurusanOptions', 'prodiOptions', 'jurusanWithProdi', 'allKegiatan'));
     }
@@ -336,6 +347,7 @@ class AdminController extends Controller
     {
         $mahasiswa = Mahasiswa::findOrFail($id);
         $name = $mahasiswa->name;
+        \Illuminate\Support\Facades\Cache::forget('qr_svg_' . $mahasiswa->id);
         User::where('mahasiswa_id', $id)->delete();
         $mahasiswa->delete();
 
@@ -353,7 +365,7 @@ class AdminController extends Controller
         }
 
         $allKegiatan = \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan')->get();
-        $mahasiswaList = $query->with('attendances')->orderBy('name')->get();
+        $mahasiswaList = $query->with('attendances')->orderBy('name')->paginate(20)->withQueryString();
 
         return view('admin.mahasiswa-saya', compact('mahasiswaList', 'allKegiatan'));
     }
@@ -361,7 +373,7 @@ class AdminController extends Controller
     // ─── KOMPI MANAGEMENT ────────────────────────────────────────────────────
     public function kompiManagement(Request $request)
     {
-        $mahasiswaList = Mahasiswa::orderBy('kompi')->orderBy('name')->get();
+        $mahasiswaList = Mahasiswa::orderBy('kompi')->orderBy('name')->paginate(20)->withQueryString();
         $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
 
         return view('admin.kompi-management', compact('mahasiswaList', 'kompiOptions'));
@@ -430,7 +442,7 @@ class AdminController extends Controller
                 $q->select(DB::raw(1))->from($table)
                     ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
                     ->whereBetween("$table.date", [$start, $end]);
-            })->get();
+            })->paginate(20)->withQueryString();
         } else {
             $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereBetween("$table.date", [$start, $end])
@@ -442,7 +454,7 @@ class AdminController extends Controller
                 $query->where("$table.status", $filter);
             }
 
-            $attendances = $query->get();
+            $attendances = $query->paginate(20)->withQueryString();
         }
 
         return view('admin.history', compact('attendances', 'start', 'end', 'filter'));
@@ -490,33 +502,77 @@ class AdminController extends Controller
         if ($filterProdi) $query->where('prodi', $filterProdi);
         if ($filterJurusan) $query->where('jurusan', $filterJurusan);
 
-        $mahasiswa = $query->get();
+        $mahasiswaPaginator = $query->paginate(20)->withQueryString();
         // Menghitung seluruh jumlah kegiatan tanpa filter tanggal
         $totalDays = \App\Models\Kegiatan::count();
         if ($totalDays == 0) {
             $totalDays = 1; // Prevent division by zero
         }
 
-        $allAttendances = Attendance::whereIn('mahasiswa_id', $mahasiswa->pluck('id'))
-            ->whereIn('status', ['present', 'hadir', 'izin'])
+        $allAttendances = Attendance::whereIn('mahasiswa_id', $mahasiswaPaginator->pluck('id'))
+            ->where(function ($query) {
+                $query->whereIn('status', ['izin', 'sakit'])
+                      ->orWhere(function ($q) {
+                          $q->whereIn('status', ['present', 'hadir'])
+                            ->whereNotNull('check_in')
+                            ->whereNotNull('check_out');
+                      });
+            })
             ->selectRaw('mahasiswa_id, COUNT(*) as total_hadir')
             ->groupBy('mahasiswa_id')
             ->pluck('total_hadir', 'mahasiswa_id');
 
-        $kelulusanData = $mahasiswa->map(function ($m) use ($totalDays, $allAttendances) {
+        $mahasiswaPaginator->getCollection()->transform(function ($m) use ($totalDays, $allAttendances) {
             $hadir = (int) ($allAttendances->get($m->id, 0));
             $persentase = $totalDays > 0 ? round(($hadir / $totalDays) * 100, 2) : 0;
             $m->total_hari = $totalDays;
             $m->total_hadir = $hadir;
             $m->persentase = $persentase;
-            $m->status_lulus = $persentase >= 80 ? 'Lulus' : 'Tidak Lulus';
+            
+            if ($m->sertifikat_status === 'locked') {
+                $m->status_lulus = 'Tidak Lulus';
+            } elseif ($m->sertifikat_status === 'unlocked') {
+                $m->status_lulus = 'Lulus';
+            } else {
+                $m->status_lulus = $persentase >= 80 ? 'Lulus' : 'Tidak Lulus';
+            }
             return $m;
         });
+        
+        $kelulusanData = $mahasiswaPaginator;
 
         $prodiOptions = Mahasiswa::distinct()->pluck('prodi')->filter()->sort()->values();
         $jurusanOptions = Mahasiswa::distinct()->pluck('jurusan')->filter()->sort()->values();
 
         return view('admin.kelulusan', compact('kelulusanData', 'prodiOptions', 'jurusanOptions', 'filterProdi', 'filterJurusan'));
+    }
+
+    public function toggleSertifikatLock(Request $request, $id)
+    {
+        $mahasiswa = Mahasiswa::findOrFail($id);
+        $request->validate(['sertifikat_status' => 'required|in:auto,locked,unlocked']);
+        $mahasiswa->sertifikat_status = $request->sertifikat_status;
+        $mahasiswa->save();
+        
+        return redirect()->back()->with('success', 'Status sertifikat berhasil diperbarui.');
+    }
+
+    public function bulkToggleSertifikatLock(Request $request)
+    {
+        $request->validate(['sertifikat_status' => 'required|in:auto,locked,unlocked']);
+        
+        $query = Mahasiswa::query();
+        if ($request->filled('prodi')) {
+            $query->where('prodi', $request->prodi);
+        }
+        if ($request->filled('jurusan')) {
+            $query->where('jurusan', $request->jurusan);
+        }
+        
+        $count = $query->count();
+        $query->update(['sertifikat_status' => $request->sertifikat_status]);
+        
+        return redirect()->back()->with('success', "Status sertifikat untuk $count mahasiswa berhasil diperbarui menjadi: " . $request->sertifikat_status);
     }
 
     // ─── IZIN TIMDIS ─────────────────────────────────────────────────────────
@@ -534,7 +590,7 @@ class AdminController extends Controller
             $query->where("$izinTable.status", $filterStatus);
         }
 
-        $submissions = $query->get();
+        $submissions = $query->paginate(20)->withQueryString();
         $stats = [
             'pending' => IzinSubmission::where('status', 'pending')->count(),
             'approved' => IzinSubmission::where('status', 'approved')->count(),
@@ -587,7 +643,7 @@ class AdminController extends Controller
             $query->where("$khdTable.status", $filterStatus);
         }
 
-        $submissions = $query->get();
+        $submissions = $query->paginate(20)->withQueryString();
         $stats = [
             'pending' => KehadiranSubmission::where('status', 'pending')->count(),
             'approved' => KehadiranSubmission::where('status', 'approved')->count(),
@@ -649,7 +705,7 @@ class AdminController extends Controller
             $query->where('is_active', $request->status);
         }
 
-        $usersList = $query->orderBy('created_at', 'desc')->get();
+        $usersList = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
         $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
 
         $statsAdmin = User::where('role', 'admin')->count();
@@ -763,19 +819,22 @@ class AdminController extends Controller
     public function getMahasiswaQR($id)
     {
         $mahasiswa = Mahasiswa::findOrFail($id);
-        $qrBase64 = $this->generateQrBase64($mahasiswa->qr_code_id, 300);
-        return response()->json(['success' => true, 'data' => ['qr_code_id' => $mahasiswa->qr_code_id, 'qr_image_base64' => $qrBase64]]);
-    }
-
-    private function generateQrBase64($data, $size)
-    {
-        if (class_exists('\SimpleSoftwareIO\QrCode\Facades\QrCode')) {
-            return base64_encode(QrCode::format('png')->size($size)->generate($data));
-        }
-        try {
-            $img = @file_get_contents("https://api.qrserver.com/v1/create-qr-code/?size={$size}x{$size}&data=" . urlencode($data));
-            if ($img) return base64_encode($img);
-        } catch (\Exception $e) {}
-        return '';
+        
+        $qrSvg = \Illuminate\Support\Facades\Cache::remember('qr_svg_' . $mahasiswa->id, 300, function() use ($mahasiswa) {
+            $svg = '';
+            if (class_exists('\SimpleSoftwareIO\QrCode\Facades\QrCode')) {
+                $svg = (string) \SimpleSoftwareIO\QrCode\Facades\QrCode::size(250)->generate($mahasiswa->qr_code_id);
+                $svg = str_replace(['fill="#ffffff"', 'fill="#fff"'], 'fill="transparent"', $svg);
+            }
+            return $svg;
+        });
+        
+        return response()->json([
+            'success' => true, 
+            'data' => [
+                'qr_code_id' => $mahasiswa->qr_code_id, 
+                'qr_svg' => $qrSvg
+            ]
+        ]);
     }
 }

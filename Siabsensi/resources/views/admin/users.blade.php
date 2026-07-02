@@ -66,6 +66,10 @@
       </tbody>
     </table>
   </div>
+  
+  <div style="margin-top: 16px;">
+    {{ $usersList->links('pagination::bootstrap-4') }}
+  </div>
 </section>
 
 {{-- Modal Tambah User --}}

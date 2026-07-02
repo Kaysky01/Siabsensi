@@ -28,7 +28,8 @@ Sistem absensi otomatis menggunakan **YOLO object detection** untuk mendeteksi *
 - Export data ke CSV & Excel
 - Grafik kehadiran per kompi
 - Filter by kompi, prodi, jurusan
-- **Laporan Kelulusan** (≥80% = lulus) per prodi/jurusan
+- **Live Detection Indicator** (Titik merah berkedip & Auto-refresh) pada halaman Absensi Hari Ini
+- **Laporan Kelulusan** (≥80% = lulus) per prodi/jurusan dengan dukungan **Bulk Update Status**
 
 ### 5. 🔐 Authentication & Authorization
 - Login/Logout dengan session management
@@ -41,7 +42,8 @@ Sistem absensi otomatis menggunakan **YOLO object detection** untuk mendeteksi *
 - Preview sertifikat sebelum download
 - History sertifikat yang sudah diunduh
 - **Tanggal download tercantum di gambar sertifikat**
-- Kriteria kehadiran minimum 80%
+- Kriteria kehadiran minimum 80% (Wajib Check-in & Check-out)
+- **Override Kelulusan**: Admin dapat mengatur status sertifikat mahasiswa secara manual (Auto, Force Buka, Force Kunci) secara individu maupun massal (Bulk Toggle)
 
 ### 7. 🏢 Kompi & Prodi
 - Setiap mahasiswa memiliki **kompi** (kelompok) dan **prodi** (program studi)
@@ -246,8 +248,11 @@ Satu kompi bisa memiliki mahasiswa dari berbagai prodi/jurusan. Admin bisa menga
 ### Sertifikat dengan Tanggal Download
 Sertifikat kehadiran menampilkan tanggal download di pojok kanan bawah. History download tersimpan.
 
-### Laporan Kelulusan
-Filter mahasiswa per prodi/jurusan dan lihat siapa yang lulus (≥80% kehadiran) atau tidak lulus. Bisa export CSV.
+### Laporan Kelulusan & Sertifikat
+Filter mahasiswa per prodi/jurusan dan lihat siapa yang lulus (≥80% kehadiran) atau tidak lulus. Tersedia fitur **Force Override** untuk mengunci/membuka akses download sertifikat secara sepihak oleh admin (mendukung Bulk Update).
+
+### Validasi Kehadiran Ketat
+Sistem mewajibkan mahasiswa untuk melakukan absensi ganda (**Masuk dan Keluar**). Jika mahasiswa hanya melakukan *check-in* tanpa *check-out*, sistem akan otomatis tidak menghitung kehadiran pada hari tersebut (kecuali untuk status Izin/Sakit).
 
 ## 🌐 API Endpoints
 
@@ -295,7 +300,10 @@ Filter mahasiswa per prodi/jurusan dan lihat siapa yang lulus (≥80% kehadiran)
 - `GET /api/kegiatan/aktif` — Kegiatan berlangsung
 - `POST /api/kegiatan/absen` — Absen kegiatan
 
-#### Sertifikat
+#### Sertifikat & Kelulusan
+- `GET /admin/kelulusan` — Halaman Laporan Kelulusan
+- `POST /admin/sertifikat/toggle-lock/{id}` — Override kunci/buka sertifikat per mahasiswa
+- `POST /admin/sertifikat/bulk-toggle` — Override kunci/buka sertifikat secara massal
 - `POST /api/mahasiswa/{id}/sertifikat/preview` — Preview
 - `POST /api/mahasiswa/{id}/sertifikat/generate` — Generate
 - `GET /api/mahasiswa/{id}/sertifikat/history` — History

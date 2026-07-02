@@ -351,10 +351,17 @@ def record_attendance():
 
         # action = 'check_in' atau 'check_out'
 
+        # Map action to status that frontend expects ('checked_in', 'checked_out')
+        status_string = action
+        if action == 'check_in':
+            status_string = 'checked_in'
+        elif action == 'check_out':
+            status_string = 'checked_out'
+
         return jsonify({
             'success': True,
             'message': 'Attendance recorded',
-            'result': {'status': status, 'time': time_str},
+            'result': {'status': status_string, 'time': time_str},
             'mahasiswa': {
                 'id': mahasiswa['id'],
                 'name': mahasiswa['name'],

@@ -20,18 +20,15 @@
     <div id="id-card" style="width: 957px; height: 1650px; position: absolute; top: 0; left: 0; transform-origin: top left; background: url('{{ asset('static/img/template_qr.png') }}') center/cover no-repeat; background-color: white; border-radius: 30px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); border: 2px solid var(--border-light);">
       
       <!-- Area Nama (Di atas garis) -->
-      <div style="position: absolute; top: 53%; left: 0; right: 0; text-align: center; padding: 0 60px; transform: translateY(-100%);">
-        <div style="font-size: 60px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -2px; line-height: 1.1;">
+      <div style="position: absolute; top: 48%; left: 0; right: 0; text-align: center; padding: 0 40px; z-index: 10;">
+        <div style="font-size: 45px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -1px; line-height: 1.2; word-break: break-word;">
           {{ $mahasiswa->name }}
-        </div>
-        <div style="font-size: 36px; color: #64748b; margin-top: 20px; font-weight: 600; letter-spacing: 2px;">
-          {{ $mahasiswa->nim }}
         </div>
       </div>
 
       <!-- Area QR (Di bawah garis) -->
-      <div style="position: absolute; top: 62%; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center;">
-        <div style="transform: scale(1.8); transform-origin: center center;">
+      <div style="position: absolute; top: 62%; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; z-index: 5;">
+        <div style="transform: scale(2.6); transform-origin: center center; mix-blend-mode: multiply;">
           {!! str_replace(['fill="#ffffff"', 'fill="#fff"'], 'fill="transparent"', $qrImage) !!}
         </div>
       </div>

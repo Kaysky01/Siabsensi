@@ -37,6 +37,11 @@
           <td>
             @if($s->status === 'pending')
             <div style="display:flex;gap:4px">
+              @if($s->bukti_path)
+              <a href="{{ url('file-bukti/' . $s->bukti_path) }}" target="_blank" class="btn btn-ghost btn-sm" style="color:var(--primary)" title="Lihat Bukti">
+                <span class="material-symbols-outlined" style="font-size:16px">visibility</span>
+              </a>
+              @endif
               <form method="POST" action="{{ route('admin.izin.verify') }}">@csrf
                 <input type="hidden" name="submission_id" value="{{ $s->id }}">
                 <input type="hidden" name="action" value="approve">
@@ -50,7 +55,14 @@
               </form>
             </div>
             @else
-            <span style="font-size:12px;color:var(--text-muted)">{{ $s->verified_by ?? '-' }}</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:12px;color:var(--text-muted)">{{ $s->verified_by ?? '-' }}</span>
+              @if($s->bukti_path)
+              <a href="{{ url('file-bukti/' . $s->bukti_path) }}" target="_blank" class="btn btn-ghost btn-sm" style="padding:4px 8px" title="Lihat Bukti">
+                <span class="material-symbols-outlined" style="font-size:14px">visibility</span>
+              </a>
+              @endif
+            </div>
             @endif
           </td>
         </tr>
@@ -59,6 +71,10 @@
         @endforelse
       </tbody>
     </table>
+  </div>
+  
+  <div style="margin-top: 16px;">
+    {{ $submissions->links('pagination::bootstrap-4') }}
   </div>
 </section>
 @endsection

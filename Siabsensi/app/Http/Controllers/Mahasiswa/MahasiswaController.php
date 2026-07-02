@@ -188,12 +188,13 @@ class MahasiswaController extends Controller
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
         $qrData = $mahasiswa->qr_code_id ?? $mahasiswa->id;
         
-        // Generate base64 QR Code string
-        if (class_exists('\SimpleSoftwareIO\QrCode\Facades\QrCode')) {
-            $qrImage = QrCode::format('svg')->size(300)->margin(0)->generate($qrData);
-        } else {
-            $qrImage = '<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='.urlencode($qrData).'" />';
-        }
+        // Generate QR Code string from cache (5 minutes)
+        $qrImage = \Illuminate\Support\Facades\Cache::remember('qr_svg_' . $mahasiswa->id, 300, function() use ($qrData) {
+            if (class_exists('\SimpleSoftwareIO\QrCode\Facades\QrCode')) {
+                return (string) \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(250)->generate($qrData);
+            }
+            return '<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='.urlencode($qrData).'" />';
+        });
 
         return view('mahasiswa.qr-code', compact('mahasiswa', 'qrImage'));
     }
@@ -209,8 +210,7 @@ class MahasiswaController extends Controller
     {
         $request->validate([
             'type' => 'required|in:izin,sakit',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
+            'date' => 'required|date',
             'reason' => 'required|string',
             'bukti' => 'required|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
@@ -219,10 +219,9 @@ class MahasiswaController extends Controller
 
         \App\Models\IzinSubmission::create([
             'mahasiswa_id' => Auth::user()->mahasiswa_id,
-            'type' => $request->type,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-            'reason' => $request->reason,
+            'submission_type' => $request->type,
+            'date' => $request->date,
+            'keterangan' => $request->reason,
             'bukti_path' => $path,
             'status' => 'pending',
         ]);
@@ -253,7 +252,9 @@ class MahasiswaController extends Controller
         \App\Models\KehadiranSubmission::create([
             'mahasiswa_id' => Auth::user()->mahasiswa_id,
             'date' => $request->date,
-            'reason' => $request->reason,
+            'check_in_time' => '08:00:00',
+            'check_out_time' => '16:00:00',
+            'keterangan' => $request->reason,
             'bukti_path' => $path,
             'status' => 'pending',
         ]);
@@ -266,7 +267,6 @@ class MahasiswaController extends Controller
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
         
         $kegiatanTersedia = \App\Models\Kegiatan::where('is_active', true)
-            ->whereDate('tanggal_pelaksanaan', '>=', Carbon::today())
             ->orderBy('tanggal_pelaksanaan', 'asc')
             ->get();
             
