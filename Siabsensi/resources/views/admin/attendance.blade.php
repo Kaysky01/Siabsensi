@@ -25,7 +25,7 @@
   <div class="panel" style="margin-bottom:16px;padding:14px 20px">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <span class="form-label" style="margin-bottom:0">Filter Status</span>
-      @foreach(['all' => 'Semua', 'izin' => 'Izin', 'sakit' => 'Sakit', 'alpha' => 'Alpha'] as $val => $label)
+      @foreach(['all' => 'Semua', 'hadir' => 'Hadir/Absen', 'izin' => 'Izin', 'sakit' => 'Sakit', 'alpha' => 'Alpha'] as $val => $label)
         <a href="{{ route('admin.attendance', ['date' => $date, 'filter' => $val]) }}" 
            class="filter-btn {{ $filter === $val ? 'active' : '' }}">{{ $label }}</a>
       @endforeach

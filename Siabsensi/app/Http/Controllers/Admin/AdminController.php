@@ -90,10 +90,12 @@ class AdminController extends Controller
                     ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
                     ->whereDate("$table.date", $date);
             })->get();
-        } elseif (in_array($filter, ['izin', 'sakit'])) {
+        } elseif (in_array($filter, ['izin', 'sakit', 'hadir'])) {
+            // Map "hadir" parameter to "present" and "hadir" status
+            $statusFilter = $filter === 'hadir' ? ['present', 'hadir'] : [$filter];
             $attendances = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereDate("$table.date", $date)
-                ->where("$table.status", $filter)
+                ->whereIn("$table.status", $statusFilter)
                 ->orderBy("$table.check_in", 'desc')
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
                 ->get();
