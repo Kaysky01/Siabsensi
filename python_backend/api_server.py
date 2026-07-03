@@ -95,41 +95,6 @@ def get_local_action(mahasiswa_id, kegiatan_id):
         
         return 'check_in'
     
-    # For daily attendance, check schedule first
-    if db:
-        schedule = db.get_today_schedule()
-        if not schedule:
-            logger.warning(f"[{mahasiswa_id}] No schedule configured for today (local mode)")
-            return ('rejected', 'no_schedule', 'Tidak ada jadwal absensi untuk hari ini')
-        
-        # Validate check-in time against schedule
-        from app.timezone_utils import get_current_time
-        from app.time_validator import TimeValidator
-        
-        time_validator = TimeValidator(db)
-        validation_result = time_validator.validate_check_in(get_current_time(), schedule)
-        
-        if not validation_result.get('allowed', False):
-            reason = validation_result.get('reason', 'unknown')
-            message = validation_result.get('message', 'Waktu absensi tidak valid')
-            logger.warning(f"[{mahasiswa_id}] Check-in rejected in local mode: {reason} - {message}")
-            
-            # Return specific rejection message based on reason
-            if reason == 'too_late':
-                return ('rejected', 'too_late', 'Absensi sudah ditutup')
-            elif reason == 'too_early':
-                return ('rejected', 'too_early', message)
-            else:
-                return ('rejected', reason, message)
-        
-        # Check if late (allowed but late)
-        is_late = validation_result.get('is_late', False)
-        late_duration = validation_result.get('late_duration', 0)
-    else:
-        # No database - assume not late
-        is_late = False
-        late_duration = 0
-    
     # Continue with normal local state logic
     key = 'default'
     
@@ -138,8 +103,45 @@ def get_local_action(mahasiswa_id, kegiatan_id):
     
     session = local_attendance_state[key]
     
+    # Check if user already has a record today
     if mahasiswa_id not in session:
-        # Belum ada record → check_in
+        # Belum ada record → need check_in
+        # Validate check-in time against schedule ONLY for check-in
+        if db:
+            schedule = db.get_today_schedule()
+            if not schedule:
+                logger.warning(f"[{mahasiswa_id}] No schedule configured for today (local mode)")
+                return ('rejected', 'no_schedule', 'Tidak ada jadwal absensi untuk hari ini')
+            
+            # Validate check-in time against schedule
+            from app.timezone_utils import get_current_time
+            from app.time_validator import TimeValidator
+            
+            time_validator = TimeValidator(db)
+            validation_result = time_validator.validate_check_in(get_current_time(), schedule)
+            
+            if not validation_result.get('allowed', False):
+                reason = validation_result.get('reason', 'unknown')
+                message = validation_result.get('message', 'Waktu absensi tidak valid')
+                logger.warning(f"[{mahasiswa_id}] Check-in rejected in local mode: {reason} - {message}")
+                
+                # Return specific rejection message based on reason
+                if reason == 'too_late':
+                    return ('rejected', 'too_late', 'Absensi sudah ditutup')
+                elif reason == 'too_early':
+                    return ('rejected', 'too_early', message)
+                else:
+                    return ('rejected', reason, message)
+            
+            # Check if late (allowed but late)
+            is_late = validation_result.get('is_late', False)
+            late_duration = validation_result.get('late_duration', 0)
+        else:
+            # No database - assume not late
+            is_late = False
+            late_duration = 0
+        
+        # Create new check-in record
         session[mahasiswa_id] = {
             'check_in': datetime.now(), 
             'check_out': None,
@@ -149,15 +151,40 @@ def get_local_action(mahasiswa_id, kegiatan_id):
         # Return tuple with late info for check_in
         return ('check_in', is_late, late_duration)
     
+    # User already has a record - check status
     record = session[mahasiswa_id]
     
     if record['check_in'] and not record['check_out']:
-        # Sudah check_in, belum check_out → cek cooldown
+        # Sudah check_in, belum check_out → validate check-out time
+        # First check cooldown
         elapsed = (datetime.now() - record['check_in']).total_seconds()
         cooldown_seconds = YOLO_SETTINGS.get('qr_cooldown', 30)
         if elapsed < cooldown_seconds:
             return 'cooldown'
-        # Sudah lewat cooldown → check_out
+        
+        # Cooldown passed - now validate check-out time against schedule
+        if db:
+            schedule = db.get_today_schedule()
+            if not schedule:
+                logger.warning(f"[{mahasiswa_id}] No schedule configured for check-out (local mode)")
+                return ('rejected', 'no_schedule', 'Tidak ada jadwal absensi untuk hari ini')
+            
+            # Validate check-out time against schedule
+            from app.timezone_utils import get_current_time
+            from app.time_validator import TimeValidator
+            
+            time_validator = TimeValidator(db)
+            validation_result = time_validator.validate_check_out(get_current_time(), schedule)
+            
+            if not validation_result.get('allowed', False):
+                reason = validation_result.get('reason', 'unknown')
+                message = validation_result.get('message', 'Waktu check-out tidak valid')
+                logger.warning(f"[{mahasiswa_id}] Check-out rejected in local mode: {reason} - {message}")
+                
+                # Return specific rejection message based on reason
+                return ('rejected', reason, message)
+        
+        # Validation passed - perform check-out
         record['check_out'] = datetime.now()
         return 'check_out'
     
