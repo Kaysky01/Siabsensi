@@ -5,6 +5,12 @@
 {{-- Prevent Google Translate from translating this page --}}
 <meta name="google" content="notranslate">
 
+{{-- Font Awesome for Icons --}}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+{{-- SweetAlert2 CDN --}}
+<link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <section>
   <div class="page-header">
     <div>
@@ -15,26 +21,47 @@
 
   {{-- Success/Error Messages --}}
   @if(session('success'))
-  <div class="alert alert-success" style="margin-bottom:20px">
-    {{ session('success') }}
-  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      Swal.fire({
+        icon: 'success',
+        title: 'Berhasil!',
+        text: '{{ session('success') }}',
+        confirmButtonColor: '#28a745',
+        confirmButtonText: 'OK',
+        timer: 3000,
+        timerProgressBar: true
+      });
+    });
+  </script>
   @endif
 
   @if(session('error'))
-  <div class="alert alert-danger" style="margin-bottom:20px">
-    {{ session('error') }}
-  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal!',
+        text: '{{ session('error') }}',
+        confirmButtonColor: '#dc3545',
+        confirmButtonText: 'OK'
+      });
+    });
+  </script>
   @endif
 
   @if($errors->any())
-  <div class="alert alert-danger" style="margin-bottom:20px">
-    <strong>Error:</strong>
-    <ul style="margin:8px 0 0 20px">
-      @foreach($errors->all() as $error)
-      <li>{{ $error }}</li>
-      @endforeach
-    </ul>
-  </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error Validasi',
+        html: '<ul style="text-align:left;margin:0;padding-left:20px">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>',
+        confirmButtonColor: '#dc3545',
+        confirmButtonText: 'OK'
+      });
+    });
+  </script>
   @endif
 
   {{-- Grace Period Configuration --}}
@@ -139,13 +166,12 @@
 
               <td>
                 @if($item['schedule'])
-                <form method="POST" action="{{ route('admin.schedule.destroy', $item['day_of_week']) }}" style="display:inline" onsubmit="return confirm('Hapus jadwal untuk {{ $item['day_name'] }}?')">
-                  @csrf
-                  @method('DELETE')
-                  <button type="submit" class="btn-icon btn-danger" title="Hapus jadwal">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </form>
+                <button type="button" 
+                        class="btn-icon btn-danger" 
+                        title="Hapus jadwal {{ $item['day_name'] }}"
+                        onclick="deleteSchedule({{ $item['day_of_week'] }}, '{{ $item['day_name'] }}')">
+                  <i class="fas fa-trash"></i> Hapus
+                </button>
                 @endif
               </td>
             </tr>
@@ -261,6 +287,9 @@ input:checked + .toggle-slider:before {
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn-danger {
@@ -270,6 +299,8 @@ input:checked + .toggle-slider:before {
 
 .btn-danger:hover {
   background: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
 }
 
 .admin-table th {
@@ -284,24 +315,6 @@ input:checked + .toggle-slider:before {
   padding: 12px;
   border-bottom: 1px solid #dee2e6;
   vertical-align: middle;
-}
-
-.alert {
-  padding: 12px 16px;
-  border-radius: 6px;
-  border-left: 4px solid;
-}
-
-.alert-success {
-  background: #d4edda;
-  border-color: #28a745;
-  color: #155724;
-}
-
-.alert-danger {
-  background: #f8d7da;
-  border-color: #dc3545;
-  color: #721c24;
 }
 </style>
 
@@ -322,9 +335,71 @@ function toggleScheduleRow(checkbox, index) {
 }
 
 function resetForm() {
-  if (confirm('Reset form ke nilai awal?')) {
-    location.reload();
-  }
+  Swal.fire({
+    title: 'Reset Form?',
+    text: 'Semua perubahan yang belum disimpan akan hilang',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: 'Ya, Reset!',
+    cancelButtonText: 'Batal'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      location.reload();
+    }
+  });
+}
+
+function deleteSchedule(dayOfWeek, dayName) {
+  Swal.fire({
+    title: 'Hapus Jadwal?',
+    html: `Apakah Anda yakin ingin menghapus jadwal untuk hari <strong>${dayName}</strong>?<br><br><small style="color:#dc3545">Data yang dihapus tidak dapat dikembalikan.</small>`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#dc3545',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: 'Ya, Hapus!',
+    cancelButtonText: 'Batal',
+    reverseButtons: true
+  }).then((result) => {
+    if (result.isConfirmed) {
+      // Show loading
+      Swal.fire({
+        title: 'Menghapus...',
+        text: 'Mohon tunggu sebentar',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+      
+      // Create a hidden form and submit it
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '{{ url("admin/schedule") }}/' + dayOfWeek;
+      form.style.display = 'none';
+      
+      // Add CSRF token
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = '_token';
+      csrfInput.value = '{{ csrf_token() }}';
+      form.appendChild(csrfInput);
+      
+      // Add DELETE method
+      const methodInput = document.createElement('input');
+      methodInput.type = 'hidden';
+      methodInput.name = '_method';
+      methodInput.value = 'DELETE';
+      form.appendChild(methodInput);
+      
+      // Append form to body and submit
+      document.body.appendChild(form);
+      form.submit();
+    }
+  });
 }
 
 // Form validation before submit
@@ -381,17 +456,41 @@ document.getElementById('scheduleForm').addEventListener('submit', function(e) {
   
   if (!hasActive) {
     e.preventDefault();
-    alert('Setidaknya satu hari harus aktif!');
+    Swal.fire({
+      icon: 'warning',
+      title: 'Tidak Ada Jadwal Aktif',
+      text: 'Setidaknya satu hari harus aktif!',
+      confirmButtonColor: '#ffc107',
+      confirmButtonText: 'OK'
+    });
     return false;
   }
   
   if (validationErrors.length > 0) {
     e.preventDefault();
-    alert('Error validasi:\n\n' + validationErrors.join('\n'));
+    Swal.fire({
+      icon: 'error',
+      title: 'Error Validasi',
+      html: '<ul style="text-align:left;margin:0;padding-left:20px">' + 
+            validationErrors.map(err => `<li>${err}</li>`).join('') + 
+            '</ul>',
+      confirmButtonColor: '#dc3545',
+      confirmButtonText: 'OK'
+    });
     return false;
   }
   
-  // Validation passed - submit form traditionally (more reliable than AJAX)
+  // Validation passed - show loading
+  Swal.fire({
+    title: 'Menyimpan...',
+    text: 'Mohon tunggu sebentar',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    didOpen: () => {
+      Swal.showLoading();
+    }
+  });
+  
   console.log('Validation passed, submitting form...');
   return true; // Let form submit naturally
 });

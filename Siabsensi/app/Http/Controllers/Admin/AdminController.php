@@ -69,48 +69,103 @@ class AdminController extends Controller
     // ─── ATTENDANCE ───────────────────────────────────────────────────────────
     public function attendance(Request $request)
     {
+        // Always use date range
+        $start = $request->get('start', Carbon::today()->toDateString());
+        $end = $request->get('end', Carbon::today()->toDateString());
+        
+        // Validate dates
         try {
-            $rawDate = $request->get('date', Carbon::today()->toDateString());
-            $date = Carbon::parse($rawDate)->format('Y-m-d');
+            Carbon::parse($start);
+            Carbon::parse($end);
         } catch (\Exception $e) {
-            $date = Carbon::today()->toDateString();
+            $start = Carbon::today()->toDateString();
+            $end = Carbon::today()->toDateString();
         }
+        
         $filter = $request->get('filter', 'all');
+        $search = $request->get('search', '');
+        $kompi = $request->get('kompi', '');
+        $jurusan = $request->get('jurusan', '');
 
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
 
         if ($filter === 'alpha') {
-            $attendances = Mahasiswa::select(
-                "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.id as mahasiswa_id",
-                DB::raw('null as check_in'), DB::raw('null as check_out'),
-                DB::raw("'alpha' as status"), DB::raw('null as camera_id')
-            )->whereNotExists(function ($q) use ($table, $date, $mhsTable) {
+            $query = Mahasiswa::select(
+                "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.id as mahasiswa_id",
+                DB::raw('null as check_in'), DB::raw('null as check_out'), DB::raw('null as date'),
+                DB::raw("'alpha' as status"), DB::raw('null as camera_id'),
+                DB::raw('null as kegiatan_id'), DB::raw('null as is_late'), DB::raw('null as late_duration')
+            )->whereNotExists(function ($q) use ($table, $start, $end, $mhsTable) {
                 $q->select(DB::raw(1))->from($table)
                     ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
-                    ->whereDate("$table.date", $date);
-            })->get();
-        } elseif (in_array($filter, ['izin', 'sakit', 'hadir'])) {
-            // Map "hadir" parameter to "present" and "hadir" status
-            $statusFilter = $filter === 'hadir' ? ['present', 'hadir'] : [$filter];
-            $attendances = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
-                ->whereDate("$table.date", $date)
-                ->whereIn("$table.status", $statusFilter)
+                    ->whereBetween("$table.date", [$start, $end]);
+            });
+            
+            // Apply filters
+            if ($search) {
+                $query->where("$mhsTable.name", 'like', "%{$search}%");
+            }
+            if ($kompi) {
+                $query->where("$mhsTable.kompi", $kompi);
+            }
+            if ($jurusan) {
+                $query->where("$mhsTable.jurusan", $jurusan);
+            }
+            
+            $attendances = $query->paginate(20)->withQueryString();
+        } elseif (in_array($filter, ['izin', 'sakit', 'hadir', 'present'])) {
+            $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+                ->whereBetween("$table.date", [$start, $end])
+                ->orderBy("$table.date", 'desc')
                 ->orderBy("$table.check_in", 'desc')
-                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
-                ->paginate(20)->withQueryString();
+                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
+            
+            // Filter by status
+            if (in_array($filter, ['hadir', 'present'])) {
+                $query->whereIn("$table.status", ['hadir', 'present']);
+            } else {
+                $query->where("$table.status", $filter);
+            }
+            
+            // Apply filters
+            if ($search) {
+                $query->where("$mhsTable.name", 'like', "%{$search}%");
+            }
+            if ($kompi) {
+                $query->where("$mhsTable.kompi", $kompi);
+            }
+            if ($jurusan) {
+                $query->where("$mhsTable.jurusan", $jurusan);
+            }
+            
+            $attendances = $query->paginate(20)->withQueryString();
         } else {
-            $attendances = Mahasiswa::leftJoin($table, function ($join) use ($table, $mhsTable, $date) {
-                $join->on("$table.mahasiswa_id", '=', "$mhsTable.id")
-                    ->whereDate("$table.date", $date);
-            })->select(
-                "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.id as mahasiswa_id",
-                "$table.check_in", "$table.check_out", "$table.camera_id",
-                DB::raw("COALESCE($table.status, 'alpha') as status")
-            )->orderBy("$table.check_in", 'desc')->paginate(20)->withQueryString();
+            $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+                ->whereBetween("$table.date", [$start, $end])
+                ->orderBy("$table.date", 'desc')
+                ->orderBy("$table.check_in", 'desc')
+                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
+            
+            // Apply filters
+            if ($search) {
+                $query->where("$mhsTable.name", 'like', "%{$search}%");
+            }
+            if ($kompi) {
+                $query->where("$mhsTable.kompi", $kompi);
+            }
+            if ($jurusan) {
+                $query->where("$mhsTable.jurusan", $jurusan);
+            }
+            
+            $attendances = $query->paginate(20)->withQueryString();
         }
 
-        return view('admin.attendance', compact('attendances', 'date', 'filter'));
+        // Get filter options
+        $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
+        $jurusanOptions = \App\Models\Jurusan::pluck('nama')->sort()->values();
+
+        return view('admin.attendance', compact('attendances', 'start', 'end', 'filter', 'search', 'kompi', 'jurusan', 'kompiOptions', 'jurusanOptions'));
     }
 
     // ─── MAHASISWA ────────────────────────────────────────────────────────────
@@ -429,35 +484,68 @@ class AdminController extends Controller
         $start = $request->get('start', Carbon::now()->subWeek()->toDateString());
         $end = $request->get('end', Carbon::today()->toDateString());
         $filter = $request->get('filter', 'all');
+        $search = $request->get('search', '');
+        $kompi = $request->get('kompi', '');
+        $jurusan = $request->get('jurusan', '');
 
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
 
         if ($filter === 'alpha') {
-            $attendances = Mahasiswa::select(
-                "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.id as mahasiswa_id",
+            $query = Mahasiswa::select(
+                "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.id as mahasiswa_id",
                 DB::raw('null as check_in'), DB::raw('null as check_out'), DB::raw('null as date'),
                 DB::raw("'alpha' as status")
             )->whereNotExists(function ($q) use ($table, $start, $end, $mhsTable) {
                 $q->select(DB::raw(1))->from($table)
                     ->whereColumn("$table.mahasiswa_id", "$mhsTable.id")
                     ->whereBetween("$table.date", [$start, $end]);
-            })->paginate(20)->withQueryString();
+            });
+            
+            // Apply filters
+            if ($search) {
+                $query->where("$mhsTable.name", 'like', "%{$search}%");
+            }
+            if ($kompi) {
+                $query->where("$mhsTable.kompi", $kompi);
+            }
+            if ($jurusan) {
+                $query->where("$mhsTable.jurusan", $jurusan);
+            }
+            
+            $attendances = $query->paginate(20)->withQueryString();
         } else {
             $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereBetween("$table.date", [$start, $end])
                 ->orderBy("$table.date", 'desc')
                 ->orderBy("$table.check_in", 'desc')
-                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi");
+                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
 
-            if (in_array($filter, ['izin', 'sakit'])) {
+            if (in_array($filter, ['hadir', 'present'])) {
+                $query->whereIn("$table.status", ['hadir', 'present']);
+            } elseif (in_array($filter, ['izin', 'sakit'])) {
                 $query->where("$table.status", $filter);
+            }
+            
+            // Apply filters
+            if ($search) {
+                $query->where("$mhsTable.name", 'like', "%{$search}%");
+            }
+            if ($kompi) {
+                $query->where("$mhsTable.kompi", $kompi);
+            }
+            if ($jurusan) {
+                $query->where("$mhsTable.jurusan", $jurusan);
             }
 
             $attendances = $query->paginate(20)->withQueryString();
         }
 
-        return view('admin.history', compact('attendances', 'start', 'end', 'filter'));
+        // Get filter options
+        $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
+        $jurusanOptions = \App\Models\Jurusan::pluck('nama')->sort()->values();
+
+        return view('admin.history', compact('attendances', 'start', 'end', 'filter', 'search', 'kompi', 'jurusan', 'kompiOptions', 'jurusanOptions'));
     }
 
     // ─── KEGIATAN ────────────────────────────────────────────────────────────

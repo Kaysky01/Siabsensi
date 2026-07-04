@@ -51,7 +51,7 @@
     <div class="panel">
       <div class="section-header">
         <div class="section-title">Absensi Terkini</div>
-        <a href="{{ route('admin.attendance') }}" class="btn btn-ghost btn-sm">Lihat Semua <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">arrow_forward</span></a>
+        <a href="{{ route('admin.attendance') }}" class="btn btn-ghost btn-sm">Monitor Live <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">arrow_forward</span></a>
       </div>
       <table class="att-table">
         <thead>

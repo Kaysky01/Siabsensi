@@ -21,6 +21,42 @@
     .sidebar.collapsed { 
       transform: translateX(-100%) !important; 
     }
+    
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      transition: all 0.2s;
+    }
+    
+    .nav-item .badge {
+      margin-left: auto;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 10px;
+    }
+    
+    .badge-warning {
+      background: #ffc107;
+      color: #000;
+    }
+    
+    .nav-item-logout {
+      color: #ff6b6b !important;
+      background: rgba(255, 107, 107, 0.1);
+      border-radius: 6px;
+      margin: 4px 8px;
+    }
+    
+    .nav-item-logout:hover {
+      background: rgba(255, 107, 107, 0.2) !important;
+    }
+    
+    .nav-item-logout .icon {
+      color: #ff6b6b !important;
+    }
   </style>
 </head>
 
@@ -46,100 +82,124 @@
       <nav class="nav">
         @php $user = Auth::user(); @endphp
 
+        {{-- ADMIN & TIMDIS MENU --}}
         @if($user->role !== 'garda')
-        <div class="nav-section">Utama</div>
+        
+        {{-- Dashboard & Monitoring --}}
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">dashboard</span>
+          Dashboard & Monitoring
+        </div>
         <a href="{{ route('admin.dashboard') }}" class="nav-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">dashboard</span> Dashboard
+          <span class="material-symbols-outlined icon">analytics</span> Dashboard
         </a>
         <a href="{{ route('admin.attendance') }}" class="nav-item {{ request()->routeIs('admin.attendance') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">check_circle</span> Absensi Hari Ini
+          <span class="material-symbols-outlined icon">sensors</span> Monitor Absensi
         </a>
 
+        {{-- Data Master (Admin Only) --}}
         @if($user->role === 'admin')
-        <div class="nav-section">Data Utama</div>
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">database</span>
+          Data Master
+        </div>
         <a href="{{ route('admin.master.jurusan-prodi') }}" class="nav-item {{ request()->routeIs('admin.master.jurusan-prodi') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">school</span> Jurusan & Prodi
         </a>
         <a href="{{ route('admin.master.kompi') }}" class="nav-item {{ request()->routeIs('admin.master.kompi') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">corporate_fare</span> Data Kompi
         </a>
-
-        <div class="nav-section">Data Mahasiswa</div>
         <a href="{{ route('admin.mahasiswa') }}" class="nav-item {{ request()->routeIs('admin.mahasiswa') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">badge</span> Mahasiswa
+          <span class="material-symbols-outlined icon">badge</span> Data Mahasiswa
         </a>
         <a href="{{ route('admin.kompi-management') }}" class="nav-item {{ request()->routeIs('admin.kompi-management') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">groups</span> Pengaturan Kompi
-        </a>
-        @endif
-        
-        @if(in_array($user->role, ['admin', 'timdis']))
-        <div class="nav-section">Riwayat</div>
-        <a href="{{ route('admin.history') }}" class="nav-item {{ request()->routeIs('admin.history') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">history</span> Riwayat
-        </a>
-        @endif
-        @endif
-
-        @if($user->role === 'garda')
-        <div class="nav-section">Data</div>
-        <a href="{{ route('admin.mahasiswa-saya') }}" class="nav-item {{ request()->routeIs('admin.mahasiswa-saya') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">visibility</span> Mahasiswa Saya
+          <span class="material-symbols-outlined icon">groups</span> Kelola Kompi
         </a>
         @endif
 
-        @if($user->role !== 'garda')
-        <div class="nav-section">Kegiatan</div>
+        {{-- Kegiatan --}}
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">event</span>
+          Kegiatan
+        </div>
         @if($user->role === 'admin')
         <a href="{{ route('admin.kegiatan') }}" class="nav-item {{ request()->routeIs('admin.kegiatan') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">event</span> Kelola Kegiatan
+          <span class="material-symbols-outlined icon">edit_calendar</span> Kelola Kegiatan
         </a>
         @endif
         <a href="{{ route('admin.monitoring-kegiatan') }}" class="nav-item {{ request()->routeIs('admin.monitoring-kegiatan') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">monitoring</span> Monitoring Kegiatan
+          <span class="material-symbols-outlined icon">monitoring</span> Monitor Kegiatan
         </a>
 
-        @if($user->role === 'admin')
-        <div class="nav-section">Analisis</div>
-        <a href="{{ route('admin.kelulusan') }}" class="nav-item {{ request()->routeIs('admin.kelulusan') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">assignment_turned_in</span> Laporan Kelulusan
-        </a>
-        @endif
-        @endif
-
-        <div class="nav-section">Verifikasi Pengajuan</div>
+        {{-- Verifikasi (Admin & Timdis) --}}
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">task_alt</span>
+          Verifikasi & Approval
+        </div>
         <a href="{{ route('admin.izin-timdis') }}" class="nav-item {{ request()->routeIs('admin.izin-timdis') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">fact_check</span> Verifikasi Izin/Sakit
+          <span class="material-symbols-outlined icon">fact_check</span> 
+          Izin/Sakit
           @if(($pendingIzin ?? 0) > 0)
           <span class="badge badge-warning">{{ $pendingIzin }}</span>
           @endif
         </a>
         <a href="{{ route('admin.kehadiran-timdis') }}" class="nav-item {{ request()->routeIs('admin.kehadiran-timdis') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">how_to_reg</span> Verifikasi Kehadiran
+          <span class="material-symbols-outlined icon">how_to_reg</span>
+          Kehadiran Manual
           @if(($pendingKehadiran ?? 0) > 0)
           <span class="badge badge-warning">{{ $pendingKehadiran }}</span>
           @endif
         </a>
 
+        {{-- Laporan (Admin Only) --}}
         @if($user->role === 'admin')
-        <div class="nav-section">Sistem</div>
-        <a href="{{ route('admin.schedule.index') }}" class="nav-item {{ request()->routeIs('admin.schedule.*') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">schedule</span> Jadwal Absensi
-        </a>
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">description</span>
+          Laporan & Analisis
+        </div>
         <a href="{{ route('admin.late-report') }}" class="nav-item {{ request()->routeIs('admin.late-report*') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">schedule_send</span> Laporan Keterlambatan
+          <span class="material-symbols-outlined icon">schedule_send</span> Keterlambatan
+        </a>
+        <a href="{{ route('admin.kelulusan') }}" class="nav-item {{ request()->routeIs('admin.kelulusan') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">assignment_turned_in</span> Kelulusan
+        </a>
+
+        {{-- Pengaturan Sistem (Admin Only) --}}
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">settings</span>
+          Pengaturan Sistem
+        </div>
+        <a href="{{ route('admin.schedule.index') }}" class="nav-item {{ request()->routeIs('admin.schedule.*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">event_available</span> Jadwal Absensi
         </a>
         <a href="{{ route('admin.users') }}" class="nav-item {{ request()->routeIs('admin.users') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">manage_accounts</span> Admin Management
+          <span class="material-symbols-outlined icon">admin_panel_settings</span> Kelola Admin
         </a>
         <a href="{{ route('admin.settings') }}" class="nav-item {{ request()->routeIs('admin.settings') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">settings</span> Pengaturan
+          <span class="material-symbols-outlined icon">tune</span> Pengaturan Umum
         </a>
         @endif
 
-        <div class="nav-section">Keluar</div>
-        <a href="{{ route('logout') }}" class="nav-item" style="color: #ff6b6b;">
-          <span class="material-symbols-outlined icon" style="color: #ff6b6b;">logout</span> Logout
+        @endif
+
+        {{-- GARDA MENU --}}
+        @if($user->role === 'garda')
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">visibility</span>
+          Data Mahasiswa
+        </div>
+        <a href="{{ route('admin.mahasiswa-saya') }}" class="nav-item {{ request()->routeIs('admin.mahasiswa-saya') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">group</span> Mahasiswa Saya
+        </a>
+        @endif
+
+        {{-- Logout (All Roles) --}}
+        <div class="nav-section" style="margin-top:auto;padding-top:20px;border-top:1px solid rgba(255,255,255,0.1)">
+          <span class="material-symbols-outlined section-icon">logout</span>
+          Akun
+        </div>
+        <a href="{{ route('logout') }}" class="nav-item nav-item-logout">
+          <span class="material-symbols-outlined icon">power_settings_new</span> Keluar
         </a>
       </nav>
 

@@ -201,11 +201,26 @@ a {
 }
 
 .nav-section {
-    font-size: 11px;
-    color: var(--text-muted);
-    letter-spacing: 0.8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text);
+    letter-spacing: 1px;
     text-transform: uppercase;
-    padding: var(--space-md) var(--space-sm) var(--space-xs);
+    padding: 16px 12px 8px 12px;
+    margin-top: 20px;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.nav-section:first-of-type {
+    margin-top: 12px;
+}
+
+.nav-section .section-icon {
+    font-size: 18px;
+    color: var(--text);
     font-weight: 600;
 }
 

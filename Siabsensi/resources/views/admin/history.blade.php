@@ -1,12 +1,12 @@
 @extends('layouts.admin')
-@section('title', 'Riwayat Absensi — SIABSEN')
+@section('title', 'Riwayat & Rekap Absensi — SIABSEN')
 
 @section('content')
 <section>
   <div class="page-header">
     <div>
-      <div class="page-title">Riwayat Absensi</div>
-      <div class="page-sub">{{ Carbon\Carbon::parse($start)->format('d/m/Y') }} — {{ Carbon\Carbon::parse($end)->format('d/m/Y') }}</div>
+      <div class="page-title">Riwayat & Rekap Absensi</div>
+      <div class="page-sub">{{ Carbon\Carbon::parse($start)->format('d/m/Y') }} — {{ Carbon\Carbon::parse($end)->format('d/m/Y') }} • Data historis untuk analisis dan laporan</div>
     </div>
     <div class="header-actions">
       <a href="{{ route('admin.attendance.export', ['start' => $start, 'end' => $end]) }}" class="btn btn-ghost btn-sm">
@@ -17,17 +17,54 @@
 
   <div class="panel" style="margin-bottom:16px;padding:14px 20px">
     <form method="GET" action="{{ route('admin.history') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-      <div><label class="form-label">Dari</label><input type="date" name="start" class="form-input" value="{{ $start }}" style="padding:7px 10px"></div>
-      <div><label class="form-label">Sampai</label><input type="date" name="end" class="form-input" value="{{ $end }}" style="padding:7px 10px"></div>
-      <div><label class="form-label">Status</label>
+      <div>
+        <label class="form-label">Dari</label>
+        <input type="date" name="start" class="form-input" value="{{ $start }}" style="padding:7px 10px">
+      </div>
+      <div>
+        <label class="form-label">Sampai</label>
+        <input type="date" name="end" class="form-input" value="{{ $end }}" style="padding:7px 10px">
+      </div>
+      <div>
+        <label class="form-label">Status</label>
         <select name="filter" class="form-input" style="width:120px;padding:7px 10px">
           <option value="all" {{ $filter=='all'?'selected':'' }}>Semua</option>
+          <option value="hadir" {{ $filter=='hadir'?'selected':'' }}>Hadir</option>
           <option value="izin" {{ $filter=='izin'?'selected':'' }}>Izin</option>
           <option value="sakit" {{ $filter=='sakit'?'selected':'' }}>Sakit</option>
           <option value="alpha" {{ $filter=='alpha'?'selected':'' }}>Alpha</option>
         </select>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Cari</button>
+      <div>
+        <label class="form-label">Nama Mahasiswa</label>
+        <input type="text" name="search" class="form-input" placeholder="Cari nama..." value="{{ $search }}" style="padding:7px 10px;width:180px">
+      </div>
+      <div>
+        <label class="form-label">Kompi</label>
+        <select name="kompi" class="form-input" style="width:120px;padding:7px 10px">
+          <option value="">Semua</option>
+          @foreach($kompiOptions as $k)
+          <option value="{{ $k }}" {{ $kompi === $k ? 'selected' : '' }}>{{ $k }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Jurusan</label>
+        <select name="jurusan" class="form-input" style="width:180px;padding:7px 10px">
+          <option value="">Semua</option>
+          @foreach($jurusanOptions as $j)
+          <option value="{{ $j }}" {{ $jurusan === $j ? 'selected' : '' }}>{{ $j }}</option>
+          @endforeach
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">
+        <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">search</span> Cari
+      </button>
+      @if($search || $kompi || $jurusan || $filter !== 'all')
+      <a href="{{ route('admin.history', ['start' => $start, 'end' => $end]) }}" class="btn btn-secondary btn-sm">
+        <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span> Reset Filter
+      </a>
+      @endif
     </form>
   </div>
 

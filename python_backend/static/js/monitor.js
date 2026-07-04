@@ -272,7 +272,6 @@ function startQRDetection(videoElement) {
                     // QR code detected
                     const qrData = data.results[0].data;
                     const confidence = data.max_confidence || 0.0;
-                    console.log('QR detected:', qrData, 'Confidence:', confidence);
 
                     // Debounce: skip if same QR was sent recently
                     const now = Date.now();
@@ -322,8 +321,6 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
         if (res.ok) {
             const data = await res.json();
             if (data.success) {
-                console.log('Attendance recorded:', mahasiswaId, data);
-
                 // === SIMPAN KE LOCAL UNTUK SYNC NANTI ===
                 saveToLocalSync(data);
 
@@ -403,6 +400,7 @@ function saveToLocalSync(responseData) {
     if (existingIdx >= 0) {
         if (newRecord.action === 'checked_out' || newRecord.action === 'already_checked_out') {
             data[existingIdx].check_out = newRecord.check_out || actionTime;
+            data[existingIdx].action = newRecord.action; // Update action status
             data[existingIdx].synced = false; // Need to sync again
         }
     } else {
@@ -448,13 +446,11 @@ async function syncDataToServer() {
 
         if (backupRes.ok) {
             const backupData = await backupRes.json();
-            console.log("Backup lokal sukses:", backupData.message);
         } else {
             console.warn("Gagal membuat backup lokal Excel");
         }
 
         // 2. Tembak API Laravel untuk sinkronisasi Database Server
-        console.log("Menyinkronkan ke server:", unsynced);
         showToast(`Menyinkronkan ${unsynced.length} data ke server...`, "#3b82f6");
 
         const res = await fetch(`${API_URL}/sync`, {
