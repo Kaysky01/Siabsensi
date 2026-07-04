@@ -29,6 +29,9 @@
           <td><span class="badge {{ $k->is_active ? 'badge-green' : 'badge-red' }}">{{ $k->is_active ? 'Aktif' : 'Selesai' }}</span></td>
           <td>
             <div style="display:flex;gap:4px">
+              <a href="{{ route('admin.kegiatan-sesi.index', $k->id) }}" class="btn btn-ghost btn-sm" title="Kelola Sesi" style="color:var(--info)">
+                <span class="material-symbols-outlined" style="font-size:16px">list</span>
+              </a>
               <form method="POST" action="{{ route('admin.kegiatan.toggle', $k->id) }}" style="margin:0">
                 @csrf
                 <button type="submit" class="btn btn-ghost btn-sm" title="{{ $k->is_active ? 'Nonaktifkan' : 'Aktifkan' }}" style="color:{{ $k->is_active ? 'var(--warning)' : 'var(--success)' }}">

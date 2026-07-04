@@ -337,9 +337,11 @@ class DatabaseManager:
     
     def get_schedule_for_day(self, day_of_week: int):
         """
+        DEPRECATED: Use get_schedule_for_date() instead
         Get schedule for specific day of week (ISO-8601: 1=Monday, 7=Sunday)
         Returns dict with schedule details or None if no active schedule
         """
+        logger.warning("get_schedule_for_day() is deprecated, use get_schedule_for_date() instead")
         query = """
             SELECT id, day_of_week, check_in_start, check_in_end, 
                    check_out_start, check_out_end, is_active
@@ -349,23 +351,41 @@ class DatabaseManager:
         """
         return self._execute(query, (day_of_week,), fetch_one=True)
     
+    def get_schedule_for_date(self, date_str=None):
+        """
+        Get PKKMB schedule for specific date (or today if not specified)
+        Returns dict with schedule details or None if no active schedule
+        
+        Args:
+            date_str: Date in 'YYYY-MM-DD' format, or None for today
+        """
+        if date_str is None:
+            from datetime import datetime
+            date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        query = """
+            SELECT id, hari_ke, tanggal, check_in_start, check_in_end, 
+                   check_out_start, check_out_end, is_active
+            FROM pkkmb_schedules
+            WHERE tanggal = %s AND is_active = 1
+            LIMIT 1
+        """
+        return self._execute(query, (date_str,), fetch_one=True)
+    
     def get_today_schedule(self):
         """
-        Get schedule for today based on current day of week
+        Get schedule for today based on date (PKKMB schedule)
         Returns dict with schedule or None
         """
-        from datetime import datetime
-        # ISO-8601: Monday=1, Sunday=7
-        today_dow = datetime.now().isoweekday()
-        return self.get_schedule_for_day(today_dow)
+        return self.get_schedule_for_date()
     
     def get_all_schedules(self):
-        """Get all schedules (active and inactive) ordered by day"""
+        """Get all PKKMB schedules (active and inactive) ordered by date"""
         query = """
-            SELECT id, day_of_week, check_in_start, check_in_end,
+            SELECT id, hari_ke, tanggal, check_in_start, check_in_end,
                    check_out_start, check_out_end, is_active
-            FROM attendance_schedules
-            ORDER BY day_of_week ASC
+            FROM pkkmb_schedules
+            ORDER BY tanggal ASC
         """
         return self._execute(query, fetch_all=True)
     

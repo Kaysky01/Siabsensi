@@ -67,12 +67,12 @@
   {{-- Grace Period Configuration --}}
   <div class="panel" style="max-width:600px;margin-bottom:24px">
     <div class="section-header">
-      <div class="section-title">Pengaturan Grace Period</div>
+      <div class="section-title">Batas Toleransi Keterlambatan</div>
     </div>
     <form method="POST" action="{{ route('admin.schedule.gracePeriod') }}">
       @csrf
       <div class="form-row">
-        <label class="form-label">Grace Period (Toleransi Keterlambatan)</label>
+        <label class="form-label">Atur Toleransi Keterlambatan</label>
         <input type="number" name="grace_period_minutes" class="form-input" value="{{ $gracePeriod }}" min="0" max="120" required>
         <small style="color:var(--text-muted);font-size:12px">
           Waktu toleransi dalam menit setelah batas check-in dimana mahasiswa masih bisa absen tetapi dianggap telat. 

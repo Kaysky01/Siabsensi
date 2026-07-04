@@ -27,4 +27,21 @@ class Kegiatan extends Model
     {
         return $this->hasMany(Attendance::class);
     }
+
+    /**
+     * Relasi ke Sesi Kegiatan
+     */
+    public function sesi()
+    {
+        return $this->hasMany(KegiatanSesi::class, 'kegiatan_id', 'id');
+    }
+
+    /**
+     * Get active sesi
+     */
+    public function sesiAktif()
+    {
+        return $this->hasMany(KegiatanSesi::class, 'kegiatan_id', 'id')
+            ->where('is_active', true);
+    }
 }

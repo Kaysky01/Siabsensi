@@ -72,7 +72,7 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::post('/kompi-management/bulk', [AdminController::class, 'bulkUpdateKompi'])->name('admin.kompi.bulkUpdate');
     Route::post('/kompi-management/shuffle', [AdminController::class, 'shuffleKompi'])->name('admin.kompi.shuffle');
     Route::get('/history', [AdminController::class, 'history'])->name('admin.history');
-    Route::get('/kegiatan', [AdminController::class, 'kegiatan'])->name('admin.kegiatan');
+    // Route::get('/kegiatan', [AdminController::class, 'kegiatan'])->name('admin.kegiatan'); // DISABLED - Using PKKMB Sesi now
     Route::get('/monitoring-kegiatan', [AdminController::class, 'monitoringKegiatan'])->name('admin.monitoring-kegiatan');
     Route::get('/monitoring-kegiatan/{id}', [AdminController::class, 'monitoringKegiatanDetail'])->name('admin.monitoring-kegiatan.detail');
     Route::get('/kelulusan', [AdminController::class, 'kelulusan'])->name('admin.kelulusan');
@@ -83,8 +83,21 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
     Route::get('/settings', [AdminController::class, 'settings'])->name('admin.settings');
     
-    // Attendance Schedule
-    Route::get('/schedule', [AttendanceScheduleController::class, 'index'])->name('admin.schedule.index');
+    // PKKMB Schedule
+    Route::get('/pkkmb-schedule', [\App\Http\Controllers\Admin\PkkmbScheduleController::class, 'index'])->name('admin.pkkmb-schedule.index');
+    
+    // Legacy: Jadwal Mingguan (DISABLED)
+    // Route::get('/schedule', [AttendanceScheduleController::class, 'index'])->name('admin.schedule.index');
+    
+    // PKKMB Sesi Management (Kelola Kegiatan = Kelola Sesi PKKMB)
+    Route::get('/kegiatan', [\App\Http\Controllers\Admin\PkkmbSesiController::class, 'index'])->name('admin.kegiatan');
+    
+    // Kegiatan Sesi Management (Legacy - for old kegiatan)
+    Route::get('/kegiatan-legacy/{kegiatan}/sesi', [\App\Http\Controllers\Admin\KegiatanSesiController::class, 'index'])->name('admin.kegiatan-sesi.index');
+    
+    // Absensi Manual (for Garda)
+    Route::get('/absensi-manual/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'index'])->name('admin.absensi-manual.index');
+    Route::get('/monitoring-sesi/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'monitoring'])->name('admin.monitoring-sesi');
     
     // Debug route
     Route::any('/schedule/test-route', function(\Illuminate\Http\Request $request) {
@@ -111,12 +124,30 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::post('/izin/verify', [AdminController::class, 'verifyIzin'])->name('admin.izin.verify');
     Route::post('/kehadiran/verify', [AdminController::class, 'verifyKehadiran'])->name('admin.kehadiran.verify');
     
-    // Attendance Schedule CRUD (accessible by admin, timdis, garda)
-    Route::post('/schedule', [AttendanceScheduleController::class, 'store'])->name('admin.schedule.store');
-    Route::post('/schedule/save-all', [AttendanceScheduleController::class, 'bulkUpdate'])->name('admin.schedule.bulkUpdate');
+    // PKKMB Schedule CRUD
+    Route::post('/pkkmb-schedule', [\App\Http\Controllers\Admin\PkkmbScheduleController::class, 'store'])->name('admin.pkkmb-schedule.store');
+    Route::put('/pkkmb-schedule/{id}', [\App\Http\Controllers\Admin\PkkmbScheduleController::class, 'update'])->name('admin.pkkmb-schedule.update');
+    Route::post('/pkkmb-schedule/{id}/toggle', [\App\Http\Controllers\Admin\PkkmbScheduleController::class, 'toggleActive'])->name('admin.pkkmb-schedule.toggle');
+    Route::delete('/pkkmb-schedule/{id}', [\App\Http\Controllers\Admin\PkkmbScheduleController::class, 'destroy'])->name('admin.pkkmb-schedule.destroy');
+    Route::post('/pkkmb-schedule/grace-period', [\App\Http\Controllers\Admin\PkkmbScheduleController::class, 'updateGracePeriod'])->name('admin.pkkmb-schedule.gracePeriod');
+    
+    // Keep this for backward compatibility (used by PKKMB schedule form)
     Route::post('/schedule/grace-period', [AttendanceScheduleController::class, 'updateGracePeriod'])->name('admin.schedule.gracePeriod');
-    Route::post('/schedule/{dayOfWeek}/toggle', [AttendanceScheduleController::class, 'toggleActive'])->name('admin.schedule.toggle');
-    Route::delete('/schedule/{dayOfWeek}', [AttendanceScheduleController::class, 'destroy'])->name('admin.schedule.destroy');
+    
+    // PKKMB Sesi CRUD (Kelola Kegiatan)
+    Route::post('/kegiatan', [\App\Http\Controllers\Admin\PkkmbSesiController::class, 'store'])->name('admin.kegiatan.store');
+    Route::put('/kegiatan/{sesi}', [\App\Http\Controllers\Admin\PkkmbSesiController::class, 'update'])->name('admin.kegiatan.update');
+    Route::post('/kegiatan/{sesi}/toggle', [\App\Http\Controllers\Admin\PkkmbSesiController::class, 'toggleActive'])->name('admin.kegiatan.toggle');
+    Route::delete('/kegiatan/{sesi}', [\App\Http\Controllers\Admin\PkkmbSesiController::class, 'destroy'])->name('admin.kegiatan.destroy');
+    
+    // Legacy Kegiatan Sesi CRUD
+    Route::post('/kegiatan-legacy/{kegiatan}/sesi', [\App\Http\Controllers\Admin\KegiatanSesiController::class, 'store'])->name('admin.kegiatan-sesi.store');
+    Route::put('/kegiatan-legacy/{kegiatan}/sesi/{sesi}', [\App\Http\Controllers\Admin\KegiatanSesiController::class, 'update'])->name('admin.kegiatan-sesi.update');
+    Route::post('/kegiatan-legacy/{kegiatan}/sesi/{sesi}/toggle', [\App\Http\Controllers\Admin\KegiatanSesiController::class, 'toggleActive'])->name('admin.kegiatan-sesi.toggle');
+    Route::delete('/kegiatan-legacy/{kegiatan}/sesi/{sesi}', [\App\Http\Controllers\Admin\KegiatanSesiController::class, 'destroy'])->name('admin.kegiatan-sesi.destroy');
+    
+    // Absensi Manual Save
+    Route::post('/absensi-manual/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'store'])->name('admin.absensi-manual.store');
     
     // Test route untuk debugging
     Route::post('/test-post', function(\Illuminate\Http\Request $request) {
@@ -152,11 +183,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/late-report', [AdminController::class, 'lateAttendanceReport'])->name('admin.late-report');
     Route::get('/late-report/export', [AdminController::class, 'exportLateAttendanceReport'])->name('admin.late-report.export');
 
-    // Kegiatan CRUD
-    Route::post('/kegiatan', [KegiatanController::class, 'store'])->name('admin.kegiatan.store');
-    Route::put('/kegiatan/{id}', [KegiatanController::class, 'update'])->name('admin.kegiatan.update');
-    Route::post('/kegiatan/{id}/toggle', [KegiatanController::class, 'toggleActive'])->name('admin.kegiatan.toggle');
-    Route::delete('/kegiatan/{id}', [KegiatanController::class, 'destroy'])->name('admin.kegiatan.destroy');
+    // Legacy Kegiatan CRUD (DISABLED - Using PKKMB Sesi now)
+    // Route::post('/kegiatan', [KegiatanController::class, 'store'])->name('admin.kegiatan.store');
+    // Route::put('/kegiatan/{id}', [KegiatanController::class, 'update'])->name('admin.kegiatan.update');
+    // Route::post('/kegiatan/{id}/toggle', [KegiatanController::class, 'toggleActive'])->name('admin.kegiatan.toggle');
+    // Route::delete('/kegiatan/{id}', [KegiatanController::class, 'destroy'])->name('admin.kegiatan.destroy');
 
     // QR Code (JSON response for AJAX in case needed)
     Route::get('/mahasiswa/{id}/qr-json', [AdminController::class, 'getMahasiswaQR'])->name('admin.mahasiswa.qr.json');

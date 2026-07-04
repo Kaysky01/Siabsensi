@@ -169,8 +169,8 @@
           <span class="material-symbols-outlined section-icon">settings</span>
           Pengaturan Sistem
         </div>
-        <a href="{{ route('admin.schedule.index') }}" class="nav-item {{ request()->routeIs('admin.schedule.*') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">event_available</span> Jadwal Absensi
+        <a href="{{ route('admin.pkkmb-schedule.index') }}" class="nav-item {{ request()->routeIs('admin.pkkmb-schedule.*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">calendar_month</span> Jadwal Absensi
         </a>
         <a href="{{ route('admin.users') }}" class="nav-item {{ request()->routeIs('admin.users') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">admin_panel_settings</span> Kelola Admin

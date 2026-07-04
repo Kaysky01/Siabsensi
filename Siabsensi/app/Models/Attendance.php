@@ -26,6 +26,9 @@ class Attendance extends Model
         'check_in_time',
         'check_out_time',
         'kegiatan_id',
+        'sesi_id',
+        'absen_by',
+        'absen_at',
         'is_late',
         'late_duration',
         'late_overridden',
@@ -42,6 +45,7 @@ class Attendance extends Model
         'is_late' => 'boolean',
         'late_overridden' => 'boolean',
         'override_timestamp' => 'datetime',
+        'absen_at' => 'datetime',
     ];
 
     public function mahasiswa()
@@ -57,6 +61,16 @@ class Attendance extends Model
     public function kegiatan()
     {
         return $this->belongsTo(Kegiatan::class, 'kegiatan_id', 'id');
+    }
+
+    public function sesi()
+    {
+        return $this->belongsTo(KegiatanSesi::class, 'sesi_id', 'id');
+    }
+
+    public function absenBy()
+    {
+        return $this->belongsTo(User::class, 'absen_by', 'username');
     }
 
     /**
