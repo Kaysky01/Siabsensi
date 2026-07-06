@@ -96,6 +96,7 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::get('/kegiatan-legacy/{kegiatan}/sesi', [\App\Http\Controllers\Admin\KegiatanSesiController::class, 'index'])->name('admin.kegiatan-sesi.index');
     
     // Absensi Manual (for Garda)
+    Route::get('/absensi-persesi', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'listSesi'])->name('admin.absensi-persesi');
     Route::get('/absensi-manual/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'index'])->name('admin.absensi-manual.index');
     Route::get('/monitoring-sesi/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'monitoring'])->name('admin.monitoring-sesi');
     

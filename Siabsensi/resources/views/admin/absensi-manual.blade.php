@@ -22,7 +22,7 @@
       <div class="page-sub" style="color:var(--primary);font-weight:600">Kompi Anda: {{ auth()->user()->assigned_kompi ?? 'Tidak ada' }}</div>
       @endif
     </div>
-    <a href="{{ route('admin.kegiatan') }}" class="btn btn-ghost btn-sm">
+    <a href="{{ route('admin.absensi-persesi') }}" class="btn btn-ghost btn-sm">
       <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">arrow_back</span> Kembali
     </a>
   </div>
@@ -76,7 +76,7 @@
       </div>
 
       <div style="margin-bottom:16px">
-        <input type="text" id="search-box" class="form-input" placeholder="🔍 Cari mahasiswa..." onkeyup="filterMahasiswa()">
+        <input type="text" id="search-box" class="form-input" placeholder="Cari mahasiswa..." onkeyup="filterMahasiswa()">
       </div>
 
       <div style="overflow-x:auto;max-height:600px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px">
@@ -93,7 +93,7 @@
             </tr>
           </thead>
           <tbody>
-            @forelse($mahasiswaList as $mhs)
+            @forelse($mahasiswaPaginated as $mhs)
             <tr class="mahasiswa-row" data-name="{{ strtolower($mhs->name) }}" data-kompi="{{ strtolower($mhs->kompi) }}">
               <td>
                 <input type="checkbox" 
@@ -135,9 +135,16 @@
         </table>
       </div>
 
+      {{-- Pagination --}}
+      @if($mahasiswaPaginated->hasPages())
+      <div style="margin-top:16px;display:flex;justify-content:center">
+        {{ $mahasiswaPaginated->links('pagination::custom') }}
+      </div>
+      @endif
+
       <div style="margin-top:24px;padding-top:24px;border-top:2px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-size:14px;color:var(--text-muted)">Total Mahasiswa: <strong>{{ $mahasiswaList->count() }}</strong></div>
+          <div style="font-size:14px;color:var(--text-muted)">Total Mahasiswa: <strong>{{ $mahasiswaPaginated->total() }}</strong></div>
           <div style="font-size:14px;color:var(--text-muted)">Yang Hadir Sebelumnya: <strong>{{ $attendances->count() }}</strong></div>
         </div>
         <button type="submit" class="btn btn-primary" onclick="return confirmSave()">
@@ -231,7 +238,7 @@ function filterMahasiswa() {
 
 function confirmSave() {
   const checked = document.querySelectorAll('.checkbox-hadir:checked').length;
-  const total = {{ $mahasiswaList->count() }};
+  const total = {{ $mahasiswaPaginated->total() }};
   
   if (checked === 0) {
     Swal.fire({

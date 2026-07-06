@@ -14,6 +14,24 @@ use Carbon\Carbon;
 class AbsensiManualController extends Controller
 {
     /**
+     * List all sesi for absensi persesi
+     */
+    public function listSesi()
+    {
+        $user = Auth::user();
+        
+        // Get all active schedules with their sesi
+        $schedules = \App\Models\PkkmbSchedule::with(['sesi' => function($query) {
+            $query->where('is_active', 1)->orderBy('jam_mulai');
+        }])
+        ->where('is_active', 1)
+        ->orderBy('tanggal')
+        ->get();
+        
+        return view('admin.absensi-persesi', compact('schedules'));
+    }
+    
+    /**
      * Display manual attendance page for a specific sesi
      * Only accessible by garda for their assigned kompi
      */
@@ -56,8 +74,19 @@ class AbsensiManualController extends Controller
             ->whereIn('mahasiswa_id', $mahasiswaList->pluck('id'))
             ->get()
             ->keyBy('mahasiswa_id');
+        
+        // Pagination
+        $perPage = 20;
+        $currentPage = request()->get('page', 1);
+        $mahasiswaPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            $mahasiswaList->forPage($currentPage, $perPage),
+            $mahasiswaList->count(),
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
 
-        return view('admin.absensi-manual', compact('sesi', 'mahasiswaList', 'attendances'));
+        return view('admin.absensi-manual', compact('sesi', 'mahasiswaPaginated', 'attendances'));
     }
 
     /**
@@ -174,6 +203,17 @@ class AbsensiManualController extends Controller
         $totalHadir = $attendances->count();
         $totalMahasiswa = $mahasiswaList->count();
         
-        return view('admin.monitoring-sesi', compact('sesi', 'mahasiswaList', 'attendances', 'totalHadir', 'totalMahasiswa'));
+        // Pagination
+        $perPage = 20;
+        $currentPage = request()->get('page', 1);
+        $mahasiswaPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            $mahasiswaList->forPage($currentPage, $perPage),
+            $mahasiswaList->count(),
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
+        
+        return view('admin.monitoring-sesi', compact('sesi', 'mahasiswaPaginated', 'attendances', 'totalHadir', 'totalMahasiswa'));
     }
 }

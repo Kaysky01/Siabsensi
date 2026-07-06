@@ -10,7 +10,7 @@
 <section>
   <div class="page-header">
     <div>
-      <div class="page-title">📋 Kelola Kegiatan PKKMB</div>
+      <div class="page-title">Kelola Kegiatan PKKMB</div>
       <div class="page-sub">Tambah dan kelola sesi untuk setiap hari PKKMB</div>
     </div>
     <button class="btn btn-primary" onclick="openModalAdd()">

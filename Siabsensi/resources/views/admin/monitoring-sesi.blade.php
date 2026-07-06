@@ -17,7 +17,7 @@
       </div>
     </div>
     <div style="display:flex;gap:8px">
-      <a href="{{ route('admin.kegiatan') }}" class="btn btn-ghost btn-sm">
+      <a href="{{ route('admin.monitoring-kegiatan') }}" class="btn btn-ghost btn-sm">
         <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">arrow_back</span> Kembali
       </a>
       @if(auth()->user()->role === 'garda' || auth()->user()->role === 'admin' || auth()->user()->role === 'timdis')
@@ -28,30 +28,50 @@
     </div>
   </div>
 
-  {{-- Statistics Card --}}
+  {{-- Statistics Cards --}}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
-    <div class="stat-card" style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
-      <div class="stat-value">{{ $totalMahasiswa }}</div>
-      <div class="stat-label">Total Mahasiswa</div>
+    <div class="info-card">
+      <div class="info-icon" style="background:var(--primary-light);color:var(--primary)">
+        <span class="material-symbols-outlined">group</span>
+      </div>
+      <div class="info-content">
+        <div class="info-value">{{ $totalMahasiswa }}</div>
+        <div class="info-label">Total Mahasiswa</div>
+      </div>
     </div>
-    <div class="stat-card" style="background:linear-gradient(135deg, #f093fb 0%, #f5576c 100%)">
-      <div class="stat-value">{{ $totalHadir }}</div>
-      <div class="stat-label">Hadir</div>
+    <div class="info-card">
+      <div class="info-icon" style="background:var(--success-light);color:var(--success)">
+        <span class="material-symbols-outlined">check_circle</span>
+      </div>
+      <div class="info-content">
+        <div class="info-value">{{ $totalHadir }}</div>
+        <div class="info-label">Hadir</div>
+      </div>
     </div>
-    <div class="stat-card" style="background:linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)">
-      <div class="stat-value">{{ $totalMahasiswa - $totalHadir }}</div>
-      <div class="stat-label">Tidak Hadir</div>
+    <div class="info-card">
+      <div class="info-icon" style="background:var(--danger-light);color:var(--danger)">
+        <span class="material-symbols-outlined">cancel</span>
+      </div>
+      <div class="info-content">
+        <div class="info-value">{{ $totalMahasiswa - $totalHadir }}</div>
+        <div class="info-label">Tidak Hadir</div>
+      </div>
     </div>
-    <div class="stat-card" style="background:linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)">
-      <div class="stat-value">{{ $totalMahasiswa > 0 ? round(($totalHadir / $totalMahasiswa) * 100, 1) : 0 }}%</div>
-      <div class="stat-label">Persentase Kehadiran</div>
+    <div class="info-card">
+      <div class="info-icon" style="background:var(--warning-light);color:#D4A017">
+        <span class="material-symbols-outlined">percent</span>
+      </div>
+      <div class="info-content">
+        <div class="info-value">{{ $totalMahasiswa > 0 ? round(($totalHadir / $totalMahasiswa) * 100, 1) : 0 }}%</div>
+        <div class="info-label">Kehadiran</div>
+      </div>
     </div>
   </div>
 
   {{-- Filter & Search --}}
   <div class="panel" style="margin-bottom:16px">
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-      <input type="text" id="search-box" class="form-input" placeholder="🔍 Cari mahasiswa..." style="flex:1;min-width:200px" onkeyup="filterTable()">
+      <input type="text" id="search-box" class="form-input" placeholder="Cari mahasiswa..." style="flex:1;min-width:200px" onkeyup="filterTable()">
       
       <select id="filter-status" class="form-input" style="width:150px" onchange="filterTable()">
         <option value="">Semua Status</option>
@@ -62,7 +82,7 @@
       @if(auth()->user()->role !== 'garda')
       <select id="filter-kompi" class="form-input" style="width:150px" onchange="filterTable()">
         <option value="">Semua Kompi</option>
-        @foreach($mahasiswaList->pluck('kompi')->unique()->sort() as $kompi)
+        @foreach($mahasiswaPaginated->pluck('kompi')->unique()->sort() as $kompi)
         <option value="{{ $kompi }}">{{ $kompi }}</option>
         @endforeach
       </select>
@@ -80,23 +100,23 @@
       <table class="att-table" id="monitoring-table">
         <thead>
           <tr>
-            <th>No</th>
+            <th style="width:60px">No</th>
             <th>Nama</th>
-            <th>Kompi</th>
-            <th>Prodi</th>
-            <th>Status</th>
-            <th>Diabsen Oleh</th>
-            <th>Waktu Absensi</th>
+            <th style="width:100px">Kompi</th>
+            <th style="width:150px">Prodi</th>
+            <th style="width:120px">Status</th>
+            <th style="width:120px">Diabsen Oleh</th>
+            <th style="width:180px">Waktu Absensi</th>
           </tr>
         </thead>
         <tbody>
-          @forelse($mahasiswaList as $index => $mhs)
+          @forelse($mahasiswaPaginated as $index => $mhs)
           <tr class="table-row" 
               data-name="{{ strtolower($mhs->name) }}" 
               data-kompi="{{ strtolower($mhs->kompi) }}"
               data-prodi="{{ strtolower($mhs->prodi) }}"
               data-status="{{ isset($attendances[$mhs->id]) ? 'hadir' : 'belum' }}">
-            <td>{{ $index + 1 }}</td>
+            <td>{{ ($mahasiswaPaginated->currentPage() - 1) * $mahasiswaPaginated->perPage() + $index + 1 }}</td>
             <td><strong>{{ $mhs->name }}</strong></td>
             <td>{{ $mhs->kompi }}</td>
             <td>{{ $mhs->prodi }}</td>
@@ -133,8 +153,15 @@
       </table>
     </div>
     
-    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-color);text-align:center;color:var(--text-muted);font-size:14px">
-      Menampilkan <strong id="visible-count">{{ $mahasiswaList->count() }}</strong> dari <strong>{{ $mahasiswaList->count() }}</strong> mahasiswa
+    {{-- Pagination --}}
+    @if($mahasiswaPaginated->hasPages())
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:center">
+      {{ $mahasiswaPaginated->links('pagination::custom') }}
+    </div>
+    @endif
+    
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);text-align:center;color:var(--text-muted);font-size:14px">
+      Menampilkan <strong>{{ $mahasiswaPaginated->count() }}</strong> dari <strong>{{ $mahasiswaPaginated->total() }}</strong> mahasiswa
     </div>
   </div>
 </section>
@@ -165,8 +192,6 @@ function filterTable() {
       row.style.display = 'none';
     }
   });
-  
-  document.getElementById('visible-count').textContent = visibleCount;
 }
 
 function resetFilters() {
@@ -180,22 +205,57 @@ function resetFilters() {
 </script>
 
 <style>
-.stat-card {
-  padding: 24px;
-  border-radius: 12px;
-  color: white;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+/* Info Cards */
+.info-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  transition: all 0.3s ease;
 }
 
-.stat-value {
-  font-size: 32px;
+.info-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.info-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.info-icon .material-symbols-outlined {
+  font-size: 24px;
+}
+
+.info-content {
+  flex: 1;
+}
+
+.info-value {
+  font-size: 28px;
   font-weight: 700;
-  margin-bottom: 8px;
+  font-family: var(--font-mono);
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 4px;
 }
 
-.stat-label {
-  font-size: 14px;
-  opacity: 0.9;
+.info-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
 }
 
 .table-row {
@@ -203,21 +263,30 @@ function resetFilters() {
 }
 
 .table-row:hover {
-  background-color: #f8f9fa;
+  background: var(--primary-light);
 }
 
 .att-table thead th {
-  background: var(--bg-primary);
+  background: var(--bg);
   font-weight: 600;
   padding: 12px;
-  border-bottom: 2px solid var(--border-color);
+  border-bottom: 2px solid var(--border);
   text-align: left;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .att-table tbody td {
   padding: 12px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
   vertical-align: middle;
+  font-size: 14px;
+}
+
+.att-table tbody tr:last-child td {
+  border-bottom: none;
 }
 </style>
 @endsection

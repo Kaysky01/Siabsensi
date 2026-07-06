@@ -127,7 +127,10 @@
           <span class="material-symbols-outlined icon">edit_calendar</span> Kelola Kegiatan
         </a>
         @endif
-        <a href="{{ route('admin.monitoring-kegiatan') }}" class="nav-item {{ request()->routeIs('admin.monitoring-kegiatan') ? 'active' : '' }}">
+        <a href="{{ route('admin.absensi-persesi') }}" class="nav-item {{ request()->routeIs('admin.absensi-persesi') || request()->routeIs('admin.absensi-manual.*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">checklist</span> Absensi Persesi
+        </a>
+        <a href="{{ route('admin.monitoring-kegiatan') }}" class="nav-item {{ request()->routeIs('admin.monitoring-kegiatan') || request()->routeIs('admin.monitoring-sesi') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">monitoring</span> Monitor Kegiatan
         </a>
 
