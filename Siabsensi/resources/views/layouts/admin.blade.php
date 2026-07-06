@@ -198,7 +198,7 @@
 
         {{-- Logout (All Roles) --}}
         <div class="nav-section" style="margin-top:auto;padding-top:20px;border-top:1px solid rgba(255,255,255,0.1)">
-          <span class="material-symbols-outlined section-icon">logout</span>
+          <span class="material-symbols-outlined section-icon">person</span>
           Akun
         </div>
         <a href="{{ route('logout') }}" class="nav-item nav-item-logout">
