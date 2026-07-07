@@ -1,5 +1,5 @@
 @extends('layouts.admin')
-@section('title', 'Absensi Manual — SIABSEN')
+@section('title', 'Absen Kegiatan — SIABSEN')
 
 @section('content')
 <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
@@ -8,7 +8,7 @@
 <section>
   <div class="page-header">
     <div>
-      <div class="page-title">Absensi Manual: {{ $sesi->nama_sesi }}</div>
+      <div class="page-title">Absen Kegiatan: {{ $sesi->nama_sesi }}</div>
       <div class="page-sub">
         @if($sesi->pkkmbSchedule)
         PKKMB Hari ke-{{ $sesi->pkkmbSchedule->hari_ke }} - {{ $sesi->pkkmbSchedule->formatted_date }}
@@ -18,11 +18,9 @@
         {{ $sesi->tanggal ? $sesi->tanggal->format('d M Y') : 'Tanggal tidak diketahui' }}
         @endif
       </div>
-      @if(auth()->user()->role === 'garda')
       <div class="page-sub" style="color:var(--primary);font-weight:600">Kompi Anda: {{ auth()->user()->assigned_kompi ?? 'Tidak ada' }}</div>
-      @endif
     </div>
-    <a href="{{ route('admin.absensi-persesi') }}" class="btn btn-ghost btn-sm">
+    <a href="{{ route('garda.absensi-persesi') }}" class="btn btn-ghost btn-sm">
       <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">arrow_back</span> Kembali
     </a>
   </div>
@@ -56,7 +54,7 @@
   @endif
 
   <div class="panel">
-    <form method="POST" action="{{ route('admin.absensi-manual.store', $sesi->id) }}" id="absensi-form">
+    <form method="POST" action="{{ route('garda.absensi-manual.store', $sesi->id) }}" id="absensi-form">
       @csrf
       
       <div class="section-header" style="margin-bottom:16px">
@@ -121,11 +119,7 @@
             @empty
             <tr>
               <td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px">
-                @if(auth()->user()->role === 'garda')
                 Tidak ada mahasiswa di kompi Anda.
-                @else
-                Tidak ada mahasiswa aktif.
-                @endif
               </td>
             </tr>
             @endforelse
@@ -278,7 +272,6 @@ function confirmSave() {
   return false;
 }
 
-// Initialize count on page load
 document.addEventListener('DOMContentLoaded', function() {
   updateCount();
 });
@@ -316,6 +309,81 @@ document.addEventListener('DOMContentLoaded', function() {
   padding: 12px;
   border-bottom: 1px solid var(--border-color);
   vertical-align: middle;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-green {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.badge-gray {
+  background: var(--border-color);
+  color: var(--text-muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-color);
+}
+
+.btn-ghost:hover {
+  background: var(--bg);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.section-sub {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 </style>
 @endsection

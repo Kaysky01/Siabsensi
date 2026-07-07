@@ -8,12 +8,22 @@
       <div class="page-title">Pengaturan Kompi</div>
       <div class="page-sub">Ubah kompi mahasiswa secara massal atau acak berdasarkan jurusan</div>
     </div>
-    <form method="POST" action="{{ route('admin.kompi.shuffle') }}" id="shuffle-form">
-      @csrf
-      <button type="button" class="btn btn-secondary btn-sm" onclick="showConfirmModal()">
-        <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">shuffle</span> Acak Otomatis (Semua Jurusan)
-      </button>
-    </form>
+    <div style="display:flex; gap: 8px; align-items: center;">
+        <form method="GET" action="{{ route('admin.kompi-management') }}" id="filter-form" style="display:flex; gap: 8px; align-items: center;">
+            <select name="kompi" class="form-input" onchange="document.getElementById('filter-form').submit()">
+                <option value="all">Semua Kompi</option>
+                @foreach($kompiOptions as $kompiName)
+                    <option value="{{ $kompiName }}" {{ $filterKompi == $kompiName ? 'selected' : '' }}>{{ $kompiName }}</option>
+                @endforeach
+            </select>
+        </form>
+        <form method="POST" action="{{ route('admin.kompi.shuffle') }}" id="shuffle-form">
+            @csrf
+            <button type="button" class="btn btn-secondary btn-sm" onclick="showConfirmModal()">
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">shuffle</span> Acak Otomatis (Semua Jurusan)
+            </button>
+        </form>
+    </div>
   </div>
 
   <div class="panel">

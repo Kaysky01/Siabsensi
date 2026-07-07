@@ -177,13 +177,19 @@ class AdminController extends Controller
             $query->where('name', 'like', '%' . $request->search . '%');
         }
         if ($request->filled('kompi')) {
-            $query->where('kompi', $request->kompi);
+            if ($request->kompi === '__empty__') {
+                $query->where(function ($q) {
+                    $q->whereNull('kompi')->orWhere('kompi', '')->orWhere('kompi', '-');
+                });
+            } else {
+                $query->where('kompi', $request->kompi);
+            }
         }
         if ($request->filled('jurusan')) {
-            $query->where('jurusan', $request->jurusan);
+            $query->where('jurusan', 'like', '%' . $request->jurusan . '%');
         }
         if ($request->filled('prodi')) {
-            $query->where('prodi', $request->prodi);
+            $query->where('prodi', 'like', '%' . $request->prodi . '%');
         }
 
         $allKegiatan = \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan')->get();
@@ -193,15 +199,15 @@ class AdminController extends Controller
         $kompiOptions = \Illuminate\Support\Facades\Cache::remember('master_kompi', 3600, function() {
             return \App\Models\Kompi::pluck('nama')->sort()->values();
         });
-        
+
         $jurusanOptions = \Illuminate\Support\Facades\Cache::remember('master_jurusan', 3600, function() {
             return \App\Models\Jurusan::pluck('nama')->sort()->values();
         });
-        
+
         $prodiOptions = \Illuminate\Support\Facades\Cache::remember('master_prodi', 3600, function() {
             return \App\Models\Prodi::pluck('nama')->sort()->values();
         });
-        
+
         $jurusanWithProdi = \Illuminate\Support\Facades\Cache::remember('master_jurusan_prodi', 3600, function() {
             return \App\Models\Jurusan::with('prodi')->get();
         });
@@ -428,10 +434,18 @@ class AdminController extends Controller
     // ─── KOMPI MANAGEMENT ────────────────────────────────────────────────────
     public function kompiManagement(Request $request)
     {
-        $mahasiswaList = Mahasiswa::orderBy('kompi')->orderBy('name')->paginate(20)->withQueryString();
+        $filterKompi = $request->query('kompi');
+
+        $query = Mahasiswa::orderBy('kompi')->orderBy('name');
+
+        if ($filterKompi && $filterKompi !== 'all') {
+            $query->where('kompi', $filterKompi);
+        }
+
+        $mahasiswaList = $query->paginate(20)->withQueryString();
         $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
 
-        return view('admin.kompi-management', compact('mahasiswaList', 'kompiOptions'));
+        return view('admin.kompi-management', compact('mahasiswaList', 'kompiOptions', 'filterKompi'));
     }
 
     public function shuffleKompi(Request $request)
@@ -651,7 +665,7 @@ class AdminController extends Controller
         
         $query = Mahasiswa::query();
         if ($request->filled('prodi')) {
-            $query->where('prodi', $request->prodi);
+            $query->where('prodi', 'like', '%' . $request->prodi . '%');
         }
         if ($request->filled('jurusan')) {
             $query->where('jurusan', $request->jurusan);
@@ -666,6 +680,7 @@ class AdminController extends Controller
     // ─── IZIN TIMDIS ─────────────────────────────────────────────────────────
     public function izinTimdis(Request $request)
     {
+        $user = auth()->user();
         $izinTable = (new IzinSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
         $filterStatus = $request->get('status', '');
@@ -674,15 +689,25 @@ class AdminController extends Controller
             ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kompi")
             ->orderBy("$izinTable.created_at", 'desc');
 
+        if ($user->role === 'garda' && $user->assigned_kompi) {
+            $query->where("$mhsTable.kompi", $user->assigned_kompi);
+        }
+
         if ($filterStatus) {
             $query->where("$izinTable.status", $filterStatus);
         }
 
         $submissions = $query->paginate(20)->withQueryString();
+
+        // Stats filtered by kompi for garda
+        $statsQuery = IzinSubmission::query();
+        if ($user->role === 'garda' && $user->assigned_kompi) {
+            $statsQuery->whereHas('mahasiswa', fn($q) => $q->where('kompi', $user->assigned_kompi));
+        }
         $stats = [
-            'pending' => IzinSubmission::where('status', 'pending')->count(),
-            'approved' => IzinSubmission::where('status', 'approved')->count(),
-            'rejected' => IzinSubmission::where('status', 'rejected')->count(),
+            'pending' => (clone $statsQuery)->where('status', 'pending')->count(),
+            'approved' => (clone $statsQuery)->where('status', 'approved')->count(),
+            'rejected' => (clone $statsQuery)->where('status', 'rejected')->count(),
         ];
 
         return view('admin.izin-timdis', compact('submissions', 'stats', 'filterStatus'));
@@ -696,7 +721,16 @@ class AdminController extends Controller
             'rejection_reason' => 'nullable|string',
         ]);
 
-        $submission = IzinSubmission::findOrFail($validated['submission_id']);
+        $submission = IzinSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
+
+        // Garda only can verify their own kompi
+        $user = auth()->user();
+        if ($user->role === 'garda' && $user->assigned_kompi) {
+            if ($submission->mahasiswa->kompi !== $user->assigned_kompi) {
+                return redirect()->back()->with('error', 'Anda hanya bisa memverifikasi pengajuan dari kompi Anda.');
+            }
+        }
+
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
         $submission->verified_by = auth()->user()->username;
         $submission->verified_at = Carbon::now();
@@ -719,6 +753,7 @@ class AdminController extends Controller
     // ─── KEHADIRAN TIMDIS ────────────────────────────────────────────────────
     public function kehadiranTimdis(Request $request)
     {
+        $user = auth()->user();
         $khdTable = (new KehadiranSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
         $filterStatus = $request->get('status', '');
@@ -727,15 +762,25 @@ class AdminController extends Controller
             ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kompi")
             ->orderBy("$khdTable.created_at", 'desc');
 
+        if ($user->role === 'garda' && $user->assigned_kompi) {
+            $query->where("$mhsTable.kompi", $user->assigned_kompi);
+        }
+
         if ($filterStatus) {
             $query->where("$khdTable.status", $filterStatus);
         }
 
         $submissions = $query->paginate(20)->withQueryString();
+
+        // Stats filtered by kompi for garda
+        $statsQuery = KehadiranSubmission::query();
+        if ($user->role === 'garda' && $user->assigned_kompi) {
+            $statsQuery->whereHas('mahasiswa', fn($q) => $q->where('kompi', $user->assigned_kompi));
+        }
         $stats = [
-            'pending' => KehadiranSubmission::where('status', 'pending')->count(),
-            'approved' => KehadiranSubmission::where('status', 'approved')->count(),
-            'rejected' => KehadiranSubmission::where('status', 'rejected')->count(),
+            'pending' => (clone $statsQuery)->where('status', 'pending')->count(),
+            'approved' => (clone $statsQuery)->where('status', 'approved')->count(),
+            'rejected' => (clone $statsQuery)->where('status', 'rejected')->count(),
         ];
 
         return view('admin.kehadiran-timdis', compact('submissions', 'stats', 'filterStatus'));
@@ -749,7 +794,16 @@ class AdminController extends Controller
             'reject_reason' => 'nullable|string',
         ]);
 
-        $submission = KehadiranSubmission::findOrFail($validated['submission_id']);
+        $submission = KehadiranSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
+
+        // Garda only can verify their own kompi
+        $user = auth()->user();
+        if ($user->role === 'garda' && $user->assigned_kompi) {
+            if ($submission->mahasiswa->kompi !== $user->assigned_kompi) {
+                return redirect()->back()->with('error', 'Anda hanya bisa memverifikasi kehadiran dari kompi Anda.');
+            }
+        }
+
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
         $submission->verified_by = auth()->user()->username;
         $submission->verified_at = Carbon::now();

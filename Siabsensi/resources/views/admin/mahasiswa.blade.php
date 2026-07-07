@@ -20,34 +20,37 @@
 
   {{-- Filter --}}
   <div class="panel" style="margin-bottom:16px;padding:14px 20px">
-    <form method="GET" action="{{ route('admin.mahasiswa') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-      <div style="flex:1;min-width:200px">
+    <form method="GET" action="{{ route('admin.mahasiswa') }}" style="display:flex;gap:12px;align-items:stretch">
+      <div style="flex:1;display:flex;flex-direction:column">
         <label class="form-label">Cari Nama</label>
-        <input type="text" name="search" class="form-input" placeholder="Ketik nama..." value="{{ request('search') }}" style="padding:7px 10px">
+        <input type="text" name="search" class="form-input" placeholder="Ketik nama..." value="{{ request('search') }}" style="flex:1;min-width:0">
       </div>
-      <div>
+      <div style="display:flex;flex-direction:column">
         <label class="form-label">Kompi</label>
-        <select name="kompi" class="form-input" style="width:120px;padding:7px 10px">
+        <select name="kompi" class="form-input" style="width:120px;height:38px">
           <option value="">Semua</option>
+          <option value="__empty__" {{ request('kompi') == '__empty__' ? 'selected' : '' }}>Belum Ada Kompi</option>
           @foreach($kompiOptions as $k)<option value="{{ $k }}" {{ request('kompi') == $k ? 'selected' : '' }}>{{ $k }}</option>@endforeach
         </select>
       </div>
-      <div>
+      <div style="display:flex;flex-direction:column">
         <label class="form-label">Jurusan</label>
-        <select name="jurusan" class="form-input" style="width:180px;padding:7px 10px">
-          <option value="">Semua</option>
-          @foreach($jurusanOptions as $j)<option value="{{ $j }}" {{ request('jurusan') == $j ? 'selected' : '' }}>{{ $j }}</option>@endforeach
-        </select>
+        <input type="text" name="jurusan" class="form-input" placeholder="Ketik jurusan..." value="{{ request('jurusan') }}" list="list-jurusan" style="width:200px;height:38px">
+        <datalist id="list-jurusan">
+          @foreach($jurusanOptions as $j)<option value="{{ $j }}">{{ $j }}</option>@endforeach
+        </datalist>
       </div>
-      <div>
+      <div style="display:flex;flex-direction:column">
         <label class="form-label">Prodi</label>
-        <select name="prodi" class="form-input" style="width:180px;padding:7px 10px">
-          <option value="">Semua</option>
-          @foreach($prodiOptions as $p)<option value="{{ $p }}" {{ request('prodi') == $p ? 'selected' : '' }}>{{ $p }}</option>@endforeach
-        </select>
+        <input type="text" name="prodi" class="form-input" placeholder="Ketik prodi..." value="{{ request('prodi') }}" list="list-prodi" style="width:200px;height:38px">
+        <datalist id="list-prodi">
+          @foreach($prodiOptions as $p)<option value="{{ $p }}">{{ $p }}</option>@endforeach
+        </datalist>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-      <a href="{{ route('admin.mahasiswa') }}" class="btn btn-ghost btn-sm">Reset</a>
+      <div style="display:flex;align-items:flex-end;gap:8px">
+        <button type="submit" class="btn btn-primary" style="height:38px;padding:0 20px">Filter</button>
+        <a href="{{ route('admin.mahasiswa') }}" class="btn btn-ghost" style="height:38px;padding:0 20px">Reset</a>
+      </div>
     </form>
   </div>
 
@@ -316,8 +319,7 @@ function openEditMhs(id, nim, name, kompi, jurusan, prodi, email, telpMhs, telpO
   document.getElementById('edit-kompi').value = kompi;
   document.getElementById('edit-jurusan').value = jurusan;
   
-  updateProdiOptions('edit');
-  document.getElementById('edit-prodi').value = prodi;
+  updateProdiOptions('edit', prodi);
   
   document.getElementById('edit-email').value = email;
   document.getElementById('edit-tanggal-lahir').value = tglLahir;
@@ -421,11 +423,12 @@ function downloadAdminQR() {
     });
 }
 
-function updateProdiOptions(prefix) {
+const jurusanProdiData = @json($jurusanWithProdi);
+
+function updateProdiOptions(prefix, selectedProdi = null) {
   const jurusanSelect = document.getElementById(prefix + '-jurusan');
   const prodiSelect = document.getElementById(prefix + '-prodi');
   
-  // Clear current options
   prodiSelect.innerHTML = '<option value="">Pilih Prodi...</option>';
   
   const selectedOption = jurusanSelect.options[jurusanSelect.selectedIndex];
@@ -435,6 +438,7 @@ function updateProdiOptions(prefix) {
       const opt = document.createElement('option');
       opt.value = prodi;
       opt.textContent = prodi;
+      if (prodi === selectedProdi) opt.selected = true;
       prodiSelect.appendChild(opt);
     });
   }

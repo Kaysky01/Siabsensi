@@ -82,10 +82,9 @@
       <nav class="nav">
         @php $user = Auth::user(); @endphp
 
-        {{-- ADMIN & TIMDIS MENU --}}
-        @if($user->role !== 'garda')
+        {{-- ADMIN MENU --}}
+        @if($user->role === 'admin')
         
-        {{-- Dashboard & Monitoring --}}
         <div class="nav-section">
           <span class="material-symbols-outlined section-icon">dashboard</span>
           Dashboard & Monitoring
@@ -97,8 +96,6 @@
           <span class="material-symbols-outlined icon">sensors</span> Monitor Absensi
         </a>
 
-        {{-- Data Master (Admin Only) --}}
-        @if($user->role === 'admin')
         <div class="nav-section">
           <span class="material-symbols-outlined section-icon">database</span>
           Data Master
@@ -115,18 +112,14 @@
         <a href="{{ route('admin.kompi-management') }}" class="nav-item {{ request()->routeIs('admin.kompi-management') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">groups</span> Kelola Kompi
         </a>
-        @endif
 
-        {{-- Kegiatan --}}
         <div class="nav-section">
           <span class="material-symbols-outlined section-icon">event</span>
           Kegiatan
         </div>
-        @if($user->role === 'admin')
         <a href="{{ route('admin.kegiatan') }}" class="nav-item {{ request()->routeIs('admin.kegiatan') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">edit_calendar</span> Kelola Kegiatan
         </a>
-        @endif
         <a href="{{ route('admin.absensi-persesi') }}" class="nav-item {{ request()->routeIs('admin.absensi-persesi') || request()->routeIs('admin.absensi-manual.*') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">checklist</span> Absensi Persesi
         </a>
@@ -134,7 +127,6 @@
           <span class="material-symbols-outlined icon">monitoring</span> Monitor Kegiatan
         </a>
 
-        {{-- Verifikasi (Admin & Timdis) --}}
         <div class="nav-section">
           <span class="material-symbols-outlined section-icon">task_alt</span>
           Verifikasi & Approval
@@ -154,8 +146,6 @@
           @endif
         </a>
 
-        {{-- Laporan (Admin Only) --}}
-        @if($user->role === 'admin')
         <div class="nav-section">
           <span class="material-symbols-outlined section-icon">description</span>
           Laporan & Analisis
@@ -167,7 +157,6 @@
           <span class="material-symbols-outlined icon">assignment_turned_in</span> Kelulusan
         </a>
 
-        {{-- Pengaturan Sistem (Admin Only) --}}
         <div class="nav-section">
           <span class="material-symbols-outlined section-icon">settings</span>
           Pengaturan Sistem
@@ -181,26 +170,111 @@
         <a href="{{ route('admin.settings') }}" class="nav-item {{ request()->routeIs('admin.settings') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">tune</span> Pengaturan Umum
         </a>
-        @endif
 
-        @endif
+        {{-- TIMDIS MENU --}}
+        @elseif($user->role === 'timdis')
+
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">dashboard</span>
+          Dashboard
+        </div>
+        <a href="{{ route('admin.dashboard') }}" class="nav-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">analytics</span> Dashboard
+        </a>
+        <a href="{{ route('admin.attendance') }}" class="nav-item {{ request()->routeIs('admin.attendance') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">sensors</span> Monitor Absensi
+        </a>
+
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">event</span>
+          Kegiatan
+        </div>
+        <a href="{{ route('admin.absensi-persesi') }}" class="nav-item {{ request()->routeIs('admin.absensi-persesi') || request()->routeIs('admin.absensi-manual.*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">checklist</span> Absensi Persesi
+        </a>
+        <a href="{{ route('admin.monitoring-kegiatan') }}" class="nav-item {{ request()->routeIs('admin.monitoring-kegiatan') || request()->routeIs('admin.monitoring-sesi') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">monitoring</span> Monitor Kegiatan
+        </a>
+
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">task_alt</span>
+          Verifikasi & Approval
+        </div>
+        <a href="{{ route('admin.izin-timdis') }}" class="nav-item {{ request()->routeIs('admin.izin-timdis') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">fact_check</span> 
+          Izin/Sakit
+          @if(($pendingIzin ?? 0) > 0)
+          <span class="badge badge-warning">{{ $pendingIzin }}</span>
+          @endif
+        </a>
+        <a href="{{ route('admin.kehadiran-timdis') }}" class="nav-item {{ request()->routeIs('admin.kehadiran-timdis') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">how_to_reg</span>
+          Kehadiran Manual
+          @if(($pendingKehadiran ?? 0) > 0)
+          <span class="badge badge-warning">{{ $pendingKehadiran }}</span>
+          @endif
+        </a>
 
         {{-- GARDA MENU --}}
-        @if($user->role === 'garda')
+        @elseif($user->role === 'garda')
+
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">dashboard</span>
+          Dashboard
+        </div>
+        <a href="{{ route('garda.dashboard') }}" class="nav-item {{ request()->routeIs('garda.dashboard') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">analytics</span> Dashboard
+        </a>
+        
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">event</span>
+          Absensi
+        </div>
+        <a href="{{ route('garda.absensi-persesi') }}" class="nav-item {{ request()->routeIs('garda.absensi-persesi') || request()->routeIs('garda.absensi-manual.*') || request()->routeIs('garda.absen-kegiatan*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">checklist</span> Absensi Persesi
+        </a>
+
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">task_alt</span>
+          Verifikasi & Approval
+        </div>
+        <a href="{{ route('garda.izin') }}" class="nav-item {{ request()->routeIs('garda.izin') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">fact_check</span> 
+          Izin/Sakit
+          @if(($pendingIzin ?? 0) > 0)
+          <span class="badge badge-warning">{{ $pendingIzin }}</span>
+          @endif
+        </a>
+        <a href="{{ route('garda.kehadiran-manual') }}" class="nav-item {{ request()->routeIs('garda.kehadiran-manual') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">how_to_reg</span>
+          Kehadiran Manual
+          @if(($pendingKehadiran ?? 0) > 0)
+          <span class="badge badge-warning">{{ $pendingKehadiran }}</span>
+          @endif
+        </a>
+        
         <div class="nav-section">
           <span class="material-symbols-outlined section-icon">visibility</span>
-          Data Mahasiswa
+          Data
         </div>
-        <a href="{{ route('admin.mahasiswa-saya') }}" class="nav-item {{ request()->routeIs('admin.mahasiswa-saya') ? 'active' : '' }}">
+        <a href="{{ route('garda.mahasiswa-saya') }}" class="nav-item {{ request()->routeIs('garda.mahasiswa-saya') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">group</span> Mahasiswa Saya
+        </a>
+        <a href="{{ route('garda.riwayat') }}" class="nav-item {{ request()->routeIs('garda.riwayat') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">history</span> Riwayat Absensi
         </a>
         @endif
 
         {{-- Logout (All Roles) --}}
         <div class="nav-section" style="margin-top:auto;padding-top:20px;border-top:1px solid rgba(255,255,255,0.1)">
-          <span class="material-symbols-outlined section-icon">logout</span>
+          <span class="material-symbols-outlined section-icon">account_circle</span>
           Akun
         </div>
+        @if($user->role === 'garda')
+        <a href="{{ route('garda.profile') }}" class="nav-item {{ request()->routeIs('garda.profile') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">manage_accounts</span> Profil Akun
+        </a>
+        @endif
         <a href="{{ route('logout') }}" class="nav-item nav-item-logout">
           <span class="material-symbols-outlined icon">power_settings_new</span> Keluar
         </a>

@@ -4,6 +4,12 @@ use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AttendanceScheduleController;
 use App\Http\Controllers\Admin\MasterDataController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Garda\AttendanceController;
+use App\Http\Controllers\Garda\DashboardController;
+use App\Http\Controllers\Garda\ProfileController;
+use App\Http\Controllers\Garda\RiwayatController;
+use App\Http\Controllers\Garda\StudentController;
+use App\Http\Controllers\Garda\VerificationController;
 use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\Mahasiswa\IzinController;
 use App\Http\Controllers\Mahasiswa\KehadiranController;
@@ -23,7 +29,7 @@ Route::get('/', function () {
         return match ($role) {
             'admin' => redirect()->route('admin.dashboard'),
             'timdis' => redirect()->route('admin.dashboard'),
-            'garda' => redirect()->route('admin.mahasiswa-saya'),
+            'garda' => redirect()->route('garda.dashboard'),
             'mahasiswa' => redirect()->route('mahasiswa.dashboard'),
             default => redirect()->route('login'),
         };
@@ -39,6 +45,23 @@ Route::middleware(['guest'])->group(function () {
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/logout', [AuthController::class, 'logout'])->name('logout');
+});
+
+// ─── GARDA PAGES ────────────────────────────────────────────────────────────
+Route::middleware(['auth', 'role:garda'])->prefix('garda')->group(function () {
+    Route::get('/dashboard', [DashboardController::class, '__invoke'])->name('garda.dashboard');
+    Route::get('/absensi-persesi', [AttendanceController::class, 'listSessions'])->name('garda.absensi-persesi');
+    Route::get('/absensi-manual/{sesi}', [AttendanceController::class, 'manualAttendance'])->name('garda.absensi-manual.index');
+    Route::post('/absensi-manual/{sesi}', [AttendanceController::class, 'store'])->name('garda.absensi-manual.store');
+    Route::get('/absen-kegiatan/{sesi}', [AttendanceController::class, 'absenKegiatan'])->name('garda.absen-kegiatan');
+    Route::get('/mahasiswa-saya', [StudentController::class, 'myStudents'])->name('garda.mahasiswa-saya');
+    Route::get('/riwayat', [RiwayatController::class, '__invoke'])->name('garda.riwayat');
+    Route::get('/profile', [ProfileController::class, 'profile'])->name('garda.profile');
+    Route::put('/profile', [ProfileController::class, 'updateProfile'])->name('garda.profile.update');
+    Route::get('/izin', [VerificationController::class, 'izin'])->name('garda.izin');
+    Route::post('/izin/verify', [VerificationController::class, 'verifyIzin'])->name('garda.izin.verify');
+    Route::get('/kehadiran-manual', [VerificationController::class, 'kehadiranManual'])->name('garda.kehadiran-manual');
+    Route::post('/kehadiran/verify', [VerificationController::class, 'verifyKehadiran'])->name('garda.kehadiran.verify');
 });
 
 // ─── ADMIN PAGES (Server-Side Rendered) ─────────────────────────────────────
@@ -111,9 +134,9 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
         ]);
     })->name('admin.schedule.test');
 
-    // Redirect legacy dashboard URLs
-    Route::get('/timdis/dashboard', fn() => redirect()->route('admin.dashboard'));
-    Route::get('/garda/dashboard', fn() => redirect()->route('admin.mahasiswa-saya'));
+     // Redirect legacy dashboard URLs
+     Route::get('/timdis/dashboard', fn() => redirect()->route('admin.dashboard'));
+     Route::get('/garda/dashboard', fn() => redirect()->route('garda.dashboard'));
 
     // Export
     Route::get('/attendance/export', [AdminController::class, 'exportAttendance'])->name('admin.attendance.export');
