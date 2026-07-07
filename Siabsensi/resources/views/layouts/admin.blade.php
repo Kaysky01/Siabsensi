@@ -267,7 +267,11 @@
 
         {{-- Logout (All Roles) --}}
         <div class="nav-section" style="margin-top:auto;padding-top:20px;border-top:1px solid rgba(255,255,255,0.1)">
+<<<<<<< HEAD
           <span class="material-symbols-outlined section-icon">account_circle</span>
+=======
+          <span class="material-symbols-outlined section-icon">person</span>
+>>>>>>> 0c885187fdb0e985cfadc53cb85777243a9afbea
           Akun
         </div>
         @if($user->role === 'garda')
