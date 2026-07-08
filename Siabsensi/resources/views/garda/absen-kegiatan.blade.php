@@ -78,8 +78,8 @@
       </div>
 
       <div style="overflow-x:auto;max-height:600px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px">
-        <table class="att-table" id="mahasiswa-table">
-          <thead style="position:sticky;top:0;background:var(--bg-primary);z-index:10">
+        <table class="att-table" id="mahasiswa-table" style="width:100%; border-collapse:collapse;">
+          <thead>
             <tr>
               <th style="width:60px;text-align:center">Hadir</th>
               <th>Nama</th>
@@ -298,11 +298,19 @@ document.addEventListener('DOMContentLoaded', function() {
   cursor: pointer;
 }
 
+.att-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
 .att-table thead th {
-  background: var(--bg-primary);
+  background: var(--bg);
   font-weight: 600;
   padding: 12px;
   border-bottom: 2px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .att-table tbody td {

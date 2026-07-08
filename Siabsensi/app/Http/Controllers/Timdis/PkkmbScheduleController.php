@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Timdis;
 
 use App\Http\Controllers\Controller;
 use App\Models\PkkmbSchedule;
@@ -20,7 +20,7 @@ class PkkmbScheduleController extends Controller
         $schedules = PkkmbSchedule::orderBy('hari_ke')->orderBy('tanggal')->get();
         $gracePeriod = SystemConfig::getGracePeriodMinutes();
         
-        return view('admin.pkkmb-schedule', compact('schedules', 'gracePeriod'));
+        return view('timdis.pkkmb-schedule', compact('schedules', 'gracePeriod'));
     }
 
     /**
@@ -59,11 +59,11 @@ class PkkmbScheduleController extends Controller
             
             $this->invalidateScheduleCache();
             
-            return redirect()->route('admin.pkkmb-schedule.index')
+            return redirect()->route('timdis.pkkmb-schedule.index')
                 ->with('success', 'Jadwal PKKMB Hari ke-' . $validated['hari_ke'] . ' berhasil ditambahkan');
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->route('admin.pkkmb-schedule.index')
+            return redirect()->route('timdis.pkkmb-schedule.index')
                 ->with('error', 'Gagal menyimpan jadwal: ' . $e->getMessage());
         }
     }
@@ -102,11 +102,11 @@ class PkkmbScheduleController extends Controller
             
             $this->invalidateScheduleCache();
             
-            return redirect()->route('admin.pkkmb-schedule.index')
+            return redirect()->route('timdis.pkkmb-schedule.index')
                 ->with('success', 'Jadwal PKKMB berhasil diperbarui');
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->route('admin.pkkmb-schedule.index')
+            return redirect()->route('timdis.pkkmb-schedule.index')
                 ->with('error', 'Gagal memperbarui jadwal: ' . $e->getMessage());
         }
     }
@@ -124,7 +124,7 @@ class PkkmbScheduleController extends Controller
         $status = $schedule->is_active ? 'diaktifkan' : 'dinonaktifkan';
         $this->invalidateScheduleCache();
 
-        return redirect()->route('admin.pkkmb-schedule.index')
+        return redirect()->route('timdis.pkkmb-schedule.index')
             ->with('success', "Jadwal PKKMB Hari ke-{$schedule->hari_ke} berhasil {$status}");
     }
 
@@ -139,7 +139,7 @@ class PkkmbScheduleController extends Controller
         $schedule->delete();
         $this->invalidateScheduleCache();
 
-        return redirect()->route('admin.pkkmb-schedule.index')
+        return redirect()->route('timdis.pkkmb-schedule.index')
             ->with('success', "Jadwal PKKMB Hari ke-{$hariKe} berhasil dihapus");
     }
 
@@ -160,9 +160,9 @@ class PkkmbScheduleController extends Controller
         try {
             SystemConfig::setGracePeriodMinutes($validated['grace_period_minutes']);
             $this->invalidateScheduleCache();
-            return redirect()->route('admin.pkkmb-schedule.index')->with('success', 'Grace period berhasil diperbarui');
+            return redirect()->route('timdis.pkkmb-schedule.index')->with('success', 'Grace period berhasil diperbarui');
         } catch (\Exception $e) {
-            return redirect()->route('admin.pkkmb-schedule.index')->with('error', 'Gagal memperbarui grace period: ' . $e->getMessage());
+            return redirect()->route('timdis.pkkmb-schedule.index')->with('error', 'Gagal memperbarui grace period: ' . $e->getMessage());
         }
     }
 
@@ -181,5 +181,6 @@ class PkkmbScheduleController extends Controller
         }
     }
 }
+
 
 

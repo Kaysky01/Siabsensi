@@ -131,25 +131,25 @@
           <span class="material-symbols-outlined section-icon">task_alt</span>
           Verifikasi & Approval
         </div>
-        <a href="{{ route('admin.izin-timdis') }}" class="nav-item {{ request()->routeIs('admin.izin-timdis') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">fact_check</span> 
-          Izin/Sakit
-          @if(($pendingIzin ?? 0) > 0)
-          <span class="badge badge-warning">{{ $pendingIzin }}</span>
-          @endif
-        </a>
-        <a href="{{ route('admin.kehadiran-timdis') }}" class="nav-item {{ request()->routeIs('admin.kehadiran-timdis') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">how_to_reg</span>
-          Kehadiran Manual
-          @if(($pendingKehadiran ?? 0) > 0)
-          <span class="badge badge-warning">{{ $pendingKehadiran }}</span>
-          @endif
-        </a>
+          <a href="{{ route('admin.izin') }}" class="nav-item {{ request()->routeIs('admin.izin') ? 'active' : '' }}">
+            <span class="material-symbols-outlined icon">fact_check</span> 
+            Izin/Sakit
+            @if(($pendingIzin ?? 0) > 0)
+            <span class="badge badge-warning">{{ $pendingIzin }}</span>
+            @endif
+          </a>
+          <a href="{{ route('admin.kehadiran') }}" class="nav-item {{ request()->routeIs('admin.kehadiran') ? 'active' : '' }}">
+            <span class="material-symbols-outlined icon">how_to_reg</span>
+            Kehadiran Manual
+            @if(($pendingKehadiran ?? 0) > 0)
+            <span class="badge badge-warning">{{ $pendingKehadiran }}</span>
+            @endif
+          </a>
 
-        <div class="nav-section">
-          <span class="material-symbols-outlined section-icon">description</span>
-          Laporan & Analisis
-        </div>
+          <div class="nav-section">
+            <span class="material-symbols-outlined section-icon">description</span>
+            Laporan & Analisis
+          </div>
         <a href="{{ route('admin.late-report') }}" class="nav-item {{ request()->routeIs('admin.late-report*') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">schedule_send</span> Keterlambatan
         </a>
@@ -178,10 +178,10 @@
           <span class="material-symbols-outlined section-icon">dashboard</span>
           Dashboard
         </div>
-        <a href="{{ route('admin.dashboard') }}" class="nav-item {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+        <a href="{{ route('timdis.dashboard') }}" class="nav-item {{ request()->routeIs('timdis.dashboard') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">analytics</span> Dashboard
         </a>
-        <a href="{{ route('admin.attendance') }}" class="nav-item {{ request()->routeIs('admin.attendance') ? 'active' : '' }}">
+        <a href="{{ route('timdis.attendance') }}" class="nav-item {{ request()->routeIs('timdis.attendance') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">sensors</span> Monitor Absensi
         </a>
 
@@ -189,10 +189,16 @@
           <span class="material-symbols-outlined section-icon">event</span>
           Kegiatan
         </div>
-        <a href="{{ route('admin.absensi-persesi') }}" class="nav-item {{ request()->routeIs('admin.absensi-persesi') || request()->routeIs('admin.absensi-manual.*') ? 'active' : '' }}">
+        <a href="{{ route('timdis.pkkmb-schedule.index') }}" class="nav-item {{ request()->routeIs('timdis.pkkmb-schedule.*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">calendar_month</span> Jadwal Absensi
+        </a>
+        <a href="{{ route('timdis.kegiatan') }}" class="nav-item {{ request()->routeIs('timdis.kegiatan') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">edit_calendar</span> Kelola Kegiatan
+        </a>
+        <a href="{{ route('timdis.absensi-persesi') }}" class="nav-item {{ request()->routeIs('timdis.absensi-persesi') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">checklist</span> Absensi Persesi
         </a>
-        <a href="{{ route('admin.monitoring-kegiatan') }}" class="nav-item {{ request()->routeIs('admin.monitoring-kegiatan') || request()->routeIs('admin.monitoring-sesi') ? 'active' : '' }}">
+        <a href="{{ route('timdis.monitoring-kegiatan') }}" class="nav-item {{ request()->routeIs('timdis.monitoring-kegiatan') || request()->routeIs('timdis.monitoring-sesi') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">monitoring</span> Monitor Kegiatan
         </a>
 
@@ -200,14 +206,14 @@
           <span class="material-symbols-outlined section-icon">task_alt</span>
           Verifikasi & Approval
         </div>
-        <a href="{{ route('admin.izin-timdis') }}" class="nav-item {{ request()->routeIs('admin.izin-timdis') ? 'active' : '' }}">
+        <a href="{{ route('timdis.izin-timdis') }}" class="nav-item {{ request()->routeIs('timdis.izin-timdis') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">fact_check</span> 
           Izin/Sakit
           @if(($pendingIzin ?? 0) > 0)
           <span class="badge badge-warning">{{ $pendingIzin }}</span>
           @endif
         </a>
-        <a href="{{ route('admin.kehadiran-timdis') }}" class="nav-item {{ request()->routeIs('admin.kehadiran-timdis') ? 'active' : '' }}">
+        <a href="{{ route('timdis.kehadiran-timdis') }}" class="nav-item {{ request()->routeIs('timdis.kehadiran-timdis') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">how_to_reg</span>
           Kehadiran Manual
           @if(($pendingKehadiran ?? 0) > 0)
@@ -267,11 +273,7 @@
 
         {{-- Logout (All Roles) --}}
         <div class="nav-section" style="margin-top:auto;padding-top:20px;border-top:1px solid rgba(255,255,255,0.1)">
-<<<<<<< HEAD
           <span class="material-symbols-outlined section-icon">account_circle</span>
-=======
-          <span class="material-symbols-outlined section-icon">person</span>
->>>>>>> 0c885187fdb0e985cfadc53cb85777243a9afbea
           Akun
         </div>
         @if($user->role === 'garda')

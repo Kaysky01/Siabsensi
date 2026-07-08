@@ -13,6 +13,7 @@ use App\Models\Mahasiswa;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -418,7 +419,7 @@ class AdminController extends Controller
     // ─── MAHASISWA SAYA (GARDA) ──────────────────────────────────────────────
     public function mahasiswaSaya()
     {
-        $user = auth()->user();
+        $user = Auth::user();
         $query = Mahasiswa::query();
 
         if ($user->assigned_kompi) {
@@ -678,9 +679,9 @@ class AdminController extends Controller
     }
 
     // ─── IZIN TIMDIS ─────────────────────────────────────────────────────────
-    public function izinTimdis(Request $request)
+    public function izin(Request $request)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         $izinTable = (new IzinSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
         $filterStatus = $request->get('status', '');
@@ -710,7 +711,7 @@ class AdminController extends Controller
             'rejected' => (clone $statsQuery)->where('status', 'rejected')->count(),
         ];
 
-        return view('admin.izin-timdis', compact('submissions', 'stats', 'filterStatus'));
+        return view('admin.izin', compact('submissions', 'stats', 'filterStatus'));
     }
 
     public function verifyIzin(Request $request)
@@ -724,7 +725,7 @@ class AdminController extends Controller
         $submission = IzinSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
 
         // Garda only can verify their own kompi
-        $user = auth()->user();
+        $user = Auth::user();
         if ($user->role === 'garda' && $user->assigned_kompi) {
             if ($submission->mahasiswa->kompi !== $user->assigned_kompi) {
                 return redirect()->back()->with('error', 'Anda hanya bisa memverifikasi pengajuan dari kompi Anda.');
@@ -732,7 +733,7 @@ class AdminController extends Controller
         }
 
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
-        $submission->verified_by = auth()->user()->username;
+        $submission->verified_by = Auth::user()->username;
         $submission->verified_at = Carbon::now();
         if ($validated['action'] === 'reject') {
             $submission->rejection_reason = $validated['rejection_reason'];
@@ -747,13 +748,13 @@ class AdminController extends Controller
         }
 
         $msg = $validated['action'] === 'approve' ? 'Pengajuan disetujui.' : 'Pengajuan ditolak.';
-        return redirect()->route('admin.izin-timdis')->with('success', $msg);
+        return redirect()->route('admin.izin')->with('success', $msg);
     }
 
     // ─── KEHADIRAN TIMDIS ────────────────────────────────────────────────────
-    public function kehadiranTimdis(Request $request)
+    public function kehadiran(Request $request)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         $khdTable = (new KehadiranSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
         $filterStatus = $request->get('status', '');
@@ -783,7 +784,7 @@ class AdminController extends Controller
             'rejected' => (clone $statsQuery)->where('status', 'rejected')->count(),
         ];
 
-        return view('admin.kehadiran-timdis', compact('submissions', 'stats', 'filterStatus'));
+        return view('admin.kehadiran', compact('submissions', 'stats', 'filterStatus'));
     }
 
     public function verifyKehadiran(Request $request)
@@ -797,7 +798,7 @@ class AdminController extends Controller
         $submission = KehadiranSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
 
         // Garda only can verify their own kompi
-        $user = auth()->user();
+        $user = Auth::user();
         if ($user->role === 'garda' && $user->assigned_kompi) {
             if ($submission->mahasiswa->kompi !== $user->assigned_kompi) {
                 return redirect()->back()->with('error', 'Anda hanya bisa memverifikasi kehadiran dari kompi Anda.');
@@ -805,7 +806,7 @@ class AdminController extends Controller
         }
 
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
-        $submission->verified_by = auth()->user()->username;
+        $submission->verified_by = Auth::user()->username;
         $submission->verified_at = Carbon::now();
         if ($validated['action'] === 'reject') {
             $submission->rejection_reason = $validated['reject_reason'];
@@ -825,7 +826,7 @@ class AdminController extends Controller
         }
 
         $msg = $validated['action'] === 'approve' ? 'Kehadiran disetujui.' : 'Kehadiran ditolak.';
-        return redirect()->route('admin.kehadiran-timdis')->with('success', $msg);
+        return redirect()->route('admin.kehadiran')->with('success', $msg);
     }
 
     // ─── USERS MANAGEMENT ────────────────────────────────────────────────────
@@ -1007,7 +1008,7 @@ class AdminController extends Controller
 
         // Update attendance with override info
         $attendance->late_overridden = true;
-        $attendance->overridden_by = auth()->user()->username;
+        $attendance->overridden_by = Auth::user()->username;
         $attendance->override_reason = $validated['override_reason'];
         $attendance->override_timestamp = now();
         $attendance->save();
@@ -1185,3 +1186,5 @@ class AdminController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 }
+
+

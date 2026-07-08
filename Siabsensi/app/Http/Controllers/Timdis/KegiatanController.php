@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Timdis;
 
 use App\Http\Controllers\Controller;
 use App\Models\PkkmbSchedule;
@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
-class PkkmbSesiController extends Controller
+class KegiatanController extends Controller
 {
     /**
      * Display main page with all PKKMB schedules and their sessions
@@ -24,7 +24,7 @@ class PkkmbSesiController extends Controller
         ->orderBy('tanggal')
         ->get();
         
-        return view('admin.pkkmb-sesi', compact('schedules'));
+        return view('timdis.pkkmb-sesi', compact('schedules'));
     }
 
     /**
@@ -59,7 +59,7 @@ class PkkmbSesiController extends Controller
             Log::info('PkkmbSesiController@store - Sesi created:', ['id' => $sesi->id]);
             DB::commit();
             
-            return redirect()->route('admin.kegiatan')
+            return redirect()->route('timdis.kegiatan')
                 ->with('success', 'Sesi berhasil ditambahkan');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -67,7 +67,7 @@ class PkkmbSesiController extends Controller
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return redirect()->route('admin.kegiatan')
+            return redirect()->route('timdis.kegiatan')
                 ->with('error', 'Gagal menambahkan sesi: ' . $e->getMessage());
         }
     }
@@ -96,11 +96,11 @@ class PkkmbSesiController extends Controller
             $sesi->update($validated);
             DB::commit();
             
-            return redirect()->route('admin.kegiatan')
+            return redirect()->route('timdis.kegiatan')
                 ->with('success', 'Sesi berhasil diperbarui');
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->route('admin.kegiatan')
+            return redirect()->route('timdis.kegiatan')
                 ->with('error', 'Gagal memperbarui sesi: ' . $e->getMessage());
         }
     }
@@ -117,7 +117,7 @@ class PkkmbSesiController extends Controller
 
         $status = $sesi->is_active ? 'diaktifkan' : 'dinonaktifkan';
 
-        return redirect()->route('admin.kegiatan')
+        return redirect()->route('timdis.kegiatan')
             ->with('success', "Sesi berhasil {$status}");
     }
 
@@ -133,9 +133,10 @@ class PkkmbSesiController extends Controller
         
         $sesi->delete();
 
-        return redirect()->route('admin.kegiatan')
+        return redirect()->route('timdis.kegiatan')
             ->with('success', 'Sesi dan seluruh data absensinya berhasil dihapus');
     }
 }
+
 
 

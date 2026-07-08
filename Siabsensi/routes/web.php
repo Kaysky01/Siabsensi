@@ -21,14 +21,17 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Log;
 
-// ─── ROOT REDIRECT ──────────────────────────────────────────────────────────
+use App\Http\Controllers\Timdis\TimdisController;
+
+// ?????? ROOT REDIRECT ????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 Route::get('/', function () {
     if (Auth::check()) {
         $role = Auth::user()->role;
         return match ($role) {
             'admin' => redirect()->route('admin.dashboard'),
-            'timdis' => redirect()->route('admin.dashboard'),
+            'timdis' => redirect()->route('timdis.dashboard'),
             'garda' => redirect()->route('garda.dashboard'),
             'mahasiswa' => redirect()->route('mahasiswa.dashboard'),
             default => redirect()->route('login'),
@@ -64,7 +67,32 @@ Route::middleware(['auth', 'role:garda'])->prefix('garda')->group(function () {
     Route::post('/kehadiran/verify', [VerificationController::class, 'verifyKehadiran'])->name('garda.kehadiran.verify');
 });
 
-// ─── ADMIN PAGES (Server-Side Rendered) ─────────────────────────────────────
+// ?????? TIMDIS PAGES ??????
+Route::middleware(['auth', 'role:timdis'])->prefix('timdis')->group(function () {
+    Route::get('/dashboard', [TimdisController::class, 'dashboard'])->name('timdis.dashboard');
+    Route::get('/attendance', [\App\Http\Controllers\Timdis\AttendanceController::class, 'attendance'])->name('timdis.attendance');
+    Route::get('/pkkmb-schedule', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'index'])->name('timdis.pkkmb-schedule.index');
+    Route::post('/pkkmb-schedule', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'store'])->name('timdis.pkkmb-schedule.store');
+    Route::put('/pkkmb-schedule/{id}', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'update'])->name('timdis.pkkmb-schedule.update');
+    Route::post('/pkkmb-schedule/{id}/toggle', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'toggleActive'])->name('timdis.pkkmb-schedule.toggle');
+    Route::delete('/pkkmb-schedule/{id}', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'destroy'])->name('timdis.pkkmb-schedule.destroy');
+    Route::post('/pkkmb-schedule/grace-period', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'updateGracePeriod'])->name('timdis.pkkmb-schedule.gracePeriod');
+    Route::get('/kegiatan', [\App\Http\Controllers\Timdis\KegiatanController::class, 'index'])->name('timdis.kegiatan');
+    Route::post('/kegiatan', [\App\Http\Controllers\Timdis\KegiatanController::class, 'store'])->name('timdis.kegiatan.store');
+    Route::put('/kegiatan/{sesi}', [\App\Http\Controllers\Timdis\KegiatanController::class, 'update'])->name('timdis.kegiatan.update');
+    Route::post('/kegiatan/{sesi}/toggle', [\App\Http\Controllers\Timdis\KegiatanController::class, 'toggleActive'])->name('timdis.kegiatan.toggle');
+    Route::delete('/kegiatan/{sesi}', [\App\Http\Controllers\Timdis\KegiatanController::class, 'destroy'])->name('timdis.kegiatan.destroy');
+    Route::get('/absensi-persesi', [\App\Http\Controllers\Timdis\AbsensiSesiController::class, 'listSesi'])->name('timdis.absensi-persesi');
+    Route::get('/monitoring-kegiatan', [\App\Http\Controllers\Timdis\AttendanceController::class, 'monitoringKegiatan'])->name('timdis.monitoring-kegiatan');
+    Route::get('/monitoring-kegiatan/{id}', [\App\Http\Controllers\Timdis\AttendanceController::class, 'monitoringKegiatanDetail'])->name('timdis.monitoring-kegiatan.detail');
+    Route::get('/monitoring-sesi/{sesi}', [\App\Http\Controllers\Timdis\AbsensiSesiController::class, 'monitoring'])->name('timdis.monitoring-sesi');
+    Route::get('/izin-timdis', [TimdisController::class, 'izinTimdis'])->name('timdis.izin-timdis');
+    Route::post('/izin/verify', [TimdisController::class, 'verifyIzin'])->name('timdis.izin.verify');
+    Route::get('/kehadiran-timdis', [TimdisController::class, 'kehadiranTimdis'])->name('timdis.kehadiran-timdis');
+    Route::post('/kehadiran/verify', [TimdisController::class, 'verifyKehadiran'])->name('timdis.kehadiran.verify');
+});
+
+// ?????? ADMIN PAGES (Server-Side Rendered) ??????
 Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(function () {
     // View Pages
     Route::get('/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
@@ -101,8 +129,9 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::get('/kelulusan', [AdminController::class, 'kelulusan'])->name('admin.kelulusan');
     Route::post('/sertifikat/toggle-lock/{id}', [AdminController::class, 'toggleSertifikatLock'])->name('admin.sertifikat.toggle-lock');
     Route::post('/sertifikat/bulk-toggle', [AdminController::class, 'bulkToggleSertifikatLock'])->name('admin.sertifikat.bulk-toggle');
-    Route::get('/izin-timdis', [AdminController::class, 'izinTimdis'])->name('admin.izin-timdis');
-    Route::get('/kehadiran-timdis', [AdminController::class, 'kehadiranTimdis'])->name('admin.kehadiran-timdis');
+    Route::get('/izin', [AdminController::class, 'izin'])->name('admin.izin');
+    Route::get('/kehadiran', [AdminController::class, 'kehadiran'])->name('admin.kehadiran');
+
     Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
     Route::get('/settings', [AdminController::class, 'settings'])->name('admin.settings');
     
@@ -119,34 +148,32 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::get('/kegiatan-legacy/{kegiatan}/sesi', [\App\Http\Controllers\Admin\KegiatanSesiController::class, 'index'])->name('admin.kegiatan-sesi.index');
     
     // Absensi Manual (for Garda)
-    Route::get('/absensi-persesi', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'listSesi'])->name('admin.absensi-persesi');
+    Route::get('/absensi-persesi', [\App\Http\Controllers\Timdis\AbsensiSesiController::class, 'listSesi'])->name('admin.absensi-persesi');
     Route::get('/absensi-manual/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'index'])->name('admin.absensi-manual.index');
-    Route::get('/monitoring-sesi/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'monitoring'])->name('admin.monitoring-sesi');
+    Route::get('/monitoring-sesi/{sesi}', [\App\Http\Controllers\Timdis\AbsensiSesiController::class, 'monitoring'])->name('admin.monitoring-sesi');
     
     // Debug route
     Route::any('/schedule/test-route', function(\Illuminate\Http\Request $request) {
         return response()->json([
             'status' => 'Route works!',
             'method' => $request->method(),
-            'auth' => auth()->check(),
-            'user' => auth()->user()->username ?? 'guest',
-            'role' => auth()->user()->role ?? 'none',
+            'auth' => Auth::check(),
+            'user' => Auth::user()->username ?? 'guest',
+            'role' => Auth::user()->role ?? 'none',
         ]);
     })->name('admin.schedule.test');
 
      // Redirect legacy dashboard URLs
-     Route::get('/timdis/dashboard', fn() => redirect()->route('admin.dashboard'));
+     Route::get('/timdis/dashboard', fn() => redirect()->route('timdis.dashboard'));
      Route::get('/garda/dashboard', fn() => redirect()->route('garda.dashboard'));
 
     // Export
     Route::get('/attendance/export', [AdminController::class, 'exportAttendance'])->name('admin.attendance.export');
 });
 
-// ─── ADMIN FORM ACTIONS (POST) ──────────────────────────────────────────────
+// ?????? ADMIN FORM ACTIONS (POST) ??????
 Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(function () {
-    // Verifikasi Izin & Kehadiran
-    Route::post('/izin/verify', [AdminController::class, 'verifyIzin'])->name('admin.izin.verify');
-    Route::post('/kehadiran/verify', [AdminController::class, 'verifyKehadiran'])->name('admin.kehadiran.verify');
+
     
     // PKKMB Schedule CRUD
     Route::post('/pkkmb-schedule', [\App\Http\Controllers\Admin\PkkmbScheduleController::class, 'store'])->name('admin.pkkmb-schedule.store');
@@ -175,11 +202,11 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     
     // Test route untuk debugging
     Route::post('/test-post', function(\Illuminate\Http\Request $request) {
-        \Log::info('Test POST route called', [
-            'user' => auth()->user()->username ?? 'guest',
+        Log::info('Test POST route called', [
+            'user' => Auth::user()->username ?? 'guest',
             'all_input' => $request->all()
         ]);
-        return response()->json(['success' => true, 'message' => 'POST route works!', 'user' => auth()->user()->username]);
+        return response()->json(['success' => true, 'message' => 'POST route works!', 'user' => Auth::user()->username]);
     })->name('admin.test.post');
 });
 
@@ -314,7 +341,7 @@ Route::post('/api/sync', function (Request $request) {
                 if (!$schedule) {
                     $rejectedCount++;
                     $rejectionReasons[] = "Tidak ada jadwal untuk hari ini (Mahasiswa: {$mahasiswa->name})";
-                    \Log::warning("Attendance sync rejected - No schedule for today", [
+                    Log::warning("Attendance sync rejected - No schedule for today", [
                         'mahasiswa_id' => $mahasiswaId,
                         'mahasiswa_name' => $mahasiswa->name,
                         'day_of_week' => $dayOfWeek
@@ -338,7 +365,7 @@ Route::post('/api/sync', function (Request $request) {
                 if ($checkInTime < $checkInStart) {
                     $rejectedCount++;
                     $rejectionReasons[] = "Check-in terlalu awal (Mahasiswa: {$mahasiswa->name}, Waktu: {$checkInTime}, Batas mulai: {$checkInStart})";
-                    \Log::warning("Attendance sync rejected - Too early", [
+                    Log::warning("Attendance sync rejected - Too early", [
                         'mahasiswa_id' => $mahasiswaId,
                         'mahasiswa_name' => $mahasiswa->name,
                         'check_in_time' => $checkInTime,
@@ -351,7 +378,7 @@ Route::post('/api/sync', function (Request $request) {
                 if ($checkInTime > $graceEndTime) {
                     $rejectedCount++;
                     $rejectionReasons[] = "Check-in terlambat melewati batas (Mahasiswa: {$mahasiswa->name}, Waktu: {$checkInTime}, Batas akhir: {$graceEndTime})";
-                    \Log::warning("Attendance sync rejected - Too late", [
+                    Log::warning("Attendance sync rejected - Too late", [
                         'mahasiswa_id' => $mahasiswaId,
                         'mahasiswa_name' => $mahasiswa->name,
                         'check_in_time' => $checkInTime,
@@ -391,7 +418,7 @@ Route::post('/api/sync', function (Request $request) {
                         // Use data from Python backend
                         $updateData['is_late'] = $record['is_late'];
                         $updateData['late_duration'] = $record['late_duration'] ?? 0;
-                    } elseif (isset($isLate)) {
+                    } elseif (isset($isLate) && isset($lateDuration)) {
                         // Use Laravel calculation
                         $updateData['is_late'] = $isLate;
                         $updateData['late_duration'] = $lateDuration;
@@ -415,7 +442,7 @@ Route::post('/api/sync', function (Request $request) {
                         // Use data from Python backend
                         $createData['is_late'] = $record['is_late'];
                         $createData['late_duration'] = $record['late_duration'] ?? 0;
-                    } elseif (isset($isLate)) {
+                    } elseif (isset($isLate) && isset($lateDuration)) {
                         // Use Laravel calculation
                         $createData['is_late'] = $isLate;
                         $createData['late_duration'] = $lateDuration;
@@ -462,4 +489,3 @@ Route::get('/file-bukti/{path}', function ($path) {
     }
     return response()->file($filePath);
 })->where('path', '.*');
-

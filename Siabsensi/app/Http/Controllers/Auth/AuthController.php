@@ -50,8 +50,8 @@ class AuthController extends Controller
 
             return match ($user->role) {
                 'admin' => redirect()->route('admin.dashboard'),
-                'timdis' => redirect()->route('admin.dashboard'),
-                'garda' => redirect()->route('admin.mahasiswa-saya'),
+                'timdis' => redirect()->route('timdis.dashboard'),
+                'garda' => redirect()->route('garda.dashboard'),
                 'mahasiswa' => redirect()->route('mahasiswa.dashboard'),
                 default => redirect('/login'),
             };
@@ -106,3 +106,4 @@ class AuthController extends Controller
         ]);
     }
 }
+

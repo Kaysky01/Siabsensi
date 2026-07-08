@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendanceSchedule;
 use App\Models\SystemConfig;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
 class AttendanceScheduleController extends Controller
@@ -95,9 +97,9 @@ class AttendanceScheduleController extends Controller
      */
     public function bulkUpdate(Request $request)
     {
-        \Log::info('BulkUpdate called - START', [
-            'user' => auth()->user()->username ?? 'unknown',
-            'role' => auth()->user()->role ?? 'unknown',
+        Log::info('BulkUpdate called - START', [
+            'user' => Auth::user()->username ?? 'unknown',
+            'role' => Auth::user()->role ?? 'unknown',
             'method' => $request->method(),
             'url' => $request->fullUrl(),
             'schedules_received' => $request->input('schedules'),
@@ -114,9 +116,9 @@ class AttendanceScheduleController extends Controller
                 'schedules.*.is_active' => 'required|in:0,1',
             ]);
             
-            \Log::info('Validation passed in bulkUpdate');
+            Log::info('Validation passed in bulkUpdate');
         } catch (\Illuminate\Validation\ValidationException $e) {
-            \Log::error('Validation failed in bulkUpdate', [
+            Log::error('Validation failed in bulkUpdate', [
                 'errors' => $e->errors(),
                 'input' => $request->all()
             ]);
@@ -124,7 +126,7 @@ class AttendanceScheduleController extends Controller
                 ->withErrors($e->errors())
                 ->withInput();
         } catch (\Exception $e) {
-            \Log::error('Error in bulkUpdate validation', [
+            Log::error('Error in bulkUpdate validation', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -182,7 +184,7 @@ class AttendanceScheduleController extends Controller
             // Invalidate schedule cache for Python Backend
             $this->invalidateScheduleCache();
             
-            \Log::info('BulkUpdate SUCCESS', [
+            Log::info('BulkUpdate SUCCESS', [
                 'updated_count' => $updatedCount,
             ]);
             
@@ -198,7 +200,7 @@ class AttendanceScheduleController extends Controller
             return redirect()->route('admin.schedule.index')->with('success', "Berhasil memperbarui {$updatedCount} jadwal");
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('BulkUpdate FAILED', [
+            Log::error('BulkUpdate FAILED', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -282,9 +284,11 @@ class AttendanceScheduleController extends Controller
             $cacheFile = base_path('../python_backend/data/.schedule_cache_version');
             $timestamp = now()->timestamp;
             file_put_contents($cacheFile, $timestamp);
-            \Log::info("Schedule cache invalidated at timestamp: {$timestamp}");
+            Log::info("Schedule cache invalidated at timestamp: {$timestamp}");
         } catch (\Exception $e) {
-            \Log::warning("Failed to invalidate schedule cache: " . $e->getMessage());
+            Log::warning("Failed to invalidate schedule cache: " . $e->getMessage());
         }
     }
 }
+
+

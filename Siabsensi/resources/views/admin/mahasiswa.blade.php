@@ -35,17 +35,20 @@
       </div>
       <div style="display:flex;flex-direction:column">
         <label class="form-label">Jurusan</label>
-        <input type="text" name="jurusan" class="form-input" placeholder="Ketik jurusan..." value="{{ request('jurusan') }}" list="list-jurusan" style="width:200px;height:38px">
-        <datalist id="list-jurusan">
-          @foreach($jurusanOptions as $j)<option value="{{ $j }}">{{ $j }}</option>@endforeach
-        </datalist>
+        <select name="jurusan" id="filter-jurusan" class="form-input" style="width:200px;height:38px" onchange="updateFilterProdi()">
+          <option value="">Semua Jurusan</option>
+          @foreach($jurusanWithProdi as $j)
+            <option value="{{ $j->nama }}" data-prodi="{{ json_encode($j->prodi->pluck('nama')) }}" {{ request('jurusan') == $j->nama ? 'selected' : '' }}>
+              {{ $j->nama }}
+            </option>
+          @endforeach
+        </select>
       </div>
       <div style="display:flex;flex-direction:column">
         <label class="form-label">Prodi</label>
-        <input type="text" name="prodi" class="form-input" placeholder="Ketik prodi..." value="{{ request('prodi') }}" list="list-prodi" style="width:200px;height:38px">
-        <datalist id="list-prodi">
-          @foreach($prodiOptions as $p)<option value="{{ $p }}">{{ $p }}</option>@endforeach
-        </datalist>
+        <select name="prodi" id="filter-prodi" class="form-input" style="width:200px;height:38px" disabled>
+          <option value="">Semua Prodi</option>
+        </select>
       </div>
       <div style="display:flex;align-items:flex-end;gap:8px">
         <button type="submit" class="btn btn-primary" style="height:38px;padding:0 20px">Filter</button>
@@ -443,5 +446,32 @@ function updateProdiOptions(prefix, selectedProdi = null) {
     });
   }
 }
+
+function updateFilterProdi() {
+  const jurusanSelect = document.getElementById('filter-jurusan');
+  const prodiSelect = document.getElementById('filter-prodi');
+  const selectedProdi = '{{ request('prodi') }}';
+  
+  prodiSelect.innerHTML = '<option value="">Semua Prodi</option>';
+  
+  const selectedOption = jurusanSelect.options[jurusanSelect.selectedIndex];
+  if (selectedOption && selectedOption.value) {
+    prodiSelect.disabled = false;
+    const prodiList = JSON.parse(selectedOption.getAttribute('data-prodi') || '[]');
+    prodiList.forEach(prodi => {
+      const opt = document.createElement('option');
+      opt.value = prodi;
+      opt.textContent = prodi;
+      if (prodi === selectedProdi) opt.selected = true;
+      prodiSelect.appendChild(opt);
+    });
+  } else {
+    prodiSelect.disabled = true;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  updateFilterProdi();
+});
 </script>
 @endsection
