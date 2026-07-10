@@ -17,15 +17,15 @@
         @forelse($kegiatanList as $k)
         <tr>
           <td>
-            <div style="font-weight:600">{{ $k->nama }}</div>
+            <div style="font-weight:600">{{ $k->display_name }}</div>
           </td>
           <td>
-            <div>{{ Carbon\Carbon::parse($k->tanggal_pelaksanaan)->format('d M Y') }}</div>
+            <div>{{ Carbon\Carbon::parse($k->tanggal)->format('d M Y') }}</div>
             <div style="font-size:12px;color:var(--text-muted)">{{ substr($k->jam_mulai, 0, 5) }} - {{ substr($k->jam_selesai, 0, 5) }}</div>
           </td>
           <td><span class="badge {{ $k->is_active ? 'badge-green' : 'badge-red' }}">{{ $k->is_active ? 'Aktif' : 'Selesai' }}</span></td>
           <td>
-            <a href="{{ route('timdis.monitoring-kegiatan.detail', $k->id) }}" class="btn btn-primary btn-sm">Lihat Detail</a>
+            <a href="{{ route('timdis.monitoring-sesi', $k->id) }}" class="btn btn-primary btn-sm">Lihat Detail</a>
           </td>
         </tr>
         @empty
@@ -36,4 +36,7 @@
   </div>
 </section>
 @endsection
+
+
+
 

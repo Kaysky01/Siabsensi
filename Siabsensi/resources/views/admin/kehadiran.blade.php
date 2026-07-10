@@ -14,7 +14,7 @@
     <div style="display:flex;gap:8px;align-items:center">
       <span class="form-label" style="margin-bottom:0">Status:</span>
       @foreach(['' => 'Semua', 'pending' => 'Pending', 'approved' => 'Disetujui', 'rejected' => 'Ditolak'] as $val => $label)
-        <a href="{{ route('timdis.kehadiran-timdis', ['status' => $val]) }}" class="filter-btn {{ $filterStatus === $val ? 'active' : '' }}">{{ $label }}</a>
+        <a href="{{ route('admin.kehadiran', ['status' => $val]) }}" class="filter-btn {{ $filterStatus === $val ? 'active' : '' }}">{{ $label }}</a>
       @endforeach
     </div>
   </div>
@@ -75,3 +75,4 @@
   </div>
 </section>
 @endsection
+

@@ -121,7 +121,14 @@ class AttendanceController extends Controller
      */
     public function monitoringKegiatan()
     {
-        $kegiatanList = Kegiatan::orderBy('tanggal_pelaksanaan', 'desc')->get();
+        // Mengambil semua sesi dari jadwal PKKMB yang aktif untuk direkap/dimonitoring
+        $kegiatanList = \App\Models\KegiatanSesi::with(['pkkmbSchedule'])
+            ->join('pkkmb_schedules', 'kegiatan_sesi.pkkmb_schedule_id', '=', 'pkkmb_schedules.id')
+            ->orderBy('pkkmb_schedules.tanggal', 'desc')
+            ->orderBy('kegiatan_sesi.jam_mulai', 'asc')
+            ->select('kegiatan_sesi.*', 'pkkmb_schedules.tanggal')
+            ->get();
+
         return view('timdis.monitoring-kegiatan', compact('kegiatanList'));
     }
 
@@ -146,3 +153,5 @@ class AttendanceController extends Controller
         return view('timdis.monitoring-kegiatan-detail', compact('kegiatan', 'attendances', 'totalMahasiswa', 'hadir', 'tidakHadir'));
     }
 }
+
+
