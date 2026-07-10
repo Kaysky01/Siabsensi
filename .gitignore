@@ -6,3 +6,4 @@ python_backend/__pycache__/
 python_backend/venv/
 *.pyc
 cookies.txt
+.mypy_cache

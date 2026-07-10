@@ -1,0 +1,5 @@
+{
+    "model_path": "models\/qr_paper.pt",
+    "confidence": "0.65",
+    "qr_cooldown": "10"
+}

@@ -8,7 +8,7 @@ MYSQL_CONFIG = {
     'port': int(os.getenv('DB_PORT', 3306)),
     'user': os.getenv('DB_USERNAME', 'root'),
     'password': os.getenv('DB_PASSWORD', ''),
-    'database': os.getenv('DB_DATABASE', 'siabsensi'),  # Default ke laravel
+    'database': os.getenv('DB_DATABASE', 'siabsensi2'),  # Default ke laravel
     'charset': 'utf8mb4',
     'collation': 'utf8mb4_unicode_ci'
 }
