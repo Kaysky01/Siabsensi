@@ -27,21 +27,29 @@
       
       <!-- Area Foto (Di atas nama, bentuk bulat) -->
       @if($mahasiswa->photo_path)
-      <div style="position: absolute; top: 16%; left: 50%; transform: translateX(-50%); width: 400px; height: 400px; border-radius: 50%; overflow: hidden; z-index: 5; border: 8px solid white; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
-        <img src="{{ Storage::url($mahasiswa->photo_path) }}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
+      <div style="position: absolute; top: 24%; left: 50%; transform: translateX(-50%); width: 340px; height: 340px; z-index: 5; flex-shrink: 0;">
+        <!-- White border circle -->
+        <div style="position: absolute; width: 340px; height: 340px; border-radius: 50%; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.15);"></div>
+        <!-- Image container -->
+        <div style="position: absolute; width: 320px; height: 320px; top: 10px; left: 10px; border-radius: 50%; background: white; overflow: hidden;">
+          <img src="{{ asset('storage/' . $mahasiswa->photo_path) }}" 
+               alt="Foto" 
+               crossorigin="anonymous"
+               style="width: 320px; height: 320px; object-fit: cover; object-position: center; display: block; border-radius: 50%;">
+        </div>
       </div>
       @endif
 
       <!-- Area Nama (Di atas garis) -->
-      <div style="position: absolute; top: 48%; left: 0; right: 0; text-align: center; padding: 0 40px; z-index: 10;">
-        <div style="font-size: 45px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -1px; line-height: 1.2; word-break: break-word;">
+      <div style="position: absolute; top: 46.5%; left: 0; right: 0; text-align: center; padding: 0 50px; z-index: 10;">
+        <div style="font-size: 48px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -1px; line-height: 1.2; word-break: break-word;">
           {{ $mahasiswa->name }}
         </div>
       </div>
 
       <!-- Area QR (Di bawah garis) -->
-      <div style="position: absolute; top: 62%; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; z-index: 5;">
-        <div style="transform: scale(2.6); transform-origin: center center; mix-blend-mode: multiply;">
+      <div style="position: absolute; top: 60%; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; z-index: 5;">
+        <div style="transform: scale(2.8); transform-origin: center center; mix-blend-mode: multiply;">
           {!! str_replace(['fill="#ffffff"', 'fill="#fff"'], 'fill="transparent"', $qrImage) !!}
         </div>
       </div>
@@ -75,26 +83,26 @@ function downloadQR() {
     btn.style.opacity = '0.8';
     btn.disabled = true;
     
-    // Temporarily remove transform and border-radius for clean export
+    // Temporarily remove transform, shadow, and border for clean export
     const originalTransform = card.style.transform;
-    const originalRadius = card.style.borderRadius;
     const originalShadow = card.style.boxShadow;
     const originalBorder = card.style.border;
     
     card.style.transform = 'none';
-    card.style.borderRadius = '0';
     card.style.boxShadow = 'none';
     card.style.border = 'none';
     
     html2canvas(card, {
         scale: 1, // Native resolution is already 957x1650, so scale 1 is enough!
-        useCORS: true, 
+        useCORS: true,
+        allowTaint: true,
         backgroundColor: '#ffffff',
-        logging: false
+        logging: false,
+        imageTimeout: 0,
+        removeContainer: true
     }).then(canvas => {
         // Restore styles
         card.style.transform = originalTransform;
-        card.style.borderRadius = originalRadius;
         card.style.boxShadow = originalShadow;
         card.style.border = originalBorder;
         
@@ -114,7 +122,6 @@ function downloadQR() {
         
         // Restore styles on error
         card.style.transform = originalTransform;
-        card.style.borderRadius = originalRadius;
         card.style.boxShadow = originalShadow;
         card.style.border = originalBorder;
         btn.innerHTML = originalText;

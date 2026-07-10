@@ -37,18 +37,14 @@
   <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
     {{-- Preview foto lingkaran --}}
     <div style="position:relative;flex-shrink:0">
-      @if($mahasiswa->photo_path)
-        <img id="photo-preview"
-             src="{{ asset('storage/' . $mahasiswa->photo_path) }}"
-             alt="Foto Profil"
-             style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid var(--primary);display:block">
-      @else
-        <div id="photo-preview-placeholder"
-             style="width:110px;height:110px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;border:3px dashed var(--primary)">
-          <span class="material-symbols-outlined" style="font-size:48px;color:var(--primary);opacity:0.6">person</span>
-        </div>
-        <img id="photo-preview" src="" alt="Preview" style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid var(--primary);display:none">
-      @endif
+      <div id="photo-preview-placeholder"
+           style="width:110px;height:110px;border-radius:50%;background:var(--primary-light);display:{{ $mahasiswa->photo_path ? 'none' : 'flex' }};align-items:center;justify-content:center;border:3px dashed var(--primary)">
+        <span class="material-symbols-outlined" style="font-size:48px;color:var(--primary);opacity:0.6">person</span>
+      </div>
+      <img id="photo-preview"
+           src="{{ $mahasiswa->photo_path ? asset('storage/' . $mahasiswa->photo_path) : '' }}"
+           alt="Foto Profil"
+           style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:3px solid var(--primary);display:{{ $mahasiswa->photo_path ? 'block' : 'none' }}">
       @if($mahasiswa->photo_path)
         <div style="position:absolute;bottom:2px;right:2px;width:28px;height:28px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white">
           <span class="material-symbols-outlined" style="font-size:14px;color:white">check</span>
@@ -63,12 +59,24 @@
         <span>Foto belum diupload. <strong>Download sertifikat/ID card tidak tersedia</strong> sebelum foto dilengkapi.</span>
       </div>
       @endif
+      
+      <div style="background:#dbeafe;border:1px solid #3b82f6;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#1e40af">
+        <strong style="display:block;margin-bottom:4px">📸 Ketentuan Foto:</strong>
+        <ul style="margin:4px 0 0 16px;padding:0;line-height:1.6">
+          <li>Foto <strong>pribadi</strong> (tidak bersama orang lain)</li>
+          <li>Wajah terlihat jelas dan menghadap kamera</li>
+          <li>Latar belakang polos/rapi (disarankan)</li>
+          <li>Format: JPG, PNG, atau WEBP</li>
+          <li>Ukuran maksimal: 2 MB</li>
+        </ul>
+      </div>
+      
       <form action="{{ route('mahasiswa.profile.photo') }}" method="POST" enctype="multipart/form-data">
         @csrf
         <label style="font-size:13px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:8px">
-          Upload Foto Baru (JPG/PNG/WEBP, max 2MB)
+          Upload Foto {{ $mahasiswa->photo_path ? 'Baru' : '' }} (JPG/PNG/WEBP, max 2MB)
         </label>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;transition:all 0.2s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
             <span class="material-symbols-outlined" style="font-size:16px">upload</span>
             Pilih Foto
@@ -77,6 +85,11 @@
           <button type="submit" id="btn-upload-foto" class="btn btn-primary" style="padding:9px 18px;font-size:13px" disabled>
             <span class="material-symbols-outlined" style="font-size:16px">save</span> Simpan Foto
           </button>
+          @if($mahasiswa->photo_path)
+          <span style="font-size:12px;color:var(--text-muted);font-style:italic">
+            Foto saat ini akan diganti dengan foto baru
+          </span>
+          @endif
         </div>
       </form>
     </div>
