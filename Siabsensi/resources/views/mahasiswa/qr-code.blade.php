@@ -8,9 +8,15 @@
     <div class="page-sub">Berikut adalah kartu ID Anda. Anda dapat mengunduhnya untuk dicetak atau disimpan di HP.</div>
   </div>
   <div class="header-actions">
+    @if($mahasiswa->photo_path)
     <button onclick="downloadQR()" class="btn btn-primary btn-sm">
       <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Unduh Kartu
     </button>
+    @else
+    <a href="{{ route('mahasiswa.profile') }}" class="btn btn-primary btn-sm" style="background-color: #f59e0b; border: none; color: white; text-decoration: none;">
+      <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">warning</span> Upload Foto Profil Dulu
+    </a>
+    @endif
   </div>
 </div>
 
@@ -19,16 +25,31 @@
   <div id="card-wrapper" style="position: relative; width: 100%; max-width: 400px; aspect-ratio: 957/1650;">
     <div id="id-card" style="width: 957px; height: 1650px; position: absolute; top: 0; left: 0; transform-origin: top left; background: url('{{ asset('static/img/template_qr.png') }}') center/cover no-repeat; background-color: white; border-radius: 30px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); border: 2px solid var(--border-light);">
       
+      <!-- Area Foto (Di atas nama, bentuk bulat) -->
+      @if($mahasiswa->photo_path)
+      <div style="position: absolute; top: 24%; left: 50%; transform: translateX(-50%); width: 340px; height: 340px; z-index: 5; flex-shrink: 0;">
+        <!-- White border circle -->
+        <div style="position: absolute; width: 340px; height: 340px; border-radius: 50%; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.15);"></div>
+        <!-- Image container -->
+        <div style="position: absolute; width: 320px; height: 320px; top: 10px; left: 10px; border-radius: 50%; background: white; overflow: hidden;">
+          <img src="{{ asset('storage/' . $mahasiswa->photo_path) }}" 
+               alt="Foto" 
+               crossorigin="anonymous"
+               style="width: 320px; height: 320px; object-fit: cover; object-position: center; display: block; border-radius: 50%;">
+        </div>
+      </div>
+      @endif
+
       <!-- Area Nama (Di atas garis) -->
-      <div style="position: absolute; top: 48%; left: 0; right: 0; text-align: center; padding: 0 40px; z-index: 10;">
-        <div style="font-size: 45px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -1px; line-height: 1.2; word-break: break-word;">
+      <div style="position: absolute; top: 46.5%; left: 0; right: 0; text-align: center; padding: 0 50px; z-index: 10;">
+        <div style="font-size: 48px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -1px; line-height: 1.2; word-break: break-word;">
           {{ $mahasiswa->name }}
         </div>
       </div>
 
       <!-- Area QR (Di bawah garis) -->
-      <div style="position: absolute; top: 62%; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; z-index: 5;">
-        <div style="transform: scale(2.6); transform-origin: center center; mix-blend-mode: multiply;">
+      <div style="position: absolute; top: 60%; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; z-index: 5;">
+        <div style="transform: scale(2.8); transform-origin: center center; mix-blend-mode: multiply;">
           {!! str_replace(['fill="#ffffff"', 'fill="#fff"'], 'fill="transparent"', $qrImage) !!}
         </div>
       </div>
@@ -62,32 +83,32 @@ function downloadQR() {
     btn.style.opacity = '0.8';
     btn.disabled = true;
     
-    // Temporarily remove transform and border-radius for clean export
+    // Temporarily remove transform, shadow, and border for clean export
     const originalTransform = card.style.transform;
-    const originalRadius = card.style.borderRadius;
     const originalShadow = card.style.boxShadow;
     const originalBorder = card.style.border;
     
     card.style.transform = 'none';
-    card.style.borderRadius = '0';
     card.style.boxShadow = 'none';
     card.style.border = 'none';
     
     html2canvas(card, {
         scale: 1, // Native resolution is already 957x1650, so scale 1 is enough!
-        useCORS: true, 
+        useCORS: true,
+        allowTaint: true,
         backgroundColor: '#ffffff',
-        logging: false
+        logging: false,
+        imageTimeout: 0,
+        removeContainer: true
     }).then(canvas => {
         // Restore styles
         card.style.transform = originalTransform;
-        card.style.borderRadius = originalRadius;
         card.style.boxShadow = originalShadow;
         card.style.border = originalBorder;
         
         // Download
         const link = document.createElement('a');
-        link.download = 'ID_Card_{{ $mahasiswa->nim }}_{{ \Illuminate\Support\Str::slug($mahasiswa->name) }}.png';
+        link.download = 'ID_Card_{{ $mahasiswa->id }}_{{ \Illuminate\Support\Str::slug($mahasiswa->name) }}.png';
         link.href = canvas.toDataURL('image/png', 1.0);
         link.click();
         
@@ -101,7 +122,6 @@ function downloadQR() {
         
         // Restore styles on error
         card.style.transform = originalTransform;
-        card.style.borderRadius = originalRadius;
         card.style.boxShadow = originalShadow;
         card.style.border = originalBorder;
         btn.innerHTML = originalText;

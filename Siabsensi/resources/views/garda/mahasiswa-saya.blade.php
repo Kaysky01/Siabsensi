@@ -12,16 +12,27 @@
 
   <div class="panel">
     <table class="att-table">
-      <thead><tr><th>Mahasiswa</th><th>Kompi</th><th>Prodi</th><th>Email</th><th>No. Telp</th><th>Status Kegiatan</th></tr></thead>
+      <thead><tr><th>Foto</th><th>Mahasiswa</th><th>Kompi</th><th>Prodi</th><th>Email</th><th>No. Telp</th><th>Status Kegiatan</th></tr></thead>
       <tbody>
         @forelse($mahasiswaList as $m)
         <tr>
           <td>
+            {{-- Foto Lingkaran --}}
+            @if($m->photo_path)
+              <img src="{{ asset('storage/' . $m->photo_path) }}"
+                   alt="{{ $m->name }}"
+                   style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--primary);display:block">
+            @else
+              <div style="width:44px;height:44px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;border:2px dashed var(--border)" title="Foto belum diupload">
+                <span class="material-symbols-outlined" style="font-size:22px;color:var(--primary);opacity:0.6">person</span>
+              </div>
+            @endif
+          </td>
+          <td>
             <div class="mahasiswa-cell">
-              <div class="avatar" style="background:var(--primary-light);color:var(--primary)">{{ strtoupper(substr($m->name, 0, 2)) }}</div>
               <div>
                 <div class="mhs-name">{{ $m->name }}</div>
-                <div class="mhs-dept">{{ $m->nim ?? '-' }}</div>
+                <div class="mhs-dept" style="font-family:monospace;font-size:11px;color:var(--text-muted)">{{ $m->id ?? '-' }}</div>
               </div>
             </div>
           </td>
@@ -66,7 +77,7 @@
           </td>
         </tr>
         @empty
-        <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px">Tidak ada data mahasiswa di kompi Anda</td></tr>
+        <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">Tidak ada data mahasiswa di kompi Anda</td></tr>
         @endforelse
       </tbody>
     </table>
@@ -75,4 +86,14 @@
     {{ $mahasiswaList->links('pagination::bootstrap-4') }}
   </div>
 </section>
+
+<style>
+.mahasiswa-cell { display:flex;align-items:center;gap:12px }
+.mhs-name { font-weight:600;font-size:14px }
+.badge { display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase }
+.badge-blue { background:var(--info-light);color:var(--info) }
+.att-table { width:100%;border-collapse:collapse }
+.att-table thead th { background:var(--bg);padding:12px;text-align:left;font-weight:600;font-size:12px;color:var(--text-muted);border-bottom:2px solid var(--border) }
+.att-table tbody td { padding:12px;border-bottom:1px solid var(--border);vertical-align:middle }
+</style>
 @endsection

@@ -25,14 +25,14 @@
       <form id="login-form" action="{{ route('auth') }}" method="POST">
         @csrf
         <div class="form-group">
-          <label class="form-label">Username</label>
+          <label class="form-label">Username / Nomor Registrasi</label>
           <div class="form-input-wrapper">
             <span class="material-symbols-outlined">person</span>
             <input 
               type="text" 
               name="username" id="username" 
               class="form-input @error('username') error @enderror" 
-              placeholder="Masukkan username"
+              placeholder="Username atau Nomor Registrasi"
               value="{{ old('username') }}" required
               autocomplete="username"
             >
@@ -47,12 +47,13 @@
               type="password" 
               name="password" id="password" 
               class="form-input" 
-              placeholder="Masukkan password"
+              placeholder="Password (mahasiswa: tanggal lahir ddmmyyyy)"
               required
               autocomplete="current-password"
             >
           </div>
         </div>
+
 
         @error('username')
             <div class="error-message show" id="error-message" style="display: block;">

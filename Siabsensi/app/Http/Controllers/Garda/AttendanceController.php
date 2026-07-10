@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\KegiatanSesi;
 use App\Models\Mahasiswa;
+use App\Models\PkkmbSchedule;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
+    
 class AttendanceController extends Controller
 {
     public function listSessions()
@@ -174,6 +176,41 @@ class AttendanceController extends Controller
             DB::rollBack();
             return redirect()->route('garda.absensi-manual.index', $sesiId)
                 ->with('error', 'Gagal menyimpan absensi: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Garda dapat menambahkan sesi baru ke jadwal PKKMB yang aktif
+     */
+    public function tambahSesi(Request $request)
+    {
+        $request->validate([
+            'pkkmb_schedule_id' => 'required|exists:pkkmb_schedules,id',
+            'nama_sesi'         => 'required|string|max:255',
+            'jam_mulai'         => 'nullable|date_format:H:i',
+            'jam_selesai'       => 'nullable|date_format:H:i|after:jam_mulai',
+        ], [
+            'pkkmb_schedule_id.required' => 'Jadwal PKKMB wajib dipilih',
+            'pkkmb_schedule_id.exists'   => 'Jadwal PKKMB tidak valid',
+            'nama_sesi.required'         => 'Nama sesi wajib diisi',
+            'jam_selesai.after'          => 'Jam selesai harus setelah jam mulai',
+        ]);
+
+        try {
+            KegiatanSesi::create([
+                'pkkmb_schedule_id' => $request->pkkmb_schedule_id,
+                'nama_sesi'         => $request->nama_sesi,
+                'jam_mulai'         => $request->jam_mulai,
+                'jam_selesai'       => $request->jam_selesai,
+                'is_active'         => 1,
+                'kegiatan_id'       => null,
+            ]);
+
+            return redirect()->route('garda.absensi-persesi')
+                ->with('success', 'Sesi "' . $request->nama_sesi . '" berhasil ditambahkan.');
+        } catch (\Exception $e) {
+            return redirect()->route('garda.absensi-persesi')
+                ->with('error', 'Gagal menambahkan sesi: ' . $e->getMessage());
         }
     }
 }

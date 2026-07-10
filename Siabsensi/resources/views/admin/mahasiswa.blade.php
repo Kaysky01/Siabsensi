@@ -120,7 +120,7 @@
               <button onclick="showQrModal('{{ $m->id }}', '{{ addslashes($m->name) }}')" class="btn btn-ghost btn-sm" title="Lihat QR Code">
                 <span class="material-symbols-outlined" style="font-size:16px">qr_code_2</span>
               </button>
-              <button onclick="openEditMhs('{{ $m->id }}', '{{ $m->nim ?? '' }}', '{{ addslashes($m->name) }}', '{{ $m->kompi }}', '{{ $m->jurusan }}', '{{ $m->prodi }}', '{{ $m->email }}', '{{ $m->no_telp_mahasiswa }}', '{{ $m->no_telp_ortu }}', '{{ $m->tanggal_lahir ? Carbon\Carbon::parse($m->tanggal_lahir)->format('Y-m-d') : '' }}')" class="btn btn-ghost btn-sm" title="Edit">
+              <button onclick="openEditMhs('{{ $m->id }}', '{{ addslashes($m->name) }}', '{{ $m->kompi }}', '{{ $m->jurusan }}', '{{ $m->prodi }}', '{{ $m->email }}', '{{ $m->no_telp_mahasiswa }}', '{{ $m->no_telp_ortu }}', '{{ $m->tanggal_lahir ? \Carbon\Carbon::parse($m->tanggal_lahir)->format('Y-m-d') : '' }}')" class="btn btn-ghost btn-sm" title="Edit">
                 <span class="material-symbols-outlined" style="font-size:16px">edit</span>
               </button>
               <form method="POST" action="{{ route('admin.mahasiswa.destroy', $m->id) }}" onsubmit="return confirm('Hapus mahasiswa {{ $m->name }}?')">
@@ -201,7 +201,11 @@
       @csrf @method('PUT')
       <div class="form-row-2">
         <div class="form-row"><label class="form-label">Nama Lengkap *</label><input name="name" id="edit-name" class="form-input" required></div>
-        <div class="form-row"><label class="form-label">Nomor Registrasi *</label><input name="nim" id="edit-nim" class="form-input" required></div>
+        <div class="form-row">
+          <label class="form-label">Nomor Registrasi</label>
+          <input id="edit-id-display" class="form-input" style="background:var(--bg);cursor:not-allowed;font-family:monospace" disabled>
+          <small style="font-size:11px;color:var(--text-muted)">Digunakan sebagai username login</small>
+        </div>
       </div>
       <div class="form-row-2">
         <div class="form-row">
@@ -237,6 +241,31 @@
         <div class="form-row"><label class="form-label">No Telp Mahasiswa</label><input name="no_telp_mahasiswa" id="edit-telp-mhs" class="form-input"></div>
         <div class="form-row"><label class="form-label">No Telp Ortu</label><input name="no_telp_ortu" id="edit-telp-ortu" class="form-input"></div>
       </div>
+
+      {{-- Seksi Reset Password --}}
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:600;color:var(--text-muted)">🔑 Reset Password</div>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="checkbox" id="toggle-reset-pass" onchange="document.getElementById('reset-pass-section').style.display=this.checked?'block':'none'">
+            Aktifkan reset password
+          </label>
+        </div>
+        <div id="reset-pass-section" style="display:none">
+          <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#78350f">
+            <strong>⚠️ Password baru</strong> akan langsung aktif. Bisa diisi tanggal lahir (format ddmmyyyy) untuk reset ke default.
+          </div>
+          <div class="form-row">
+            <label class="form-label">Password Baru</label>
+            <input type="password" name="new_password" id="edit-new-password" class="form-input" placeholder="Minimal 6 karakter" minlength="6">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Konfirmasi Password Baru</label>
+            <input type="password" name="new_password_confirmation" id="edit-confirm-password" class="form-input" placeholder="Ulangi password baru">
+          </div>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="this.closest('.modal-backdrop').classList.remove('show')">Batal</button>
         <button type="submit" class="btn btn-primary">Update</button>
@@ -315,9 +344,9 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-function openEditMhs(id, nim, name, kompi, jurusan, prodi, email, telpMhs, telpOrtu, tglLahir) {
+function openEditMhs(id, name, kompi, jurusan, prodi, email, telpMhs, telpOrtu, tglLahir) {
   document.getElementById('edit-mhs-form').action = '/admin/mahasiswa/' + id;
-  document.getElementById('edit-nim').value = nim;
+  document.getElementById('edit-id-display').value = id;
   document.getElementById('edit-name').value = name;
   document.getElementById('edit-kompi').value = kompi;
   document.getElementById('edit-jurusan').value = jurusan;
@@ -328,6 +357,13 @@ function openEditMhs(id, nim, name, kompi, jurusan, prodi, email, telpMhs, telpO
   document.getElementById('edit-tanggal-lahir').value = tglLahir;
   document.getElementById('edit-telp-mhs').value = telpMhs;
   document.getElementById('edit-telp-ortu').value = telpOrtu;
+
+  // Reset password section
+  document.getElementById('toggle-reset-pass').checked = false;
+  document.getElementById('reset-pass-section').style.display = 'none';
+  document.getElementById('edit-new-password').value = '';
+  document.getElementById('edit-confirm-password').value = '';
+
   document.getElementById('modal-edit-mhs').classList.add('show');
 }
 

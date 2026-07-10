@@ -33,6 +33,7 @@ class Mahasiswa extends Model
         'no_telp_mahasiswa',
         'no_telp_ortu',
         'qr_code_id',
+        'photo_path',
         'is_active',
     ];
 
