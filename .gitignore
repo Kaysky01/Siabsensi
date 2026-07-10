@@ -1,8 +1,2 @@
 TODO-*.md
 todo.md
-.vscode/
-models/
-python_backend/__pycache__/
-python_backend/venv/
-*.pyc
-cookies.txt
