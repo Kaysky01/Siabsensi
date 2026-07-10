@@ -348,6 +348,22 @@ Route::post('/api/sync', function (Request $request) {
             $mahasiswaId = $mahasiswa->id;
             
             $kegiatanId = $record['kegiatan_id'] ?? null;
+            
+            // Validate kegiatan_id if provided
+            if ($kegiatanId) {
+                $kegiatan = \App\Models\Kegiatan::find($kegiatanId);
+                if (!$kegiatan) {
+                    $rejectedCount++;
+                    $rejectionReasons[] = "Kegiatan ID {$kegiatanId} tidak ditemukan (Mahasiswa: {$mahasiswa->name})";
+                    Log::warning("Attendance sync rejected - Kegiatan not found", [
+                        'mahasiswa_id' => $mahasiswaId,
+                        'mahasiswa_name' => $mahasiswa->name,
+                        'kegiatan_id' => $kegiatanId
+                    ]);
+                    continue;
+                }
+            }
+            
             $kegiatanDate = Carbon::today()->format('Y-m-d');
             
             // For kegiatan-based attendance, bypass schedule validation
@@ -361,20 +377,20 @@ Route::post('/api/sync', function (Request $request) {
                     ->where('kegiatan_id', $kegiatanId)
                     ->first();
             } else {
-                // For daily attendance, VALIDATE AGAINST SCHEDULE
-                $dayOfWeek = Carbon::today()->dayOfWeekIso; // 1=Monday, 7=Sunday
-                $schedule = \App\Models\AttendanceSchedule::where('day_of_week', $dayOfWeek)
+                // For daily attendance, VALIDATE AGAINST PKKMB SCHEDULE
+                $today = Carbon::today()->format('Y-m-d');
+                $schedule = \App\Models\PkkmbSchedule::where('tanggal', $today)
                     ->where('is_active', 1)
                     ->first();
                 
                 // Reject if no schedule for today
                 if (!$schedule) {
                     $rejectedCount++;
-                    $rejectionReasons[] = "Tidak ada jadwal untuk hari ini (Mahasiswa: {$mahasiswa->name})";
-                    Log::warning("Attendance sync rejected - No schedule for today", [
+                    $rejectionReasons[] = "Tidak ada jadwal PKKMB untuk hari ini (Mahasiswa: {$mahasiswa->name})";
+                    Log::warning("Attendance sync rejected - No PKKMB schedule for today", [
                         'mahasiswa_id' => $mahasiswaId,
                         'mahasiswa_name' => $mahasiswa->name,
-                        'day_of_week' => $dayOfWeek
+                        'date' => $today
                     ]);
                     continue;
                 }

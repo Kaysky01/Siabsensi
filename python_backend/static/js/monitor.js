@@ -374,7 +374,9 @@ function getLocalTime() {
 function saveToLocalSync(responseData) {
     const data = getLocalSyncData();
     const actionTime = responseData.result.time || getLocalTime();
-    const kegiatanId = localStorage.getItem('siabsen_kegiatan_id') || null;
+    
+    // For monitor view (no kegiatan selector), always use null for daily attendance
+    const kegiatanId = null;
 
     const validActions = ['checked_in', 'checked_out', 'already_checked_in', 'already_checked_out'];
     if (!validActions.includes(responseData.result.status)) {
@@ -537,12 +539,19 @@ async function syncDataToServer() {
         if (typeof Swal !== 'undefined') {
             Swal.fire({
                 title: 'Gagal Sinkronisasi!',
-                text: 'Terjadi kesalahan saat menghubungi server Laravel. Pastikan server aktif.',
+                html: `<p>Terjadi kesalahan saat menghubungi server Laravel.</p>
+                       <p style="font-size:13px;color:#991b1b;margin-top:12px;font-family:monospace;">${err.message || err}</p>
+                       <p style="margin-top:12px;font-size:13px;">Pastikan:</p>
+                       <ul style="text-align:left;font-size:13px;margin-left:20px;">
+                         <li>Laravel server berjalan di <code>http://127.0.0.1:8000</code></li>
+                         <li>Python backend berjalan di <code>http://127.0.0.1:5000</code></li>
+                         <li>Tidak ada firewall yang memblokir koneksi</li>
+                       </ul>`,
                 icon: 'error',
                 confirmButtonColor: '#ef4444'
             });
         } else {
-            showToast("Gagal menyinkronkan data ke Server", "#ef4444");
+            showToast(`Gagal menyinkronkan: ${err.message}`, "#ef4444");
         }
         if (btn) btn.textContent = 'Sync ke Server';
     }
