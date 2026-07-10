@@ -240,19 +240,20 @@ class AdminController extends Controller
         $mahasiswa = Mahasiswa::create($validated);
 
         $dob = Carbon::parse($mahasiswa->tanggal_lahir);
-        $defaultPassword = $dob->format('dmY');
+        $defaultPassword = $dob->format('dmY'); // format: ddmmyyyy
 
         User::create([
-            'username' => $mahasiswa->id,
-            'password' => Hash::make($defaultPassword),
-            'full_name' => $mahasiswa->name,
-            'email' => $mahasiswa->email,
-            'role' => 'mahasiswa',
+            'username'     => $mahasiswa->id,
+            'password'     => Hash::make($defaultPassword),
+            'full_name'    => $mahasiswa->name,
+            'email'        => $mahasiswa->email,
+            'role'         => 'mahasiswa',
             'mahasiswa_id' => $mahasiswa->id,
-            'is_active' => 1,
+            'is_active'    => 1,
         ]);
 
-        return redirect()->route('admin.mahasiswa')->with('success', "Mahasiswa {$mahasiswa->name} berhasil ditambahkan. Username/Nomor Registrasi: {$mahasiswa->id}, Password: {$defaultPassword}");
+        return redirect()->route('admin.mahasiswa')->with('success', "Mahasiswa {$mahasiswa->name} berhasil ditambahkan. Username: {$mahasiswa->id}, Password default: {$defaultPassword}");
+
     }
 
     public function qrCode($id)
@@ -379,30 +380,43 @@ class AdminController extends Controller
         $mahasiswa = Mahasiswa::findOrFail($id);
 
         $validated = $request->validate([
-            'nim' => 'required|string|unique:mahasiswa,nim,' . $id . ',id',
-            'name' => 'required|string|max:255',
-            'kompi' => 'required|string',
-            'jurusan' => 'required|string',
-            'prodi' => 'nullable|string|max:100',
-            'email' => 'nullable|email|unique:mahasiswa,email,' . $id . ',id',
-            'tanggal_lahir' => 'nullable|date',
+            'name'              => 'required|string|max:255',
+            'kompi'             => 'required|string',
+            'jurusan'           => 'required|string',
+            'prodi'             => 'nullable|string|max:100',
+            'email'             => 'nullable|email|unique:mahasiswa,email,' . $id . ',id',
+            'tanggal_lahir'     => 'nullable|date',
             'no_telp_mahasiswa' => 'nullable|string',
-            'no_telp_ortu' => 'nullable|string',
+            'no_telp_ortu'      => 'nullable|string',
+            'new_password'      => 'nullable|string|min:6|confirmed',
         ]);
+
+        // Remove password from update data
+        $passwordData = null;
+        if (!empty($validated['new_password'])) {
+            $passwordData = $validated['new_password'];
+        }
+        unset($validated['new_password'], $validated['new_password_confirmation']);
 
         $mahasiswa->update($validated);
 
         // Sync user account
         $user = User::where('mahasiswa_id', $mahasiswa->id)->first();
         if ($user) {
-            $user->update([
-                'username' => $validated['nim'],
+            $userUpdate = [
                 'full_name' => $validated['name'],
-                'email' => $validated['email'] ?? $user->email,
-            ]);
+                'email'     => $validated['email'] ?? $user->email,
+            ];
+            if ($passwordData) {
+                $userUpdate['password'] = Hash::make($passwordData);
+            }
+            $user->update($userUpdate);
         }
 
-        return redirect()->route('admin.mahasiswa')->with('success', "Data mahasiswa {$mahasiswa->name} berhasil diperbarui.");
+        $msg = "Data mahasiswa {$mahasiswa->name} berhasil diperbarui.";
+        if ($passwordData) $msg .= " Password telah direset.";
+
+        return redirect()->route('admin.mahasiswa')->with('success', $msg);
     }
 
     public function deleteMahasiswa($id)

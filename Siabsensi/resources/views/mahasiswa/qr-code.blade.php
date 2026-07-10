@@ -8,9 +8,15 @@
     <div class="page-sub">Berikut adalah kartu ID Anda. Anda dapat mengunduhnya untuk dicetak atau disimpan di HP.</div>
   </div>
   <div class="header-actions">
+    @if($mahasiswa->photo_path)
     <button onclick="downloadQR()" class="btn btn-primary btn-sm">
       <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Unduh Kartu
     </button>
+    @else
+    <a href="{{ route('mahasiswa.profile') }}" class="btn btn-primary btn-sm" style="background-color: #f59e0b; border: none; color: white; text-decoration: none;">
+      <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">warning</span> Upload Foto Profil Dulu
+    </a>
+    @endif
   </div>
 </div>
 
@@ -19,6 +25,13 @@
   <div id="card-wrapper" style="position: relative; width: 100%; max-width: 400px; aspect-ratio: 957/1650;">
     <div id="id-card" style="width: 957px; height: 1650px; position: absolute; top: 0; left: 0; transform-origin: top left; background: url('{{ asset('static/img/template_qr.png') }}') center/cover no-repeat; background-color: white; border-radius: 30px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); border: 2px solid var(--border-light);">
       
+      <!-- Area Foto (Di atas nama, bentuk bulat) -->
+      @if($mahasiswa->photo_path)
+      <div style="position: absolute; top: 16%; left: 50%; transform: translateX(-50%); width: 400px; height: 400px; border-radius: 50%; overflow: hidden; z-index: 5; border: 8px solid white; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
+        <img src="{{ Storage::url($mahasiswa->photo_path) }}" alt="Foto" style="width: 100%; height: 100%; object-fit: cover;">
+      </div>
+      @endif
+
       <!-- Area Nama (Di atas garis) -->
       <div style="position: absolute; top: 48%; left: 0; right: 0; text-align: center; padding: 0 40px; z-index: 10;">
         <div style="font-size: 45px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -1px; line-height: 1.2; word-break: break-word;">
@@ -87,7 +100,7 @@ function downloadQR() {
         
         // Download
         const link = document.createElement('a');
-        link.download = 'ID_Card_{{ $mahasiswa->nim }}_{{ \Illuminate\Support\Str::slug($mahasiswa->name) }}.png';
+        link.download = 'ID_Card_{{ $mahasiswa->id }}_{{ \Illuminate\Support\Str::slug($mahasiswa->name) }}.png';
         link.href = canvas.toDataURL('image/png', 1.0);
         link.click();
         

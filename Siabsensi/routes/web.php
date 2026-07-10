@@ -43,12 +43,40 @@ Route::get('/', function () {
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 Route::middleware(['guest'])->group(function () {
     Route::get('/login', [AuthController::class, 'login'])->name('login');
-    Route::post('/auth/login', [AuthController::class, 'auth'])->name('auth');
+    Route::post('/login', [AuthController::class, 'auth'])->name('auth');
 });
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/logout', [AuthController::class, 'logout'])->name('logout');
 });
+
+    // DEBUG ROUTE
+    Route::get('/debug-login/{username}/{password}', function ($username, $password) {
+        $user = \App\Models\User::where('username', $username)->with('mahasiswa')->first();
+        if (!$user) return 'User not found';
+        
+        $m = $user->mahasiswa;
+        $dbTglLahir = $m ? $m->tanggal_lahir : 'no_mahasiswa';
+        $tglLahirFormat = $m && $m->tanggal_lahir ? \Carbon\Carbon::parse($m->tanggal_lahir)->format('dmY') : 'null';
+        
+        $authAttempt = \Illuminate\Support\Facades\Auth::validate([
+            'username' => $username,
+            'password' => $password
+        ]);
+
+        $hashCheck = \Illuminate\Support\Facades\Hash::check($password, $user->password);
+        
+        return [
+            'username' => $username,
+            'input_password' => $password,
+            'tgl_lahir_db' => $dbTglLahir,
+            'tgl_lahir_formatted' => $tglLahirFormat,
+            'db_hash' => $user->password,
+            'auth_attempt_result' => $authAttempt,
+            'hash_check_result' => $hashCheck,
+            'fallback_match' => ($password === $tglLahirFormat)
+        ];
+    });
 
 // ─── GARDA PAGES ────────────────────────────────────────────────────────────
 Route::middleware(['auth', 'role:garda'])->prefix('garda')->group(function () {
@@ -57,6 +85,7 @@ Route::middleware(['auth', 'role:garda'])->prefix('garda')->group(function () {
     Route::get('/absensi-manual/{sesi}', [AttendanceController::class, 'manualAttendance'])->name('garda.absensi-manual.index');
     Route::post('/absensi-manual/{sesi}', [AttendanceController::class, 'store'])->name('garda.absensi-manual.store');
     Route::get('/absen-kegiatan/{sesi}', [AttendanceController::class, 'absenKegiatan'])->name('garda.absen-kegiatan');
+    Route::post('/sesi/tambah', [AttendanceController::class, 'tambahSesi'])->name('garda.sesi.tambah');
     Route::get('/mahasiswa-saya', [StudentController::class, 'myStudents'])->name('garda.mahasiswa-saya');
     Route::get('/riwayat', [RiwayatController::class, '__invoke'])->name('garda.riwayat');
     Route::get('/profile', [ProfileController::class, 'profile'])->name('garda.profile');
@@ -249,6 +278,7 @@ Route::middleware(['auth', 'role:mahasiswa'])->prefix('mahasiswa')->group(functi
     Route::get('/dashboard', [MahasiswaController::class, 'dashboard'])->name('mahasiswa.dashboard');
     Route::get('/profile', [MahasiswaController::class, 'profile'])->name('mahasiswa.profile');
     Route::put('/profile', [MahasiswaController::class, 'updateProfileData'])->name('mahasiswa.profile.update');
+    Route::post('/profile/photo', [MahasiswaController::class, 'uploadPhoto'])->name('mahasiswa.profile.photo');
     Route::get('/riwayat', [MahasiswaController::class, 'riwayat'])->name('mahasiswa.riwayat');
     Route::get('/riwayat/export', [MahasiswaController::class, 'exportRiwayat'])->name('mahasiswa.riwayat.export');
     Route::get('/qr-code', [MahasiswaController::class, 'qrCode'])->name('mahasiswa.qr');

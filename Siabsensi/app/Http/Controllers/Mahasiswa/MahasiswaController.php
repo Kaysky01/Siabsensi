@@ -163,6 +163,42 @@ class MahasiswaController extends Controller
         return back()->with('success', 'Profil berhasil diperbarui.');
     }
 
+    public function uploadPhoto(Request $request)
+    {
+        $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
+
+        $request->validate([
+            'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
+        ], [
+            'photo.required' => 'Foto wajib dipilih.',
+            'photo.image'    => 'File harus berupa gambar.',
+            'photo.mimes'    => 'Format foto harus JPG, PNG, atau WEBP.',
+            'photo.max'      => 'Ukuran foto maksimal 2MB.',
+        ]);
+
+        // Buat nama folder: {nama_lowercase_underscore}_{mahasiswa_id}
+        $nameSafe   = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $mahasiswa->name));
+        $folderName = $nameSafe . '_' . $mahasiswa->id;
+
+        // Hapus foto lama jika ada
+        if ($mahasiswa->photo_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($mahasiswa->photo_path);
+        }
+
+        // Simpan foto ke storage/app/public/berkas/{folderName}/photo.{ext}
+        $ext  = $request->file('photo')->getClientOriginalExtension();
+        $path = $request->file('photo')->storeAs(
+            'berkas/' . $folderName,
+            'photo.' . $ext,
+            'public'
+        );
+
+        $mahasiswa->update(['photo_path' => $path]);
+
+        return back()->with('success', 'Foto profil berhasil diperbarui.');
+    }
+
+
     public function riwayat(Request $request)
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);

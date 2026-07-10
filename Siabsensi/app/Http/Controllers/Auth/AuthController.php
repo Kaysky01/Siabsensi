@@ -21,17 +21,19 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
+        $username = trim($request->username);
+        $password = trim($request->password);
         $remember = $request->boolean('remember');
 
+        // Coba login normal (username + password)
         if (Auth::attempt([
-            'username' => $request->username,
-            'password' => $request->password,
+            'username' => $username,
+            'password' => $password,
         ], $remember)) {
 
             /** @var User $user */
             $user = Auth::user();
 
-            // Cek apakah akun pengguna berstatus aktif
             if (! $user->is_active) {
                 Auth::logout();
                 $request->session()->invalidate();
@@ -43,24 +45,58 @@ class AuthController extends Controller
             }
 
             $request->session()->regenerate();
-
-            $user->update([
-                'last_login' => now(),
-            ]);
+            $user->update(['last_login' => now()]);
 
             return match ($user->role) {
-                'admin' => redirect()->route('admin.dashboard'),
-                'timdis' => redirect()->route('timdis.dashboard'),
-                'garda' => redirect()->route('garda.dashboard'),
+                'admin'     => redirect()->route('admin.dashboard'),
+                'timdis'    => redirect()->route('timdis.dashboard'),
+                'garda'     => redirect()->route('garda.dashboard'),
                 'mahasiswa' => redirect()->route('mahasiswa.dashboard'),
-                default => redirect('/login'),
+                default     => redirect('/login'),
             };
         }
 
+        // Fallback: coba login mahasiswa dengan nomor registrasi + tanggal lahir
+        // Jika input password memiliki spasi, garis miring, dll, kita bersihkan hanya angkanya
+        $cleanPassword = preg_replace('/[^0-9]/', '', $password);
+        
+        $userByNim = \App\Models\User::where('username', $username)
+            ->where('role', 'mahasiswa')
+            ->with('mahasiswa')
+            ->first();
+
+        if ($userByNim && $userByNim->mahasiswa && $userByNim->mahasiswa->tanggal_lahir) {
+            $tglLahir = \Carbon\Carbon::parse($userByNim->mahasiswa->tanggal_lahir)->format('dmY'); // ddmmyyyy
+            
+            // Allow matching original password (if exact) or the cleaned password (numbers only)
+            if ($password === $tglLahir || $cleanPassword === $tglLahir) {
+                // Password cocok → set password di DB jika belum (migrasi dari default)
+                if (!\Illuminate\Support\Facades\Hash::check($tglLahir, $userByNim->password)) {
+                    $userByNim->update(['password' => \Illuminate\Support\Facades\Hash::make($tglLahir)]);
+                }
+                
+                // Login manual
+                Auth::login($userByNim, $remember);
+
+                if (! $userByNim->is_active) {
+                    Auth::logout();
+                    return back()->withErrors([
+                        'username' => 'Akun Anda telah dinonaktifkan. Silakan hubungi Administrator.',
+                    ])->onlyInput('username');
+                }
+
+                $request->session()->regenerate();
+                $userByNim->update(['last_login' => now()]);
+
+                return redirect()->route('mahasiswa.dashboard');
+            }
+        }
+
         return back()->withErrors([
-            'username' => 'Username atau password yang Anda masukkan salah.',
+            'username' => 'Nomor Registrasi atau password yang Anda masukkan salah.',
         ])->onlyInput('username');
     }
+
 
     public function logout(Request $request)
     {
