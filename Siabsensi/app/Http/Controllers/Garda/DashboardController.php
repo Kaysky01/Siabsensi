@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Garda;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\IzinSubmission;
+use App\Models\KehadiranSubmission;
 use App\Models\KegiatanSesi;
 use App\Models\Mahasiswa;
 use Carbon\Carbon;
@@ -63,6 +65,44 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get();
 
+        $kehadiranManualTotal = KehadiranSubmission::join('mahasiswa', 'kehadiran_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.kompi', $kompi)
+            ->count();
+
+        $kehadiranManualPending = KehadiranSubmission::join('mahasiswa', 'kehadiran_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.kompi', $kompi)
+            ->where('kehadiran_submissions.status', 'pending')
+            ->count();
+
+        $kehadiranManualApproved = KehadiranSubmission::join('mahasiswa', 'kehadiran_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.kompi', $kompi)
+            ->where('kehadiran_submissions.status', 'approved')
+            ->count();
+
+        $kehadiranManualRejected = KehadiranSubmission::join('mahasiswa', 'kehadiran_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.kompi', $kompi)
+            ->where('kehadiran_submissions.status', 'rejected')
+            ->count();
+
+        $izinTotal = IzinSubmission::join('mahasiswa', 'izin_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.kompi', $kompi)
+            ->count();
+
+        $izinPending = IzinSubmission::join('mahasiswa', 'izin_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.kompi', $kompi)
+            ->where('izin_submissions.status', 'pending')
+            ->count();
+
+        $izinApproved = IzinSubmission::join('mahasiswa', 'izin_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.kompi', $kompi)
+            ->where('izin_submissions.status', 'approved')
+            ->count();
+
+        $izinRejected = IzinSubmission::join('mahasiswa', 'izin_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('mahasiswa.kompi', $kompi)
+            ->where('izin_submissions.status', 'rejected')
+            ->count();
+
         return view('garda.dashboard', compact(
             'kompi',
             'totalMahasiswa',
@@ -72,7 +112,15 @@ class DashboardController extends Controller
             'presentPct',
             'recentAttendances',
             'activeKegiatan',
-            'mahasiswaList'
+            'mahasiswaList',
+            'kehadiranManualTotal',
+            'kehadiranManualPending',
+            'kehadiranManualApproved',
+            'kehadiranManualRejected',
+            'izinTotal',
+            'izinPending',
+            'izinApproved',
+            'izinRejected'
         ));
     }
 }

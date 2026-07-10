@@ -231,7 +231,9 @@
         <a href="{{ route('garda.dashboard') }}" class="nav-item {{ request()->routeIs('garda.dashboard') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">analytics</span> Dashboard
         </a>
-        
+        <a href="{{ route('garda.profile') }}" class="nav-item {{ request()->routeIs('garda.profile') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">manage_accounts</span> Profil Akun
+        </a>
         <div class="nav-section">
           <span class="material-symbols-outlined section-icon">event</span>
           Absensi
@@ -269,6 +271,7 @@
         <a href="{{ route('garda.riwayat') }}" class="nav-item {{ request()->routeIs('garda.riwayat') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">history</span> Riwayat Absensi
         </a>
+        
         @endif
 
         {{-- Logout (All Roles) --}}
@@ -276,11 +279,6 @@
           <span class="material-symbols-outlined section-icon">account_circle</span>
           Akun
         </div>
-        @if($user->role === 'garda')
-        <a href="{{ route('garda.profile') }}" class="nav-item {{ request()->routeIs('garda.profile') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">manage_accounts</span> Profil Akun
-        </a>
-        @endif
         <a href="{{ route('logout') }}" class="nav-item nav-item-logout">
           <span class="material-symbols-outlined icon">power_settings_new</span> Keluar
         </a>

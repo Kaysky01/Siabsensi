@@ -41,9 +41,23 @@
     </div>
     <div class="stat-card stat-card-white">
       <span class="material-symbols-outlined stat-icon" style="color:#8b5cf6">description</span>
-      <div class="stat-label">Izin</div>
-      <div class="stat-value">{{ $izinToday }}</div>
-      <div class="stat-delta">Surat izin/sakit</div>
+      <div class="stat-label">Izin/Sakit</div>
+      <div class="stat-value">{{ $izinTotal }}</div>
+      <div class="stat-delta">
+        <span class="up">{{ $izinApproved }} disetujui</span> &bull;
+        {{ $izinPending }} pending &bull;
+        {{ $izinRejected }} ditolak
+      </div>
+    </div>
+    <div class="stat-card stat-card-white">
+      <span class="material-symbols-outlined stat-icon" style="color:#f97316">how_to_reg</span>
+      <div class="stat-label">Kehadiran Manual</div>
+      <div class="stat-value">{{ $kehadiranManualTotal }}</div>
+      <div class="stat-delta">
+        <span class="up">{{ $kehadiranManualApproved }} disetujui</span> &bull;
+        {{ $kehadiranManualPending }} pending &bull;
+        {{ $kehadiranManualRejected }} ditolak
+      </div>
     </div>
   </div>
 
@@ -116,22 +130,6 @@
           <p style="color:var(--text-muted);text-align:center;padding:16px">Belum ada kegiatan</p>
           @endforelse
         </div>
-      </div>
-
-      <div class="panel">
-        <div class="section-header">
-          <div class="section-title">Mahasiswa Saya</div>
-        </div>
-        <div class="dept-item">
-          <span class="dept-name">{{ auth()->user()->assigned_kompi }}</span>
-          <div class="dept-bar-wrap">
-            <div class="dept-bar-fill" style="width:100%;background:var(--primary)"></div>
-          </div>
-          <span class="dept-count">{{ $totalMahasiswa }}</span>
-        </div>
-        <a href="{{ route('garda.mahasiswa-saya') }}" class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;margin-top:12px">
-          Lihat Daftar Lengkap
-        </a>
       </div>
     </div>
   </div>
@@ -215,8 +213,12 @@
 
 .three-col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 16px;
+}
+
+.three-col .panel {
+  margin-bottom: 0;
 }
 
 .mahasiswa-cell {
