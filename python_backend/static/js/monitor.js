@@ -318,8 +318,19 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
             })
         });
 
+        const data = await res.json();
+        
+        // Handle SweetAlert if server sends show_alert flag
+        if (data.show_alert && typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: data.alert_title || 'Perhatian',
+                text: data.alert_text || data.message,
+                icon: data.alert_type || 'info',
+                confirmButtonColor: data.alert_type === 'error' ? '#ef4444' : (data.alert_type === 'warning' ? '#f59e0b' : '#3b82f6')
+            });
+        }
+        
         if (res.ok) {
-            const data = await res.json();
             if (data.success) {
                 // === SIMPAN KE LOCAL UNTUK SYNC NANTI ===
                 saveToLocalSync(data);
@@ -329,31 +340,43 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
                     playBeep();
                     const actionText = data.result.status === 'checked_in' ? 'absen masuk' : 'absen pulang';
                     const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
-                    showToast(`${mahasiswaName} berhasil ${actionText}`);
+                    
+                    // Show toast if no alert
+                    if (!data.show_alert) {
+                        showToast(`${mahasiswaName} berhasil ${actionText}`);
+                    }
                 } else if (data.result) {
-                    // Show warning toast for ignored attendances
-                    const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
-                    if (data.result.status === 'already_checked_in') {
-                        showToast(`${mahasiswaName} sudah absen masuk hari ini.`, '#f59e0b');
-                    } else if (data.result.status === 'cooldown') {
-                        showToast(`${mahasiswaName} masih dalam waktu jeda (cooldown).`, '#f59e0b');
-                    } else if (data.result.status === 'already_checked_out') {
-                        showToast(`${mahasiswaName} sudah absen pulang hari ini.`, '#f59e0b');
-                    } else if (data.result.status === 'none') {
-                        showToast(`${mahasiswaName} - Absensi diabaikan.`, '#f59e0b');
-                    } else if (data.result.status === 'not_checked_in') {
-                        showToast(`${mahasiswaName} belum absen masuk!`, '#ef4444');
+                    // Show warning toast for ignored attendances (only if no alert)
+                    if (!data.show_alert) {
+                        const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
+                        if (data.result.status === 'already_checked_in') {
+                            showToast(`${mahasiswaName} sudah absen masuk hari ini.`, '#f59e0b');
+                        } else if (data.result.status === 'cooldown') {
+                            showToast(`${mahasiswaName} masih dalam waktu jeda (cooldown).`, '#f59e0b');
+                        } else if (data.result.status === 'already_checked_out') {
+                            showToast(`${mahasiswaName} sudah absen pulang hari ini.`, '#f59e0b');
+                        } else if (data.result.status === 'none') {
+                            showToast(`${mahasiswaName} - Absensi diabaikan.`, '#f59e0b');
+                        } else if (data.result.status === 'not_checked_in') {
+                            showToast(`${mahasiswaName} belum absen masuk!`, '#ef4444');
+                        }
                     }
                 }
             }
         } else {
-            const errData = await res.json().catch(() => ({}));
-            const msg = errData.message || `Error ${res.status}`;
+            // Error responses (404, 403, 500, etc.)
+            // Alert already shown by show_alert flag above
+            const msg = data.message || `Error ${res.status}`;
             console.warn('[Attendance]', msg);
-            showToast(msg, res.status >= 500 ? '#ef4444' : '#f97316');
+            
+            // Only show toast if no alert was displayed
+            if (!data.show_alert) {
+                showToast(msg, res.status >= 500 ? '#ef4444' : '#f97316');
+            }
         }
     } catch (err) {
         console.warn('Attendance recording error:', err);
+        showToast('Gagal menghubungi server Python', '#ef4444');
     }
 }
 

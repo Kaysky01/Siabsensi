@@ -401,7 +401,7 @@ def record_attendance():
             return jsonify({
                 'success': True,
                 'message': 'Disimpan di lokal (menunggu sync)',
-                'result': {'status': 'checked_in', 'time': time_str},
+                'result': {'status': 'checked_in', 'time': time_str, 'is_late': False, 'late_duration': 0},
                 'mahasiswa': {
                     'id': qr_code_id,
                     'name': 'Mahasiswa (' + str(qr_code_id) + ')',
@@ -416,14 +416,22 @@ def record_attendance():
         if not mahasiswa:
             return jsonify({
                 'success': False,
-                'message': 'Mahasiswa not found with this QR code'
+                'message': 'Mahasiswa tidak ditemukan dengan QR code ini',
+                'show_alert': True,
+                'alert_type': 'error',
+                'alert_title': 'QR Code Tidak Dikenali',
+                'alert_text': f'QR Code "{qr_code_id}" tidak terdaftar di sistem.'
             }), 404
 
         # Cek apakah mahasiswa aktif
         if not mahasiswa.get('is_active'):
             return jsonify({
                 'success': False,
-                'message': f"Mahasiswa '{mahasiswa.get('name')}' ({qr_code_id}) tidak aktif. Silakan hubungi Administrator."
+                'message': f"Mahasiswa '{mahasiswa.get('name')}' tidak aktif.",
+                'show_alert': True,
+                'alert_type': 'warning',
+                'alert_title': 'Mahasiswa Tidak Aktif',
+                'alert_text': f"{mahasiswa.get('name')} tidak aktif. Silakan hubungi Administrator."
             }), 403
 
         actual_mahasiswa_id = mahasiswa['id']
@@ -434,16 +442,48 @@ def record_attendance():
         # Handle rejection (tuple response)
         if isinstance(action, tuple) and action[0] == 'rejected':
             _, reason, message = action
+            
+            # Customize alert based on rejection reason
+            alert_config = {
+                'show_alert': True,
+                'alert_type': 'error',
+                'alert_title': 'Absensi Ditolak',
+                'alert_text': message
+            }
+            
+            if reason == 'no_schedule':
+                alert_config.update({
+                    'alert_type': 'warning',
+                    'alert_title': 'Tidak Ada Jadwal',
+                    'alert_text': f'Tidak ada jadwal absensi untuk hari ini.\n\n{mahasiswa.get("name")} tidak dapat melakukan absensi.'
+                })
+            elif reason == 'too_early':
+                alert_config.update({
+                    'alert_title': 'Terlalu Cepat',
+                    'alert_text': f'{message}\n\n{mahasiswa.get("name")} belum bisa absen saat ini.'
+                })
+            elif reason == 'too_late':
+                alert_config.update({
+                    'alert_title': 'Absensi Ditutup',
+                    'alert_text': f'Waktu absensi sudah ditutup.\n\n{mahasiswa.get("name")} tidak dapat melakukan absensi lagi.'
+                })
+            
             return jsonify({
                 'success': False,
                 'message': message,
-                'reason': reason
+                'reason': reason,
+                'mahasiswa': {
+                    'name': mahasiswa['name'],
+                    'kompi': mahasiswa['kompi']
+                },
+                **alert_config
             }), 403
         
         # Handle check_in with late info (tuple response)
         if isinstance(action, tuple) and action[0] == 'check_in':
             _, is_late, late_duration = action
-            return jsonify({
+            
+            response_data = {
                 'success': True,
                 'message': 'Attendance recorded',
                 'result': {
@@ -458,24 +498,58 @@ def record_attendance():
                     'kompi': mahasiswa['kompi'],
                     'jurusan': mahasiswa['jurusan']
                 }
-            })
+            }
+            
+            # Add alert if late
+            if is_late:
+                response_data.update({
+                    'show_alert': True,
+                    'alert_type': 'warning',
+                    'alert_title': '⚠️ Terlambat!',
+                    'alert_text': f'{mahasiswa["name"]} terlambat {late_duration} menit.\n\nAbsensi masuk tetap dicatat.'
+                })
+            
+            return jsonify(response_data)
         
         # Handle old string responses for backward compatibility
         if action == 'no_schedule':
             return jsonify({
                 'success': False,
-                'message': 'Tidak ada jadwal absensi untuk hari ini'
+                'message': 'Tidak ada jadwal absensi untuk hari ini',
+                'show_alert': True,
+                'alert_type': 'warning',
+                'alert_title': 'Tidak Ada Jadwal',
+                'alert_text': f'Tidak ada jadwal absensi untuk hari ini.\n\n{mahasiswa.get("name")} tidak dapat melakukan absensi.',
+                'mahasiswa': {
+                    'name': mahasiswa['name'],
+                    'kompi': mahasiswa['kompi']
+                }
             }), 403
         
         if action == 'cooldown':
+            # Get remaining cooldown time
+            key = 'default'
+            if key in local_attendance_state and actual_mahasiswa_id in local_attendance_state[key]:
+                record = local_attendance_state[key][actual_mahasiswa_id]
+                elapsed = (datetime.now() - record['check_in']).total_seconds()
+                remaining = YOLO_SETTINGS.get('qr_cooldown', 30) - elapsed
+                remaining_sec = max(0, int(remaining))
+            else:
+                remaining_sec = 0
+            
             return jsonify({
                 'success': True,
                 'message': f'Attendance ignored (cooldown)',
                 'result': {'status': 'cooldown'},
                 'mahasiswa': {
                     'id': mahasiswa['id'],
-                    'name': mahasiswa['name']
-                }
+                    'name': mahasiswa['name'],
+                    'kompi': mahasiswa['kompi']
+                },
+                'show_alert': True,
+                'alert_type': 'info',
+                'alert_title': 'Belum Bisa Check-out',
+                'alert_text': f'{mahasiswa["name"]} masih dalam masa tunggu.\n\nSilakan tunggu {remaining_sec} detik lagi untuk check-out.'
             })
         
         if action == 'already_checked_out':
@@ -485,8 +559,13 @@ def record_attendance():
                 'result': {'status': 'already_checked_out'},
                 'mahasiswa': {
                     'id': mahasiswa['id'],
-                    'name': mahasiswa['name']
-                }
+                    'name': mahasiswa['name'],
+                    'kompi': mahasiswa['kompi']
+                },
+                'show_alert': True,
+                'alert_type': 'info',
+                'alert_title': 'Sudah Lengkap',
+                'alert_text': f'{mahasiswa["name"]} sudah menyelesaikan absensi hari ini (masuk & keluar).'
             })
 
         # action = 'check_in' atau 'check_out'
@@ -501,7 +580,7 @@ def record_attendance():
         return jsonify({
             'success': True,
             'message': 'Attendance recorded',
-            'result': {'status': status_string, 'time': time_str},
+            'result': {'status': status_string, 'time': time_str, 'is_late': False, 'late_duration': 0},
             'mahasiswa': {
                 'id': mahasiswa['id'],
                 'name': mahasiswa['name'],
@@ -510,7 +589,15 @@ def record_attendance():
             }
         })
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        logger.error(f"Attendance error: {e}")
+        return jsonify({
+            'success': False, 
+            'message': str(e),
+            'show_alert': True,
+            'alert_type': 'error',
+            'alert_title': 'Error',
+            'alert_text': f'Terjadi kesalahan: {str(e)}'
+        }), 500
 
 @app.route('/api/python/reset-state', methods=['POST'])
 def reset_attendance_state():
