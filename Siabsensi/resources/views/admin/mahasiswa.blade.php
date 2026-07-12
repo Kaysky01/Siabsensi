@@ -59,7 +59,7 @@
 
   <div class="panel">
     <table class="att-table">
-      <thead><tr><th>Mahasiswa</th><th>Kompi</th><th>Prodi</th><th>Email</th><th>Status Kegiatan</th><th>Aksi</th></tr></thead>
+      <thead><tr><th>Mahasiswa</th><th>Kompi</th><th>Jurusan</th><th>Prodi</th><th>Email</th><th>Status Kegiatan</th><th>Aksi</th></tr></thead>
       <tbody>
         @forelse($mahasiswaList as $m)
         <tr>
@@ -73,6 +73,7 @@
             </div>
           </td>
           <td><span class="badge badge-blue">{{ $m->kompi }}</span></td>
+          <td style="font-size:13px">{{ $m->jurusan ?? '-' }}</td>
           <td style="font-size:13px">{{ $m->prodi ?? '-' }}</td>
           <td style="font-size:13px;color:var(--text-muted)">{{ $m->email ?? '-' }}</td>
           <td>
@@ -133,7 +134,7 @@
           </td>
         </tr>
         @empty
-        <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px">Tidak ada data mahasiswa</td></tr>
+        <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">Tidak ada data mahasiswa</td></tr>
         @endforelse
       </tbody>
     </table>
@@ -305,33 +306,63 @@
 
 <!-- Modal QR Code -->
 <div class="modal-backdrop" id="modal-qr">
-  <div class="modal" style="max-width:400px;text-align:center">
-    <div class="modal-title" style="margin-bottom:20px">QR Code Mahasiswa</div>
+  <div class="modal" style="max-width:900px;text-align:center">
+    <div class="modal-title" style="margin-bottom:20px">Kartu Mahasiswa</div>
     
     <div id="qr-loading" style="padding:40px;color:var(--text-muted)">
         <span class="material-symbols-outlined" style="animation:spin 1s linear infinite">refresh</span>
-        <div style="margin-top:8px">Memuat QR Code...</div>
+        <div style="margin-top:8px">Memuat Kartu...</div>
     </div>
     
     <div id="qr-content" style="display:none; width:100%; flex-direction:column; align-items:center;">
-        <div id="card-wrapper" style="position: relative; width: 100%; max-width: 320px; aspect-ratio: 957/1650; margin-bottom: 20px;">
-            <div id="id-card" style="width: 957px; height: 1650px; position: absolute; top: 0; left: 0; transform-origin: top left; background: url('{{ asset('static/img/template_qr.png') }}') center/cover no-repeat; background-color: white; border-radius: 30px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 2px solid var(--border-light);">
-              <!-- Area Nama -->
-              <div style="position: absolute; top: 48%; left: 0; right: 0; text-align: center; padding: 0 40px; z-index: 10;">
-                <div id="qr-mhs-name" style="font-size: 45px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -1px; line-height: 1.2; word-break: break-word;"></div>
-              </div>
-              <!-- Area QR (Di bawah garis) -->
-              <div style="position: absolute; top: 62%; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; z-index: 5;">
-                <div id="qr-svg-container" style="transform: scale(2.6); transform-origin: center center; mix-blend-mode: multiply;">
+        <!-- Card Wrapper for 2 cards -->
+        <div id="admin-card-wrapper" style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; width: 100%; margin-bottom: 20px;">
+            
+            <!-- KARTU DEPAN -->
+            <div class="admin-card-container" style="position: relative; width: 100%; max-width: 380px; aspect-ratio: 1099/1537;">
+                <div id="admin-card-depan" style="width: 1099px; height: 1537px; position: absolute; top: 0; left: 0; transform-origin: top left; background-color: white; border-radius: 30px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 2px solid var(--border-light);">
+                    <!-- Dynamic background will be set via JS -->
+                    
+                    <!-- Area Foto (Kiri Atas, bentuk bulat) -->
+                    <div id="admin-photo-container" style="position: absolute; top: 45%; left: 30%; width: 280px; height: 280px; z-index: 5; margin-left: -140px; display: none;">
+                        <!-- White border circle -->
+                        <div style="position: absolute; width: 280px; height: 280px; border-radius: 50%; background: white; box-shadow: 0 8px 24px rgba(0,0,0,0.12);"></div>
+                        <!-- Image container -->
+                        <div style="position: absolute; width: 265px; height: 265px; top: 7.5px; left: 7.5px; border-radius: 50%; background: white; overflow: hidden;">
+                            <img id="admin-photo-img" src="" alt="Foto" crossorigin="anonymous" style="width: 265px; height: 265px; object-fit: cover; object-position: center; display: block; border-radius: 50%;">
+                        </div>
+                    </div>
+                    
+                    <!-- QR Code (Kanan Atas, sejajar dengan foto) -->
+                    <div style="position: absolute; top: 45%; left: 65%; z-index: 5; background: transparent; margin-left: -125px;">
+                        <div id="admin-qr-container" style="transform: scale(2); transform-origin: center center; background: transparent;"></div>
+                    </div>
+
+                    <!-- Area Nama -->
+                    <div style="position: absolute; top: 70%; left: 0; right: 0; text-align: center; padding: 0 60px; z-index: 10;">
+                        <div id="admin-mhs-name" style="font-size: 44px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1.15; word-break: break-word;"></div>
+                    </div>
+
+                    <!-- Area Kompi & Prodi -->
+                    <div style="position: absolute; top: 75%; left: 0; right: 0; text-align: center; padding: 0 60px; z-index: 10;">
+                        <div id="admin-mhs-info" style="font-size: 32px; font-weight: 600; color: #334155; letter-spacing: 0.3px; line-height: 1.3;"></div>
+                    </div>
                 </div>
-              </div>
             </div>
+            
+            <!-- KARTU BELAKANG -->
+            <div class="admin-card-container" style="position: relative; width: 100%; max-width: 380px; aspect-ratio: 1099/1537;">
+                <div id="admin-card-belakang" style="width: 1099px; height: 1537px; position: absolute; top: 0; left: 0; transform-origin: top left; background-color: white; border-radius: 30px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 2px solid var(--border-light);">
+                    <!-- Dynamic background will be set via JS -->
+                </div>
+            </div>
+            
         </div>
         
         <div class="modal-actions" style="justify-content:center; width:100%">
             <button type="button" class="btn btn-ghost" onclick="this.closest('.modal-backdrop').classList.remove('show')">Tutup</button>
             <button id="btn-download-qr" type="button" class="btn btn-primary" onclick="downloadAdminQR()">
-                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Download Image
+                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Download Kartu
             </button>
         </div>
     </div>
@@ -340,6 +371,19 @@
 
 <style>
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Responsive behavior for admin modal */
+@media (max-width: 900px) {
+    #admin-card-wrapper {
+        flex-direction: column !important;
+        align-items: center;
+    }
+    
+    .admin-card-container {
+        max-width: 100% !important;
+        width: 90% !important;
+    }
+}
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -368,12 +412,14 @@ function openEditMhs(id, name, kompi, jurusan, prodi, email, telpMhs, telpOrtu, 
 }
 
 function resizeAdminCard() {
-    const wrapper = document.getElementById('card-wrapper');
-    const card = document.getElementById('id-card');
-    if(wrapper && card) {
-        const scale = wrapper.offsetWidth / 957;
-        card.style.transform = `scale(${scale})`;
-    }
+    const containers = document.querySelectorAll('.admin-card-container');
+    containers.forEach(container => {
+        const card = container.querySelector('[id^="admin-card-"]');
+        if(container && card) {
+            const scale = container.offsetWidth / 1099;
+            card.style.transform = `scale(${scale})`;
+        }
+    });
 }
 window.addEventListener('resize', resizeAdminCard);
 
@@ -382,8 +428,6 @@ function showQrModal(id, name) {
   document.getElementById('qr-loading').style.display = 'block';
   document.getElementById('qr-content').style.display = 'none';
   
-  document.getElementById('qr-mhs-name').textContent = name;
-  
   window.activeQrId = id;
   window.activeQrName = name;
   
@@ -391,26 +435,53 @@ function showQrModal(id, name) {
     .then(res => res.json())
     .then(data => {
       if (data.success) {
-        document.getElementById('qr-svg-container').innerHTML = data.data.qr_svg;
+        // Set QR Code
+        document.getElementById('admin-qr-container').innerHTML = data.data.qr_svg;
+        
+        // Set Nama
+        document.getElementById('admin-mhs-name').textContent = data.data.name;
+        
+        // Set Kompi & Prodi
+        document.getElementById('admin-mhs-info').textContent = data.data.kompi + ' | ' + data.data.prodi;
+        
+        // Set Photo
+        if (data.data.photo_path) {
+          document.getElementById('admin-photo-img').src = data.data.photo_path;
+          document.getElementById('admin-photo-container').style.display = 'block';
+        } else {
+          document.getElementById('admin-photo-container').style.display = 'none';
+        }
+        
+        // Set Background Templates
+        document.getElementById('admin-card-depan').style.backgroundImage = `url('${data.data.template_depan}')`;
+        document.getElementById('admin-card-depan').style.backgroundSize = 'cover';
+        document.getElementById('admin-card-depan').style.backgroundPosition = 'center';
+        document.getElementById('admin-card-depan').style.backgroundRepeat = 'no-repeat';
+        
+        document.getElementById('admin-card-belakang').style.backgroundImage = `url('${data.data.template_belakang}')`;
+        document.getElementById('admin-card-belakang').style.backgroundSize = 'cover';
+        document.getElementById('admin-card-belakang').style.backgroundPosition = 'center';
+        document.getElementById('admin-card-belakang').style.backgroundRepeat = 'no-repeat';
         
         document.getElementById('qr-loading').style.display = 'none';
         document.getElementById('qr-content').style.display = 'flex';
         
-        setTimeout(resizeAdminCard, 50);
+        setTimeout(resizeAdminCard, 100);
       } else {
-        alert('Gagal memuat QR Code');
+        alert(data.message || 'Gagal memuat Kartu Mahasiswa');
         document.getElementById('modal-qr').classList.remove('show');
       }
     })
     .catch(err => {
       console.error(err);
-      alert('Terjadi kesalahan saat memuat QR Code');
+      alert('Terjadi kesalahan saat memuat Kartu Mahasiswa');
       document.getElementById('modal-qr').classList.remove('show');
     });
 }
 
 function downloadAdminQR() {
-    const card = document.getElementById('id-card');
+    const cardDepan = document.getElementById('admin-card-depan');
+    const cardBelakang = document.getElementById('admin-card-belakang');
     const btn = document.getElementById('btn-download-qr');
     
     const originalText = btn.innerHTML;
@@ -418,30 +489,64 @@ function downloadAdminQR() {
     btn.style.opacity = '0.8';
     btn.disabled = true;
     
-    const originalTransform = card.style.transform;
-    const originalRadius = card.style.borderRadius;
-    const originalShadow = card.style.boxShadow;
-    const originalBorder = card.style.border;
+    // Temporarily remove transforms and styles for clean export
+    const elements = [cardDepan, cardBelakang];
+    const originalStyles = elements.map(el => ({
+        transform: el.style.transform,
+        boxShadow: el.style.boxShadow,
+        border: el.style.border
+    }));
     
-    card.style.transform = 'none';
-    card.style.borderRadius = '0';
-    card.style.boxShadow = 'none';
-    card.style.border = 'none';
+    elements.forEach(el => {
+        el.style.transform = 'none';
+        el.style.boxShadow = 'none';
+        el.style.border = 'none';
+    });
     
-    html2canvas(card, {
+    // Create a temporary container for side-by-side export
+    const exportContainer = document.createElement('div');
+    exportContainer.style.display = 'flex';
+    exportContainer.style.gap = '20px';
+    exportContainer.style.width = (1099 * 2 + 20) + 'px';
+    exportContainer.style.height = '1537px';
+    exportContainer.style.position = 'absolute';
+    exportContainer.style.left = '-9999px';
+    exportContainer.style.backgroundColor = '#ffffff';
+    
+    // Clone cards
+    const cloneDepan = cardDepan.cloneNode(true);
+    const cloneBelakang = cardBelakang.cloneNode(true);
+    cloneDepan.style.position = 'relative';
+    cloneBelakang.style.position = 'relative';
+    
+    exportContainer.appendChild(cloneDepan);
+    exportContainer.appendChild(cloneBelakang);
+    document.body.appendChild(exportContainer);
+    
+    html2canvas(exportContainer, {
         scale: 1,
-        useCORS: true, 
+        useCORS: true,
+        allowTaint: true,
         backgroundColor: '#ffffff',
-        logging: false
+        logging: false,
+        imageTimeout: 0,
+        width: 1099 * 2 + 20,
+        height: 1537
     }).then(canvas => {
-        card.style.transform = originalTransform;
-        card.style.borderRadius = originalRadius;
-        card.style.boxShadow = originalShadow;
-        card.style.border = originalBorder;
+        // Restore styles
+        elements.forEach((el, idx) => {
+            el.style.transform = originalStyles[idx].transform;
+            el.style.boxShadow = originalStyles[idx].boxShadow;
+            el.style.border = originalStyles[idx].border;
+        });
         
+        // Remove temporary container
+        document.body.removeChild(exportContainer);
+        
+        // Download
         const link = document.createElement('a');
         let safeName = window.activeQrName ? window.activeQrName.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'mhs';
-        link.download = 'ID_Card_' + window.activeQrId + '_' + safeName + '.png';
+        link.download = 'Kartu_Lengkap_' + window.activeQrId + '_' + safeName + '.png';
         link.href = canvas.toDataURL('image/png', 1.0);
         link.click();
         
@@ -450,12 +555,20 @@ function downloadAdminQR() {
         btn.disabled = false;
     }).catch(err => {
         console.error("Error generating image: ", err);
-        alert("Gagal mengunduh kartu. Pastikan koneksi lancar.");
+        alert("Gagal mengunduh kartu. Pastikan template tersedia dan foto sudah terupload.");
         
-        card.style.transform = originalTransform;
-        card.style.borderRadius = originalRadius;
-        card.style.boxShadow = originalShadow;
-        card.style.border = originalBorder;
+        // Restore styles on error
+        elements.forEach((el, idx) => {
+            el.style.transform = originalStyles[idx].transform;
+            el.style.boxShadow = originalStyles[idx].boxShadow;
+            el.style.border = originalStyles[idx].border;
+        });
+        
+        // Remove temporary container
+        if (document.body.contains(exportContainer)) {
+            document.body.removeChild(exportContainer);
+        }
+        
         btn.innerHTML = originalText;
         btn.style.opacity = '1';
         btn.disabled = false;

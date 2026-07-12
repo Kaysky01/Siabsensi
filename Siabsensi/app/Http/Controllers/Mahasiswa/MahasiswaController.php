@@ -222,17 +222,34 @@ class MahasiswaController extends Controller
     public function qrCode()
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
-        $qrData = $mahasiswa->qr_code_id ?? $mahasiswa->id;
         
-        // Generate QR Code string from cache (5 minutes)
+        // Get jurusan folder
+        $jurusanFolder = $mahasiswa->jurusan;
+        
+        // Check if templates exist
+        $depanPath = public_path("static/img/{$jurusanFolder}/Depan.jpg");
+        $belakangPath = public_path("static/img/{$jurusanFolder}/Belakang.jpg");
+        
+        if (!file_exists($depanPath) || !file_exists($belakangPath)) {
+            return view('errors.template-not-found', [
+                'jurusan' => $jurusanFolder,
+                'mahasiswa' => $mahasiswa
+            ]);
+        }
+        
+        // Generate QR Code
+        $qrData = $mahasiswa->qr_code_id ?? $mahasiswa->id;
         $qrImage = \Illuminate\Support\Facades\Cache::remember('qr_svg_' . $mahasiswa->id, 300, function() use ($qrData) {
             if (class_exists('\SimpleSoftwareIO\QrCode\Facades\QrCode')) {
                 return (string) \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(250)->generate($qrData);
             }
             return '<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='.urlencode($qrData).'" />';
         });
-
-        return view('mahasiswa.qr-code', compact('mahasiswa', 'qrImage'));
+        
+        $templateDepan = "static/img/{$jurusanFolder}/Depan.jpg";
+        $templateBelakang = "static/img/{$jurusanFolder}/Belakang.jpg";
+        
+        return view('mahasiswa.qr-code', compact('mahasiswa', 'qrImage', 'templateDepan', 'templateBelakang'));
     }
 
     public function izin()

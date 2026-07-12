@@ -984,20 +984,42 @@ class AdminController extends Controller
     {
         $mahasiswa = Mahasiswa::findOrFail($id);
         
+        // Get jurusan folder
+        $jurusanFolder = $mahasiswa->jurusan;
+        
+        // Check if templates exist
+        $depanPath = public_path("static/img/{$jurusanFolder}/Depan.jpg");
+        $belakangPath = public_path("static/img/{$jurusanFolder}/Belakang.jpg");
+        
+        if (!file_exists($depanPath) || !file_exists($belakangPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Template kartu untuk jurusan {$jurusanFolder} belum tersedia."
+            ], 404);
+        }
+        
         $qrSvg = \Illuminate\Support\Facades\Cache::remember('qr_svg_' . $mahasiswa->id, 300, function() use ($mahasiswa) {
             $svg = '';
             if (class_exists('\SimpleSoftwareIO\QrCode\Facades\QrCode')) {
                 $svg = (string) \SimpleSoftwareIO\QrCode\Facades\QrCode::size(250)->generate($mahasiswa->qr_code_id);
-                $svg = str_replace(['fill="#ffffff"', 'fill="#fff"'], 'fill="transparent"', $svg);
             }
             return $svg;
         });
+        
+        $templateDepan = "static/img/{$jurusanFolder}/Depan.jpg";
+        $templateBelakang = "static/img/{$jurusanFolder}/Belakang.jpg";
         
         return response()->json([
             'success' => true, 
             'data' => [
                 'qr_code_id' => $mahasiswa->qr_code_id, 
-                'qr_svg' => $qrSvg
+                'qr_svg' => $qrSvg,
+                'template_depan' => asset($templateDepan),
+                'template_belakang' => asset($templateBelakang),
+                'photo_path' => $mahasiswa->photo_path ? asset('storage/' . $mahasiswa->photo_path) : null,
+                'name' => $mahasiswa->name,
+                'kompi' => $mahasiswa->kompi,
+                'prodi' => $mahasiswa->prodi
             ]
         ]);
     }
