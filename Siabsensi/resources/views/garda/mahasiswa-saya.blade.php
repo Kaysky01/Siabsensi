@@ -45,7 +45,7 @@
               @foreach($allKegiatan as $keg)
                 @php
                   $att = $m->attendances->filter(function($a) use ($keg) {
-                      return $a->kegiatan_id == $keg->id || \Carbon\Carbon::parse($a->date)->format('Y-m-d') === \Carbon\Carbon::parse($keg->tanggal_pelaksanaan)->format('Y-m-d');
+                      return $a->kegiatan_id == $keg->id || \Carbon\Carbon::parse($a->date)->format('Y-m-d') === \Carbon\Carbon::parse($keg->tanggal)->format('Y-m-d');
                   })->first();
 
                   if(!$att || $att->status === 'alpha') {

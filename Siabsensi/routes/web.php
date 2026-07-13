@@ -117,6 +117,16 @@ Route::middleware(['auth', 'role:timdis'])->prefix('timdis')->group(function () 
     Route::post('/izin/verify', [TimdisController::class, 'verifyIzin'])->name('timdis.izin.verify');
     Route::get('/kehadiran-timdis', [TimdisController::class, 'kehadiranTimdis'])->name('timdis.kehadiran-timdis');
     Route::post('/kehadiran/verify', [TimdisController::class, 'verifyKehadiran'])->name('timdis.kehadiran.verify');
+
+    // Mahasiswa Management
+    Route::get('/mahasiswa', [AdminController::class, 'mahasiswa'])->name('timdis.mahasiswa');
+    Route::post('/mahasiswa', [AdminController::class, 'storeMahasiswa'])->name('timdis.mahasiswa.store');
+    Route::put('/mahasiswa/{id}', [AdminController::class, 'updateMahasiswa'])->name('timdis.mahasiswa.update');
+    Route::delete('/mahasiswa/{id}', [AdminController::class, 'deleteMahasiswa'])->name('timdis.mahasiswa.destroy');
+    Route::get('/mahasiswa/import/template', [AdminController::class, 'downloadTemplateCSV'])->name('timdis.mahasiswa.import.template');
+    Route::post('/mahasiswa/import', [AdminController::class, 'importMahasiswaCSV'])->name('timdis.mahasiswa.import');
+    Route::get('/mahasiswa/{id}/qr', [AdminController::class, 'qrCode'])->name('timdis.mahasiswa.qr');
+    Route::get('/mahasiswa/{id}/qr-json', [AdminController::class, 'getMahasiswaQR'])->name('timdis.mahasiswa.qr.json');
 });
 
 // ?????? ADMIN PAGES (Server-Side Rendered) ??????

@@ -186,6 +186,14 @@
         </a>
 
         <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">database</span>
+          Data
+        </div>
+        <a href="{{ route('timdis.mahasiswa') }}" class="nav-item {{ request()->routeIs('timdis.mahasiswa*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">badge</span> Data Mahasiswa
+        </a>
+
+        <div class="nav-section">
           <span class="material-symbols-outlined section-icon">event</span>
           Kegiatan
         </div>
@@ -376,4 +384,3 @@
 </body>
 
 </html>
-

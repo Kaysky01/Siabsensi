@@ -2,6 +2,16 @@
 @section('title', 'Data Mahasiswa — SIABSEN')
 
 @section('content')
+@php
+  $managementRoutePrefix = $managementRoutePrefix ?? (auth()->user()->role === 'timdis' ? 'timdis' : 'admin');
+  $mahasiswaIndexRoute = $managementRoutePrefix . '.mahasiswa';
+  $mahasiswaStoreRoute = $managementRoutePrefix . '.mahasiswa.store';
+  $mahasiswaUpdateRoute = $managementRoutePrefix . '.mahasiswa.update';
+  $mahasiswaDestroyRoute = $managementRoutePrefix . '.mahasiswa.destroy';
+  $mahasiswaImportRoute = $managementRoutePrefix . '.mahasiswa.import';
+  $mahasiswaImportTemplateRoute = $managementRoutePrefix . '.mahasiswa.import.template';
+  $mahasiswaQrJsonBaseUrl = url('/' . $managementRoutePrefix . '/mahasiswa');
+@endphp
 <section>
   <div class="page-header">
     <div>
@@ -20,7 +30,7 @@
 
   {{-- Filter --}}
   <div class="panel" style="margin-bottom:16px;padding:14px 20px">
-    <form method="GET" action="{{ route('admin.mahasiswa') }}" style="display:flex;gap:12px;align-items:stretch">
+    <form method="GET" action="{{ route($mahasiswaIndexRoute) }}" style="display:flex;gap:12px;align-items:stretch">
       <div style="flex:1;display:flex;flex-direction:column">
         <label class="form-label">Cari Nama</label>
         <input type="text" name="search" class="form-input" placeholder="Ketik nama..." value="{{ request('search') }}" style="flex:1;min-width:0">
@@ -52,7 +62,7 @@
       </div>
       <div style="display:flex;align-items:flex-end;gap:8px">
         <button type="submit" class="btn btn-primary" style="height:38px;padding:0 20px">Filter</button>
-        <a href="{{ route('admin.mahasiswa') }}" class="btn btn-ghost" style="height:38px;padding:0 20px">Reset</a>
+        <a href="{{ route($mahasiswaIndexRoute) }}" class="btn btn-ghost" style="height:38px;padding:0 20px">Reset</a>
       </div>
     </form>
   </div>
@@ -81,7 +91,7 @@
               @foreach($allKegiatan as $keg)
                 @php
                   $att = $m->attendances->filter(function($a) use ($keg) {
-                      return $a->kegiatan_id == $keg->id || \Carbon\Carbon::parse($a->date)->format('Y-m-d') === \Carbon\Carbon::parse($keg->tanggal_pelaksanaan)->format('Y-m-d');
+                      return $a->kegiatan_id == $keg->id || \Carbon\Carbon::parse($a->date)->format('Y-m-d') === \Carbon\Carbon::parse($keg->tanggal)->format('Y-m-d');
                   })->first();
 
                   if(!$att || $att->status === 'alpha') {
@@ -124,7 +134,7 @@
               <button onclick="openEditMhs('{{ $m->id }}', '{{ addslashes($m->name) }}', '{{ $m->kompi }}', '{{ $m->jurusan }}', '{{ $m->prodi }}', '{{ $m->email }}', '{{ $m->no_telp_mahasiswa }}', '{{ $m->no_telp_ortu }}', '{{ $m->tanggal_lahir ? \Carbon\Carbon::parse($m->tanggal_lahir)->format('Y-m-d') : '' }}')" class="btn btn-ghost btn-sm" title="Edit">
                 <span class="material-symbols-outlined" style="font-size:16px">edit</span>
               </button>
-              <form method="POST" action="{{ route('admin.mahasiswa.destroy', $m->id) }}" onsubmit="return confirm('Hapus mahasiswa {{ $m->name }}?')">
+              <form method="POST" action="{{ route($mahasiswaDestroyRoute, $m->id) }}" onsubmit="return confirm('Hapus mahasiswa {{ $m->name }}?')">
                 @csrf @method('DELETE')
                 <button type="submit" class="btn btn-ghost btn-sm" title="Hapus" style="color:var(--danger)">
                   <span class="material-symbols-outlined" style="font-size:16px">delete</span>
@@ -149,16 +159,26 @@
 <div class="modal-backdrop" id="modal-add-mhs">
   <div class="modal">
     <div class="modal-title">Tambah Mahasiswa</div>
-    <form method="POST" action="{{ route('admin.mahasiswa.store') }}">
+    <form method="POST" action="{{ route($mahasiswaStoreRoute) }}">
       @csrf
-      <div class="form-row"><label class="form-label">Nama Lengkap *</label><input name="name" class="form-input" required></div>
+      <div class="form-row-2">
+        <div class="form-row">
+          <label class="form-label">Nomor Registrasi *</label>
+          <input name="id" class="form-input" value="{{ old('id') }}" required>
+          <small style="font-size:11px;color:var(--text-muted)">Dipakai sebagai username login mahasiswa.</small>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Nama Lengkap *</label>
+          <input name="name" class="form-input" value="{{ old('name') }}" required>
+        </div>
+      </div>
       <div class="form-row-2">
         <div class="form-row">
           <label class="form-label">Kompi *</label>
           <select name="kompi" class="form-input" required>
             <option value="">Pilih Kompi...</option>
             @foreach($kompiOptions as $k)
-              <option value="{{ $k }}">{{ $k }}</option>
+              <option value="{{ $k }}" {{ old('kompi') == $k ? 'selected' : '' }}>{{ $k }}</option>
             @endforeach
           </select>
         </div>
@@ -181,10 +201,10 @@
       <div class="form-row"><label class="form-label">Tanggal Lahir *</label><input type="date" name="tanggal_lahir" class="form-input" required>
         <small style="font-size:11px;color:var(--text-muted)">Digunakan sebagai password default (ddmmyyyy)</small>
       </div>
-      <div class="form-row"><label class="form-label">Email</label><input type="email" name="email" class="form-input"></div>
+      <div class="form-row"><label class="form-label">Email</label><input type="email" name="email" class="form-input" value="{{ old('email') }}"></div>
       <div class="form-row-2">
-        <div class="form-row"><label class="form-label">No Telp Mahasiswa</label><input name="no_telp_mahasiswa" class="form-input"></div>
-        <div class="form-row"><label class="form-label">No Telp Ortu</label><input name="no_telp_ortu" class="form-input"></div>
+        <div class="form-row"><label class="form-label">No Telp Mahasiswa</label><input name="no_telp_mahasiswa" class="form-input" value="{{ old('no_telp_mahasiswa') }}"></div>
+        <div class="form-row"><label class="form-label">No Telp Ortu</label><input name="no_telp_ortu" class="form-input" value="{{ old('no_telp_ortu') }}"></div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" onclick="this.closest('.modal-backdrop').classList.remove('show')">Batal</button>
@@ -205,7 +225,7 @@
         <div class="form-row">
           <label class="form-label">Nomor Registrasi</label>
           <input id="edit-id-display" class="form-input" style="background:var(--bg);cursor:not-allowed;font-family:monospace" disabled>
-          <small style="font-size:11px;color:var(--text-muted)">Digunakan sebagai username login</small>
+          <small style="font-size:11px;color:var(--text-muted)">Digunakan sebagai username login dan tidak dapat diubah.</small>
         </div>
       </div>
       <div class="form-row-2">
@@ -279,21 +299,23 @@
 <div class="modal-backdrop" id="modal-import-csv">
   <div class="modal">
     <div class="modal-title">Import Data dari Excel/CSV</div>
-    <form method="POST" action="{{ route('admin.mahasiswa.import') }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ route($mahasiswaImportRoute) }}" enctype="multipart/form-data">
       @csrf
       <div class="form-row">
-        <label class="form-label">Pilih File (.csv)</label>
+        <label class="form-label">Pilih File (.csv, .xls, .xlsx)</label>
         
-        <a href="{{ route('admin.mahasiswa.import.template') }}" class="btn btn-ghost btn-sm" style="margin-bottom:12px;display:inline-block;border:1px solid var(--border)">
+        <a href="{{ route($mahasiswaImportTemplateRoute) }}" class="btn btn-ghost btn-sm" style="margin-bottom:12px;display:inline-block;border:1px solid var(--border)">
           <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Download Template CSV
         </a>
 
-        <input type="file" name="csv_file" class="form-input" accept=".csv" required style="padding:10px">
+        <input type="file" name="csv_file" class="form-input" accept=".csv,.xls,.xlsx" required style="padding:10px">
         <span class="form-hint" style="margin-top:8px;display:block">
           <strong>Format Header:</strong><br>
-          Nama, Jurusan, Prodi, Tanggal Lahir (YYYY-MM-DD), Email (Opsional), Telp Mhs (Opsional), Telp Ortu (Opsional)<br><br>
-          <i>*Pastikan menyimpan file Excel Anda dalam format .csv (Comma Separated Values).</i><br>
-          <i>*Kompi akan otomatis diatur menjadi "-" dan Anda bisa membaginya lewat menu Pengaturan Kompi.</i>
+          Nomor Registrasi, Nama, Kompi (Opsional), Jurusan, Prodi, Tanggal Lahir (YYYY-MM-DD), Email (Opsional), Telp Mhs (Opsional), Telp Ortu (Opsional)<br><br>
+          <i>*Nomor Registrasi wajib ada di file dan wajib terisi di setiap baris.</i><br>
+          <i>*Jika Kompi kosong atau tidak ada, sistem akan mengisi <strong>-</strong>.</i><br>
+          <i>*Jurusan dan Prodi akan dicek ke master data. Jika belum ada, sistem akan menambahkannya otomatis.</i><br>
+          <i>*File bisa berupa CSV atau Excel (.xls/.xlsx).</i>
         </span>
       </div>
       <div class="modal-actions">
@@ -388,8 +410,10 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+const mahasiswaManagementBaseUrl = @json($mahasiswaQrJsonBaseUrl);
+
 function openEditMhs(id, name, kompi, jurusan, prodi, email, telpMhs, telpOrtu, tglLahir) {
-  document.getElementById('edit-mhs-form').action = '/admin/mahasiswa/' + id;
+  document.getElementById('edit-mhs-form').action = mahasiswaManagementBaseUrl + '/' + id;
   document.getElementById('edit-id-display').value = id;
   document.getElementById('edit-name').value = name;
   document.getElementById('edit-kompi').value = kompi;
@@ -431,7 +455,7 @@ function showQrModal(id, name) {
   window.activeQrId = id;
   window.activeQrName = name;
   
-  fetch('/admin/mahasiswa/' + id + '/qr-json')
+  fetch(mahasiswaManagementBaseUrl + '/' + id + '/qr-json')
     .then(res => res.json())
     .then(data => {
       if (data.success) {

@@ -7,9 +7,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\CameraStream;
 use App\Models\IzinSubmission;
+use App\Models\Jurusan;
 use App\Models\Kegiatan;
 use App\Models\KehadiranSubmission;
 use App\Models\Mahasiswa;
+use App\Models\Prodi;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -18,6 +20,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class AdminController extends Controller
@@ -172,6 +176,8 @@ class AdminController extends Controller
     // ─── MAHASISWA ────────────────────────────────────────────────────────────
     public function mahasiswa(Request $request)
     {
+        $this->ensureMahasiswaManagementAccess();
+
         $query = Mahasiswa::query();
 
         if ($request->filled('search')) {
@@ -193,9 +199,9 @@ class AdminController extends Controller
             $query->where('prodi', 'like', '%' . $request->prodi . '%');
         }
 
-        $allKegiatan = \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan')->get();
-        
-        $mahasiswaList = $query->orderBy('name')->paginate(20)->withQueryString();
+        $allKegiatan = \App\Models\PkkmbSchedule::orderBy('tanggal')->get();
+
+        $mahasiswaList = $query->with('attendances')->orderBy('name')->paginate(20)->withQueryString();
 
         $kompiOptions = \Illuminate\Support\Facades\Cache::remember('master_kompi', 3600, function() {
             return \App\Models\Kompi::pluck('nama')->sort()->values();
@@ -213,12 +219,25 @@ class AdminController extends Controller
             return \App\Models\Jurusan::with('prodi')->get();
         });
 
-        return view('admin.mahasiswa', compact('mahasiswaList', 'kompiOptions', 'jurusanOptions', 'prodiOptions', 'jurusanWithProdi', 'allKegiatan'));
+        $managementRoutePrefix = $this->getMahasiswaManagementRoutePrefix();
+
+        return view('admin.mahasiswa', compact(
+            'mahasiswaList',
+            'kompiOptions',
+            'jurusanOptions',
+            'prodiOptions',
+            'jurusanWithProdi',
+            'allKegiatan',
+            'managementRoutePrefix'
+        ));
     }
 
     public function storeMahasiswa(Request $request)
     {
+        $this->ensureMahasiswaManagementAccess();
+
         $validated = $request->validate([
+            'id' => 'required|string|max:50|unique:mahasiswa,id',
             'name' => 'required|string|max:255',
             'kompi' => 'required|string',
             'jurusan' => 'required|string',
@@ -229,12 +248,12 @@ class AdminController extends Controller
             'no_telp_ortu' => 'nullable|string',
         ]);
 
-        $lastMahasiswa = Mahasiswa::where('id', 'like', 'MHS25%')->orderBy('id', 'desc')->first();
-        $nextId = 1;
-        if ($lastMahasiswa && strlen($lastMahasiswa->id) >= 11) {
-            $nextId = (int) substr($lastMahasiswa->id, 5) + 1;
+        if (User::where('username', $validated['id'])->exists()) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['id' => 'Nomor registrasi sudah dipakai sebagai username user lain.']);
         }
-        $validated['id'] = 'MHS25' . str_pad($nextId, 6, '0', STR_PAD_LEFT);
+
         $validated['qr_code_id'] = $validated['id'];
 
         $mahasiswa = Mahasiswa::create($validated);
@@ -252,12 +271,15 @@ class AdminController extends Controller
             'is_active'    => 1,
         ]);
 
-        return redirect()->route('admin.mahasiswa')->with('success', "Mahasiswa {$mahasiswa->name} berhasil ditambahkan. Username: {$mahasiswa->id}, Password default: {$defaultPassword}");
+        return redirect()->route($this->getMahasiswaManagementRouteName('mahasiswa'))
+            ->with('success', "Mahasiswa {$mahasiswa->name} berhasil ditambahkan. Username: {$mahasiswa->id}, Password default: {$defaultPassword}");
 
     }
 
     public function qrCode($id)
     {
+        $this->ensureMahasiswaManagementAccess();
+
         $mahasiswa = Mahasiswa::findOrFail($id);
         $qrImage = \SimpleSoftwareIO\QrCode\Facades\QrCode::size(250)->generate($mahasiswa->qr_code_id);
         return view('admin.mahasiswa-qr', compact('mahasiswa', 'qrImage'));
@@ -265,12 +287,24 @@ class AdminController extends Controller
 
     public function downloadTemplateCSV()
     {
+        $this->ensureMahasiswaManagementAccess();
+
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="Template_Import_Mahasiswa.csv"',
         ];
 
-        $columns = ['Nama', 'Jurusan', 'Prodi', 'Tanggal Lahir (YYYY-MM-DD)', 'Email (Opsional)', 'Telp Mahasiswa (Opsional)', 'Telp Ortu (Opsional)'];
+        $columns = [
+            'Nomor Registrasi',
+            'Nama',
+            'Kompi (Opsional)',
+            'Jurusan',
+            'Prodi',
+            'Tanggal Lahir (YYYY-MM-DD)',
+            'Email (Opsional)',
+            'Telp Mahasiswa (Opsional)',
+            'Telp Ortu (Opsional)',
+        ];
 
         $callback = function() use ($columns) {
             $file = fopen('php://output', 'w');
@@ -278,7 +312,7 @@ class AdminController extends Controller
             fputs($file, "\xEF\xBB\xBF");
             fputcsv($file, $columns, ';');
             // Contoh isi data
-            fputcsv($file, ['Ahmad Budi', 'Teknologi Informasi', 'Manajemen Informatika', '2005-12-31', 'ahmad@example.com', '081234567890', '081987654321'], ';');
+            fputcsv($file, ['REG2026001', 'Ahmad Budi', 'KOMPI 1', 'Teknologi Informasi', 'Manajemen Informatika', '2005-12-31', 'ahmad@example.com', '081234567890', '081987654321'], ';');
             fclose($file);
         };
 
@@ -287,70 +321,91 @@ class AdminController extends Controller
 
     public function importMahasiswaCSV(Request $request)
     {
+        $this->ensureMahasiswaManagementAccess();
+
         $request->validate([
-            'csv_file' => 'required|mimes:csv,txt|max:2048'
+            'csv_file' => 'required|mimes:csv,txt,xls,xlsx|max:5120'
         ]);
 
         $file = $request->file('csv_file');
-        $handle = fopen($file->getPathname(), "r");
-        
-        // Detect delimiter
-        $firstLine = fgets($handle);
-        $delimiter = strpos($firstLine, ';') !== false ? ';' : ',';
-        rewind($handle);
+        $rows = $this->readMahasiswaImportRows($file->getPathname(), $file->getClientOriginalExtension());
 
-        // Skip BOM if exists
-        $bom = fread($handle, 3);
-        if ($bom !== "\xEF\xBB\xBF") {
-            rewind($handle);
+        if (count($rows) < 2) {
+            return back()->with('error', 'File import kosong atau tidak memiliki data mahasiswa.');
         }
 
-        // Skip header
-        $header = fgetcsv($handle, 1000, $delimiter);
-        
+        $header = array_shift($rows);
+        $headerMap = $this->resolveMahasiswaImportHeaderMap($header);
+        $requiredHeaders = ['nomor_registrasi', 'name', 'jurusan', 'prodi', 'tanggal_lahir'];
+        $missingHeaders = [];
+
+        foreach ($requiredHeaders as $field) {
+            if (!array_key_exists($field, $headerMap)) {
+                $missingHeaders[] = $this->getMahasiswaImportHeaderLabels()[$field];
+            }
+        }
+
+        if (!empty($missingHeaders)) {
+            return back()->with('error', 'Header file belum sesuai. Kolom wajib yang belum ada: ' . implode(', ', $missingHeaders) . '.');
+        }
+
         $count = 0;
-        
-        \Illuminate\Support\Facades\DB::beginTransaction();
+
+        DB::beginTransaction();
         try {
-            while (($data = fgetcsv($handle, 1000, $delimiter)) !== FALSE) {
-                // $data index: 0=Name, 1=Jurusan, 2=Prodi, 3=Tanggal Lahir (Y-m-d)
-                if (count($data) < 4 || empty(trim($data[0]))) continue;
+            foreach ($rows as $rowIndex => $row) {
+                $rowNumber = $rowIndex + 2;
+                $record = $this->mapMahasiswaImportRow($row, $headerMap);
 
-                $lastMahasiswa = Mahasiswa::where('id', 'like', 'MHS25%')->orderBy('id', 'desc')->first();
-                $nextId = 1;
-                if ($lastMahasiswa && strlen($lastMahasiswa->id) >= 11) {
-                    $nextId = (int) substr($lastMahasiswa->id, 5) + 1;
+                if ($this->isMahasiswaImportRowEmpty($record)) {
+                    continue;
                 }
-                $newId = 'MHS25' . str_pad($nextId, 6, '0', STR_PAD_LEFT);
 
-                $tglLahir = \Carbon\Carbon::parse(trim($data[3]))->format('Y-m-d');
-                $defaultPassword = \Carbon\Carbon::parse($tglLahir)->format('dmY');
-
-                $jurusanName = strtoupper(trim($data[1]));
-                $prodiName = strtoupper(trim($data[2]));
-
-                // Auto-create Jurusan in Master Data if not exists
-                $jurusanModel = \App\Models\Jurusan::firstOrCreate(['nama' => $jurusanName]);
-
-                // Auto-create Prodi in Master Data if not exists
-                if (!empty($prodiName)) {
-                    \App\Models\Prodi::firstOrCreate([
-                        'jurusan_id' => $jurusanModel->id,
-                        'nama' => $prodiName
-                    ]);
+                $name = trim((string) ($record['name'] ?? ''));
+                if ($name === '') {
+                    throw new \RuntimeException("Baris {$rowNumber}: nama mahasiswa wajib diisi.");
                 }
+
+                $mahasiswaId = trim((string) ($record['nomor_registrasi'] ?? ''));
+                if ($mahasiswaId === '') {
+                    throw new \RuntimeException("Baris {$rowNumber}: nomor registrasi wajib diisi.");
+                }
+
+                if (Mahasiswa::where('id', $mahasiswaId)->exists() || User::where('username', $mahasiswaId)->exists()) {
+                    throw new \RuntimeException("Baris {$rowNumber}: nomor registrasi/username {$mahasiswaId} sudah digunakan.");
+                }
+
+                $tanggalLahirRaw = $record['tanggal_lahir'] ?? null;
+                $tanggalLahir = $this->parseMahasiswaImportDate($tanggalLahirRaw, $rowNumber);
+                $defaultPassword = Carbon::parse($tanggalLahir)->format('dmY');
+
+                $jurusanProdi = $this->resolveImportedJurusanProdi(
+                    $record['jurusan'] ?? null,
+                    $record['prodi'] ?? null,
+                    $rowNumber
+                );
+
+                $email = $this->normalizeMahasiswaImportValue($record['email'] ?? null);
+                if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    throw new \RuntimeException("Baris {$rowNumber}: format email tidak valid.");
+                }
+                if ($email !== null && Mahasiswa::where('email', $email)->exists()) {
+                    throw new \RuntimeException("Baris {$rowNumber}: email {$email} sudah digunakan.");
+                }
+
+                $kompi = $this->normalizeMahasiswaImportValue($record['kompi'] ?? null) ?? '-';
 
                 $mhs = Mahasiswa::create([
-                    'id' => $newId,
-                    'qr_code_id' => $newId,
-                    'name' => trim($data[0]),
-                    'kompi' => '-', // Default kompi, will be assigned via shuffle
-                    'jurusan' => $jurusanName,
-                    'prodi' => $prodiName,
-                    'tanggal_lahir' => $tglLahir,
-                    'email' => isset($data[4]) ? trim($data[4]) : null,
-                    'no_telp_mahasiswa' => isset($data[5]) ? trim($data[5]) : null,
-                    'no_telp_ortu' => isset($data[6]) ? trim($data[6]) : null,
+                    'id' => $mahasiswaId,
+                    'qr_code_id' => $mahasiswaId,
+                    'name' => $name,
+                    'kompi' => $kompi,
+                    'jurusan' => $jurusanProdi['jurusan'],
+                    'prodi' => $jurusanProdi['prodi'],
+                    'tanggal_lahir' => $tanggalLahir,
+                    'email' => $email,
+                    'no_telp_mahasiswa' => $this->normalizeMahasiswaImportValue($record['no_telp_mahasiswa'] ?? null),
+                    'no_telp_ortu' => $this->normalizeMahasiswaImportValue($record['no_telp_ortu'] ?? null),
                 ]);
 
                 User::create([
@@ -365,19 +420,211 @@ class AdminController extends Controller
 
                 $count++;
             }
-            \Illuminate\Support\Facades\DB::commit();
+
+            DB::commit();
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\DB::rollBack();
-            return back()->with('error', 'Gagal memproses file CSV: ' . $e->getMessage());
+            DB::rollBack();
+            return back()->with('error', 'Gagal memproses file import: ' . $e->getMessage());
         }
-        
-        fclose($handle);
-        return back()->with('success', "Berhasil mengimpor $count mahasiswa dari CSV.");
+
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan');
+        \Illuminate\Support\Facades\Cache::forget('master_prodi');
+        \Illuminate\Support\Facades\Cache::forget('master_jurusan_prodi');
+
+        return back()->with('success', "Berhasil mengimpor {$count} mahasiswa dari file.");
     }
+
+    private function readMahasiswaImportRows(string $path, string $extension): array
+    {
+        $extension = strtolower($extension);
+
+        if (in_array($extension, ['xls', 'xlsx'], true)) {
+            $sheet = IOFactory::load($path)->getActiveSheet();
+            return $sheet->toArray(null, true, true, false);
+        }
+
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            throw new \RuntimeException('File import tidak dapat dibuka.');
+        }
+
+        $firstLine = fgets($handle);
+        if ($firstLine === false) {
+            fclose($handle);
+            return [];
+        }
+
+        $delimiter = str_contains($firstLine, ';') ? ';' : ',';
+        rewind($handle);
+
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") {
+            rewind($handle);
+        }
+
+        $rows = [];
+        while (($row = fgetcsv($handle, 10000, $delimiter)) !== false) {
+            $rows[] = $row;
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    private function resolveMahasiswaImportHeaderMap(array $header): array
+    {
+        $aliases = [
+            'nomor_registrasi' => ['nomor registrasi', 'nomor_registrasi', 'nomorregistrasi', 'id', 'nim', 'username'],
+            'name' => ['nama', 'nama lengkap', 'name'],
+            'kompi' => ['kompi', 'kelompok', 'group'],
+            'jurusan' => ['jurusan', 'jurusan polinela'],
+            'prodi' => ['prodi', 'prodi polinela', 'program studi'],
+            'tanggal_lahir' => ['tanggal lahir', 'tanggal_lahir', 'tgl lahir', 'tgl_lahir'],
+            'email' => ['email', 'e mail', 'e-mail'],
+            'no_telp_mahasiswa' => ['telp mahasiswa', 'no telp mahasiswa', 'tlp mahasiswa', 'telepon mahasiswa', 'no_telp_mahasiswa'],
+            'no_telp_ortu' => ['telp ortu', 'no telp ortu', 'tlp ortu', 'telepon ortu', 'telp orang tua', 'no telp orang tua', 'no_telp_ortu'],
+        ];
+
+        $normalizedAliasMap = [];
+        foreach ($aliases as $key => $values) {
+            foreach ($values as $value) {
+                $normalizedAliasMap[$this->normalizeMahasiswaImportHeader($value)] = $key;
+            }
+        }
+
+        $headerMap = [];
+        foreach ($header as $index => $column) {
+            $normalized = $this->normalizeMahasiswaImportHeader($column);
+            if ($normalized !== '' && isset($normalizedAliasMap[$normalized])) {
+                $headerMap[$normalizedAliasMap[$normalized]] = $index;
+            }
+        }
+
+        return $headerMap;
+    }
+
+    private function normalizeMahasiswaImportHeader($value): string
+    {
+        $value = strtolower(trim((string) $value));
+        $value = preg_replace('/\([^)]*\)/', '', $value);
+        $value = preg_replace('/[^a-z0-9]+/', ' ', $value);
+
+        return trim($value);
+    }
+
+    private function getMahasiswaImportHeaderLabels(): array
+    {
+        return [
+            'nomor_registrasi' => 'Nomor Registrasi',
+            'name' => 'Nama',
+            'kompi' => 'Kompi',
+            'jurusan' => 'Jurusan',
+            'prodi' => 'Prodi',
+            'tanggal_lahir' => 'Tanggal Lahir',
+            'email' => 'Email',
+            'no_telp_mahasiswa' => 'Telp Mahasiswa',
+            'no_telp_ortu' => 'Telp Ortu',
+        ];
+    }
+
+    private function mapMahasiswaImportRow(array $row, array $headerMap): array
+    {
+        $record = [];
+
+        foreach ($headerMap as $field => $index) {
+            $record[$field] = $row[$index] ?? null;
+        }
+
+        return $record;
+    }
+
+    private function isMahasiswaImportRowEmpty(array $record): bool
+    {
+        foreach ($record as $value) {
+            if ($this->normalizeMahasiswaImportValue($value) !== null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function normalizeMahasiswaImportValue($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
+    }
+
+    private function parseMahasiswaImportDate($value, int $rowNumber): string
+    {
+        if ($value === null || $value === '') {
+            throw new \RuntimeException("Baris {$rowNumber}: tanggal lahir wajib diisi.");
+        }
+
+        try {
+            if (is_numeric($value)) {
+                return Carbon::instance(ExcelDate::excelToDateTimeObject((float) $value))->format('Y-m-d');
+            }
+
+            return Carbon::parse(trim((string) $value))->format('Y-m-d');
+        } catch (\Throwable $e) {
+            throw new \RuntimeException("Baris {$rowNumber}: tanggal lahir tidak valid.");
+        }
+    }
+
+    private function resolveImportedJurusanProdi($jurusanValue, $prodiValue, int $rowNumber): array
+    {
+        $jurusanInput = $this->normalizeMahasiswaImportValue($jurusanValue);
+        $prodiInput = $this->normalizeMahasiswaImportValue($prodiValue);
+
+        if ($jurusanInput === null) {
+            throw new \RuntimeException("Baris {$rowNumber}: jurusan wajib diisi.");
+        }
+
+        if ($prodiInput === null) {
+            throw new \RuntimeException("Baris {$rowNumber}: prodi wajib diisi.");
+        }
+
+        $jurusan = Jurusan::whereRaw('LOWER(nama) = ?', [strtolower($jurusanInput)])->first();
+        if (!$jurusan) {
+            $jurusan = Jurusan::create(['nama' => $jurusanInput]);
+        }
+
+        $prodi = Prodi::where('jurusan_id', $jurusan->id)
+            ->whereRaw('LOWER(nama) = ?', [strtolower($prodiInput)])
+            ->first();
+
+        if (!$prodi) {
+            $prodi = Prodi::create([
+                'jurusan_id' => $jurusan->id,
+                'nama' => $prodiInput,
+            ]);
+        }
+
+        return [
+            'jurusan' => $jurusan->nama,
+            'prodi' => $prodi->nama,
+        ];
+    }
+
 
     public function updateMahasiswa(Request $request, $id)
     {
+        $this->ensureMahasiswaManagementAccess();
+
         $mahasiswa = Mahasiswa::findOrFail($id);
+
+        if ($request->filled('id') && $request->input('id') !== $id) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['id' => 'Nomor registrasi tidak dapat diubah.']);
+        }
 
         $validated = $request->validate([
             'name'              => 'required|string|max:255',
@@ -416,18 +663,20 @@ class AdminController extends Controller
         $msg = "Data mahasiswa {$mahasiswa->name} berhasil diperbarui.";
         if ($passwordData) $msg .= " Password telah direset.";
 
-        return redirect()->route('admin.mahasiswa')->with('success', $msg);
+        return redirect()->route($this->getMahasiswaManagementRouteName('mahasiswa'))->with('success', $msg);
     }
 
     public function deleteMahasiswa($id)
     {
+        $this->ensureMahasiswaManagementAccess();
+
         $mahasiswa = Mahasiswa::findOrFail($id);
         $name = $mahasiswa->name;
         \Illuminate\Support\Facades\Cache::forget('qr_svg_' . $mahasiswa->id);
         User::where('mahasiswa_id', $id)->delete();
         $mahasiswa->delete();
 
-        return redirect()->route('admin.mahasiswa')->with('success', "Mahasiswa {$name} berhasil dihapus.");
+        return redirect()->route($this->getMahasiswaManagementRouteName('mahasiswa'))->with('success', "Mahasiswa {$name} berhasil dihapus.");
     }
 
     // ─── MAHASISWA SAYA (GARDA) ──────────────────────────────────────────────
@@ -440,7 +689,7 @@ class AdminController extends Controller
             $query->where('kompi', $user->assigned_kompi);
         }
 
-        $allKegiatan = \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan')->get();
+        $allKegiatan = \App\Models\PkkmbSchedule::orderBy('tanggal')->get();
         $mahasiswaList = $query->with('attendances')->orderBy('name')->paginate(20)->withQueryString();
 
         return view('admin.mahasiswa-saya', compact('mahasiswaList', 'allKegiatan'));
@@ -982,6 +1231,8 @@ class AdminController extends Controller
     // ─── QR CODE ─────────────────────────────────────────────────────────────
     public function getMahasiswaQR($id)
     {
+        $this->ensureMahasiswaManagementAccess();
+
         $mahasiswa = Mahasiswa::findOrFail($id);
         
         // Get jurusan folder
@@ -1022,6 +1273,21 @@ class AdminController extends Controller
                 'prodi' => $mahasiswa->prodi
             ]
         ]);
+    }
+
+    private function ensureMahasiswaManagementAccess(): void
+    {
+        abort_unless(in_array(Auth::user()?->role, ['admin', 'timdis'], true), 403);
+    }
+
+    private function getMahasiswaManagementRoutePrefix(): string
+    {
+        return Auth::user()?->role === 'timdis' ? 'timdis' : 'admin';
+    }
+
+    private function getMahasiswaManagementRouteName(string $suffix): string
+    {
+        return $this->getMahasiswaManagementRoutePrefix() . '.' . $suffix;
     }
 
     // ─── LATE STATUS OVERRIDE ────────────────────────────────────────────────
@@ -1229,6 +1495,3 @@ class AdminController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 }
-
-
-
