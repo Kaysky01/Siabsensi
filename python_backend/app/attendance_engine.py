@@ -363,7 +363,7 @@ class AttendanceProcessor:
         logger.info(f"[{mahasiswa_id}] DAILY MODE - Validating against schedule")
         today = date.today().isoformat()
         row = self.db._execute(
-            "SELECT check_in, check_out FROM attendance WHERE mahasiswa_id=%s AND date=%s",
+            "SELECT check_in, check_out FROM attendance WHERE mahasiswa_id=%s AND date=%s AND kegiatan_id IS NULL AND sesi_id IS NULL",
             (mahasiswa_id, today),
             fetch_one=True
         )

@@ -1016,7 +1016,7 @@ class AdminController extends Controller
                 'qr_svg' => $qrSvg,
                 'template_depan' => asset($templateDepan),
                 'template_belakang' => asset($templateBelakang),
-                'photo_path' => $mahasiswa->photo_path ? asset('storage/' . $mahasiswa->photo_path) : null,
+                'photo_path' => $mahasiswa->photo_url,
                 'name' => $mahasiswa->name,
                 'kompi' => $mahasiswa->kompi,
                 'prodi' => $mahasiswa->prodi
@@ -1229,7 +1229,6 @@ class AdminController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 }
-
 
 
 

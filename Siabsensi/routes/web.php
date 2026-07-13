@@ -41,10 +41,8 @@ Route::get('/', function () {
 });
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
-Route::middleware(['guest'])->group(function () {
-    Route::get('/login', [AuthController::class, 'login'])->name('login');
-    Route::post('/login', [AuthController::class, 'auth'])->name('auth');
-});
+Route::get('/login', [AuthController::class, 'login'])->name('login');
+Route::post('/login', [AuthController::class, 'auth'])->name('auth');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/logout', [AuthController::class, 'logout'])->name('logout');
@@ -443,7 +441,8 @@ Route::post('/api/sync', function (Request $request) {
                     $lateDuration = $start->diffInMinutes($end);
                 }
                 
-                $attendance = Attendance::where('mahasiswa_id', $mahasiswaId)
+                $attendance = Attendance::daily()
+                    ->where('mahasiswa_id', $mahasiswaId)
                     ->where('date', $kegiatanDate)
                     ->first();
             }

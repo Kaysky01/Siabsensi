@@ -113,7 +113,7 @@ class KegiatanSesiController extends Controller
         $sesi = KegiatanSesi::where('kegiatan_id', $kegiatanId)->findOrFail($sesiId);
         
         // Delete all attendance records for this sesi
-        DB::table('attendance')->where('sesi_id', $sesiId)->delete();
+        DB::table('attendance_sesi')->where('sesi_id', $sesiId)->delete();
         
         $sesi->delete();
 

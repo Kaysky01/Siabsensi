@@ -18,8 +18,8 @@
         <tr>
           <td>
             {{-- Foto Lingkaran --}}
-            @if($m->photo_path)
-              <img src="{{ asset('storage/' . $m->photo_path) }}"
+            @if($m->photo_url)
+              <img src="{{ $m->photo_url }}"
                    alt="{{ $m->name }}"
                    style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--primary);display:block">
             @else

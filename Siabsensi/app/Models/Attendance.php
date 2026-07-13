@@ -48,6 +48,12 @@ class Attendance extends Model
         'absen_at' => 'datetime',
     ];
 
+    public function scopeDaily($query)
+    {
+        return $query->whereNull('kegiatan_id')
+            ->whereNull('sesi_id');
+    }
+
     public function mahasiswa()
     {
         return $this->belongsTo(Mahasiswa::class, 'mahasiswa_id', 'id');
@@ -71,6 +77,11 @@ class Attendance extends Model
     public function absenBy()
     {
         return $this->belongsTo(User::class, 'absen_by', 'username');
+    }
+
+    public function sessionAttendances()
+    {
+        return $this->hasMany(AttendanceSesi::class, 'attendance_id', 'id');
     }
 
     /**

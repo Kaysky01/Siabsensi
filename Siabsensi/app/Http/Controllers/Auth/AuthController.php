@@ -16,6 +16,12 @@ class AuthController extends Controller
 
     public function auth(Request $request)
     {
+        if (Auth::check()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
@@ -142,4 +148,3 @@ class AuthController extends Controller
         ]);
     }
 }
-

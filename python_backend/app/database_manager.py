@@ -137,6 +137,11 @@ class DatabaseManager:
             cursor.execute("ALTER TABLE attendance ADD COLUMN kegiatan_id BIGINT UNSIGNED NULL")
         except mysql.connector.Error:
             pass  # Column already exists
+
+        try:
+            cursor.execute("ALTER TABLE attendance ADD COLUMN sesi_id BIGINT UNSIGNED NULL")
+        except mysql.connector.Error:
+            pass  # Column already exists
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS camera_streams (
@@ -270,7 +275,7 @@ class DatabaseManager:
             )
         else:
             existing = self._execute(
-                "SELECT * FROM attendance WHERE mahasiswa_id = %s AND date = %s",
+                "SELECT * FROM attendance WHERE mahasiswa_id = %s AND date = %s AND kegiatan_id IS NULL AND sesi_id IS NULL",
                 (mahasiswa_id, today),
                 fetch_one=True
             )
@@ -322,7 +327,7 @@ class DatabaseManager:
             else:
                 self._execute("""
                     UPDATE attendance SET check_out = %s, check_out_time = %s, snapshot_path = %s
-                    WHERE mahasiswa_id = %s AND date = %s
+                    WHERE mahasiswa_id = %s AND date = %s AND kegiatan_id IS NULL AND sesi_id IS NULL
                 """, (time_str, just_time_str, snapshot_path, mahasiswa_id, today))
             return {'status': 'checked_out', 'time': just_time_str}
 

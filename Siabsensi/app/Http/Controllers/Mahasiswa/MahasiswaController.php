@@ -133,7 +133,10 @@ class MahasiswaController extends Controller
     public function profile()
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
-        return view('mahasiswa.profile', compact('mahasiswa'));
+        $missingProfileFields = $mahasiswa->getMissingProfileFields();
+        $isProfileComplete = $mahasiswa->hasCompleteProfile();
+
+        return view('mahasiswa.profile', compact('mahasiswa', 'missingProfileFields', 'isProfileComplete'));
     }
 
     public function updateProfileData(Request $request)
@@ -142,7 +145,9 @@ class MahasiswaController extends Controller
         
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'nullable|email',
+            'email' => 'nullable|email|unique:mahasiswa,email,' . $mahasiswa->id . ',id',
+            'no_telp_mahasiswa' => 'nullable|string|max:20',
+            'no_telp_ortu' => 'nullable|string|max:20',
         ]);
         
         if ($request->filled('new_password')) {
@@ -157,8 +162,11 @@ class MahasiswaController extends Controller
             $user->update(['password' => Hash::make($request->new_password)]);
         }
 
-        $mahasiswa->update($request->only('name', 'email'));
-        $mahasiswa->user()->update($request->only('name', 'email'));
+        $mahasiswa->update($request->only('name', 'email', 'no_telp_mahasiswa', 'no_telp_ortu'));
+        $mahasiswa->user()->update([
+            'full_name' => $request->name,
+            'email' => $request->email,
+        ]);
 
         return back()->with('success', 'Profil berhasil diperbarui.');
     }
@@ -222,6 +230,12 @@ class MahasiswaController extends Controller
     public function qrCode()
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
+        $missingProfileFields = $mahasiswa->getMissingProfileFields();
+        $isProfileComplete = $mahasiswa->hasCompleteProfile();
+
+        if (!$isProfileComplete) {
+            return view('mahasiswa.qr-code', compact('mahasiswa', 'missingProfileFields', 'isProfileComplete'));
+        }
         
         // Get jurusan folder
         $jurusanFolder = $mahasiswa->jurusan;
@@ -249,7 +263,14 @@ class MahasiswaController extends Controller
         $templateDepan = "static/img/{$jurusanFolder}/Depan.jpg";
         $templateBelakang = "static/img/{$jurusanFolder}/Belakang.jpg";
         
-        return view('mahasiswa.qr-code', compact('mahasiswa', 'qrImage', 'templateDepan', 'templateBelakang'));
+        return view('mahasiswa.qr-code', compact(
+            'mahasiswa',
+            'qrImage',
+            'templateDepan',
+            'templateBelakang',
+            'missingProfileFields',
+            'isProfileComplete'
+        ));
     }
 
     public function izin()

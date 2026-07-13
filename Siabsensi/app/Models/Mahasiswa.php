@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Mahasiswa extends Model
 {
@@ -66,6 +67,73 @@ class Mahasiswa extends Model
     public function sertifikatHistories()
     {
         return $this->hasMany(SertifikatHistory::class, 'mahasiswa_id', 'id');
+    }
+
+    public function getRequiredProfileFields(): array
+    {
+        return [
+            'id' => 'Nomor registrasi',
+            'name' => 'Nama lengkap',
+            'jurusan' => 'Jurusan Polinela',
+            'prodi' => 'Prodi Polinela',
+            'tanggal_lahir' => 'Tanggal lahir',
+            'email' => 'Email',
+            'no_telp_mahasiswa' => 'No. telp mahasiswa',
+            'no_telp_ortu' => 'No. telp orang tua',
+            'photo_path' => 'Foto profil',
+        ];
+    }
+
+    public function getMissingProfileFields(): array
+    {
+        $missingFields = [];
+
+        foreach ($this->getRequiredProfileFields() as $field => $label) {
+            if ($field === 'photo_path') {
+                if (!$this->hasValidProfilePhoto()) {
+                    $missingFields[$field] = $label;
+                }
+
+                continue;
+            }
+
+            $value = $this->{$field} ?? null;
+
+            if (is_string($value)) {
+                $value = trim($value);
+            }
+
+            if (blank($value)) {
+                $missingFields[$field] = $label;
+            }
+        }
+
+        return $missingFields;
+    }
+
+    public function hasValidProfilePhoto(): bool
+    {
+        $photoPath = is_string($this->photo_path) ? trim($this->photo_path) : null;
+
+        if (blank($photoPath)) {
+            return false;
+        }
+
+        return Storage::disk('public')->exists($photoPath);
+    }
+
+    public function getPhotoUrlAttribute(): ?string
+    {
+        if (!$this->hasValidProfilePhoto()) {
+            return null;
+        }
+
+        return url('/file-bukti/' . ltrim($this->photo_path, '/'));
+    }
+
+    public function hasCompleteProfile(): bool
+    {
+        return empty($this->getMissingProfileFields());
     }
 
     public function calculateAlphaCount($startDate, $endDate)

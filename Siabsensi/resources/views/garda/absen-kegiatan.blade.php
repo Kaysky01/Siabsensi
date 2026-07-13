@@ -4,6 +4,7 @@
 @section('content')
 <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+@php($eligibleTotal = count($eligibleMahasiswaIds))
 
 <section>
   <div class="page-header">
@@ -56,11 +57,14 @@
   <div class="panel">
     <form method="POST" action="{{ route('garda.absensi-manual.store', $sesi->id) }}" id="absensi-form">
       @csrf
+      <input type="hidden" name="search" value="{{ $search }}">
+      <input type="hidden" name="select_all_eligible" id="select-all-eligible" value="0">
+      <div id="excluded-ids-container"></div>
       
       <div class="section-header" style="margin-bottom:16px">
         <div>
           <div class="section-title">Daftar Mahasiswa</div>
-          <div class="section-sub">Centang mahasiswa yang hadir</div>
+          <div class="section-sub">Hanya mahasiswa yang sudah absen masuk harian yang bisa diabsen per sesi</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <button type="button" class="btn btn-ghost btn-sm" onclick="checkAll()">
@@ -74,7 +78,17 @@
       </div>
 
       <div style="margin-bottom:16px">
-        <input type="text" id="search-box" class="form-input" placeholder="Cari mahasiswa..." onkeyup="filterMahasiswa()">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="search-box" class="form-input" placeholder="Cari mahasiswa..." value="{{ $search }}" onkeydown="if(event.key === 'Enter'){ event.preventDefault(); applySearch(); }">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="applySearch()">
+            <span class="material-symbols-outlined" style="font-size:16px">search</span> Cari
+          </button>
+          @if($search !== '')
+          <a href="{{ route('garda.absen-kegiatan', $sesi->id) }}" class="btn btn-ghost btn-sm">
+            <span class="material-symbols-outlined" style="font-size:16px">refresh</span> Reset
+          </a>
+          @endif
+        </div>
       </div>
 
       <div style="overflow-x:auto;max-height:600px;overflow-y:auto;border:1px solid var(--border-color);border-radius:8px">
@@ -97,6 +111,7 @@
                        value="{{ $mhs->id }}" 
                        class="checkbox-hadir"
                        {{ isset($attendances[$mhs->id]) ? 'checked' : '' }}
+                       {{ !isset($dailyAttendances[$mhs->id]) ? 'disabled' : '' }}
                        onchange="updateCount()">
               </td>
               <td><strong>{{ $mhs->name }}</strong></td>
@@ -111,8 +126,13 @@
                   @ {{ $attendances[$mhs->id]->absen_at->format('H:i') }}
                 </small>
                 @endif
+                @elseif(!isset($dailyAttendances[$mhs->id]))
+                <span class="badge badge-yellow">Belum Absen Masuk</span>
+                <small style="color:var(--text-muted);display:block;margin-top:4px">
+                  Tidak eligible untuk absensi sesi
+                </small>
                 @else
-                <span class="badge badge-gray">Belum Hadir</span>
+                <span class="badge badge-gray">Belum Hadir Sesi</span>
                 @endif
               </td>
             </tr>
@@ -137,6 +157,7 @@
       <div style="margin-top:24px;padding-top:24px;border-top:2px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
         <div>
           <div style="font-size:14px;color:var(--text-muted)">Total Mahasiswa: <strong>{{ $mahasiswaPaginated->total() }}</strong></div>
+          <div style="font-size:14px;color:var(--text-muted)">Eligible Sesi: <strong>{{ $eligibleTotal }}</strong></div>
           <div style="font-size:14px;color:var(--text-muted)">Yang Hadir Sebelumnya: <strong>{{ $attendances->count() }}</strong></div>
         </div>
         <button type="submit" class="btn btn-primary" onclick="return confirmSave()">
@@ -151,7 +172,8 @@
       <strong>⚠️ Perhatian:</strong>
       <ul style="margin:8px 0 0 20px">
         <li>Menyimpan absensi akan <strong>mengganti semua data absensi sebelumnya</strong> untuk sesi ini</li>
-        <li>Hanya mahasiswa yang dicentang yang akan tercatat hadir</li>
+        <li>Hanya mahasiswa yang sudah absen masuk harian dan dicentang yang akan tercatat hadir sesi</li>
+        <li>Mahasiswa yang belum absen masuk harian otomatis tidak bisa diabsen sesi</li>
         <li>Pastikan Anda sudah memeriksa dengan teliti sebelum menyimpan</li>
       </ul>
     </div>
@@ -163,7 +185,7 @@ function toggleAll(checkbox) {
   const checkboxes = document.querySelectorAll('.checkbox-hadir');
   const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
     const row = cb.closest('.mahasiswa-row');
-    return row && row.style.display !== 'none';
+    return row && row.style.display !== 'none' && !cb.disabled;
   });
   
   visibleCheckboxes.forEach(cb => {
@@ -174,19 +196,29 @@ function toggleAll(checkbox) {
 
 function checkAll() {
   const checkboxes = document.querySelectorAll('.checkbox-hadir');
-  const visibleCheckboxes = Array.from(checkboxes).filter(cb => {
-    const row = cb.closest('.mahasiswa-row');
-    return row && row.style.display !== 'none';
-  });
-  
-  visibleCheckboxes.forEach(cb => {
-    cb.checked = true;
+  document.getElementById('select-all-eligible').value = '1';
+  document.getElementById('excluded-ids-container').innerHTML = '';
+  checkboxes.forEach(cb => {
+    if (!cb.disabled) {
+      cb.checked = true;
+    }
   });
   updateCount();
 }
 
+function applySearch() {
+  const search = document.getElementById('search-box').value || '';
+  const url = new URL('{{ route('garda.absen-kegiatan', $sesi->id) }}', window.location.origin);
+  if (search.trim() !== '') {
+    url.searchParams.set('search', search.trim());
+  }
+  window.location.href = url.toString();
+}
+
 function uncheckAll() {
   const checkboxes = document.querySelectorAll('.checkbox-hadir');
+  document.getElementById('select-all-eligible').value = '0';
+  document.getElementById('excluded-ids-container').innerHTML = '';
   checkboxes.forEach(cb => {
     cb.checked = false;
   });
@@ -194,31 +226,37 @@ function uncheckAll() {
 }
 
 function updateCount() {
-  const checked = document.querySelectorAll('.checkbox-hadir:checked').length;
+  const selectAll = document.getElementById('select-all-eligible').value === '1';
+  const excluded = document.querySelectorAll('#excluded-ids-container input[name="excluded_ids[]"]').length;
+  const checked = selectAll
+    ? Math.max({{ $eligibleTotal }} - excluded, 0)
+    : document.querySelectorAll('.checkbox-hadir:checked:not(:disabled)').length;
   document.getElementById('count-display').textContent = checked + ' dipilih';
 }
 
-function filterMahasiswa() {
-  const searchTerm = document.getElementById('search-box').value.toLowerCase();
-  const rows = document.querySelectorAll('.mahasiswa-row');
-  
-  rows.forEach(row => {
-    const name = row.dataset.name;
-    const kompi = row.dataset.kompi;
-    
-    if (name.includes(searchTerm) || kompi.includes(searchTerm)) {
-      row.style.display = '';
-    } else {
-      row.style.display = 'none';
+function syncExcludedIds() {
+  const selectAll = document.getElementById('select-all-eligible').value === '1';
+  const container = document.getElementById('excluded-ids-container');
+  if (!selectAll) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const excludedIds = [];
+  document.querySelectorAll('.checkbox-hadir:not(:disabled)').forEach(cb => {
+    if (!cb.checked) {
+      excludedIds.push(cb.value);
     }
   });
-  
-  updateCount();
+
+  container.innerHTML = excludedIds.map(id =>
+    `<input type="hidden" name="excluded_ids[]" value="${id}">`
+  ).join('');
 }
 
 function confirmSave() {
-  const checked = document.querySelectorAll('.checkbox-hadir:checked').length;
-  const total = {{ $mahasiswaPaginated->total() }};
+  const checked = document.querySelectorAll('.checkbox-hadir:checked:not(:disabled)').length;
+  const total = {{ $eligibleTotal }};
   
   if (checked === 0) {
     Swal.fire({
@@ -273,6 +311,12 @@ function confirmSave() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.checkbox-hadir').forEach(cb => {
+    cb.addEventListener('change', function() {
+      syncExcludedIds();
+      updateCount();
+    });
+  });
   updateCount();
 });
 </script>
@@ -290,6 +334,11 @@ document.addEventListener('DOMContentLoaded', function() {
   width: 18px;
   height: 18px;
   cursor: pointer;
+}
+
+.checkbox-hadir:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 #select-all {
@@ -335,6 +384,11 @@ document.addEventListener('DOMContentLoaded', function() {
 .badge-gray {
   background: var(--border-color);
   color: var(--text-muted);
+}
+
+.badge-yellow {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .btn {

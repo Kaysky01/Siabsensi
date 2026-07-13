@@ -40,21 +40,21 @@
       </div>
     </div>
     <div class="info-card">
+      <div class="info-icon" style="background:#dbeafe;color:#1d4ed8">
+        <span class="material-symbols-outlined">login</span>
+      </div>
+      <div class="info-content">
+        <div class="info-value">{{ $eligibleTotal }}</div>
+        <div class="info-label">Sudah Absen Masuk</div>
+      </div>
+    </div>
+    <div class="info-card">
       <div class="info-icon" style="background:var(--success-light);color:var(--success)">
         <span class="material-symbols-outlined">check_circle</span>
       </div>
       <div class="info-content">
         <div class="info-value">{{ $totalHadir }}</div>
-        <div class="info-label">Hadir</div>
-      </div>
-    </div>
-    <div class="info-card">
-      <div class="info-icon" style="background:var(--danger-light);color:var(--danger)">
-        <span class="material-symbols-outlined">cancel</span>
-      </div>
-      <div class="info-content">
-        <div class="info-value">{{ $totalMahasiswa - $totalHadir }}</div>
-        <div class="info-label">Tidak Hadir</div>
+        <div class="info-label">Hadir Sesi</div>
       </div>
     </div>
     <div class="info-card">
@@ -62,8 +62,8 @@
         <span class="material-symbols-outlined">percent</span>
       </div>
       <div class="info-content">
-        <div class="info-value">{{ $totalMahasiswa > 0 ? round(($totalHadir / $totalMahasiswa) * 100, 1) : 0 }}%</div>
-        <div class="info-label">Kehadiran</div>
+        <div class="info-value">{{ $eligibleTotal > 0 ? round(($totalHadir / $eligibleTotal) * 100, 1) : 0 }}%</div>
+        <div class="info-label">Kehadiran Sesi</div>
       </div>
     </div>
   </div>
@@ -71,26 +71,32 @@
   {{-- Filter & Search --}}
   <div class="panel" style="margin-bottom:16px">
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-      <input type="text" id="search-box" class="form-input" placeholder="Cari mahasiswa..." style="flex:1;min-width:200px" onkeyup="filterTable()">
+      <form method="GET" action="{{ route('admin.monitoring-sesi', $sesi->id) }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;width:100%">
+      <input type="text" name="search" class="form-input" placeholder="Cari mahasiswa..." style="flex:1;min-width:200px" value="{{ $search }}">
       
-      <select id="filter-status" class="form-input" style="width:150px" onchange="filterTable()">
+      <select name="status" class="form-input" style="width:170px">
         <option value="">Semua Status</option>
-        <option value="hadir">Hadir</option>
-        <option value="belum">Belum Hadir</option>
+        <option value="hadir" {{ $status === 'hadir' ? 'selected' : '' }}>Hadir</option>
+        <option value="belum_sesi" {{ $status === 'belum_sesi' ? 'selected' : '' }}>Belum Hadir Sesi</option>
+        <option value="belum_masuk" {{ $status === 'belum_masuk' ? 'selected' : '' }}>Belum Absen Masuk</option>
       </select>
       
       @if(auth()->user()->role !== 'garda')
-      <select id="filter-kompi" class="form-input" style="width:150px" onchange="filterTable()">
+      <select name="kompi" class="form-input" style="width:170px">
         <option value="">Semua Kompi</option>
-        @foreach($mahasiswaPaginated->pluck('kompi')->unique()->sort() as $kompi)
-        <option value="{{ $kompi }}">{{ $kompi }}</option>
+        @foreach($kompiOptions as $kompiOption)
+        <option value="{{ $kompiOption }}" {{ $kompi === $kompiOption ? 'selected' : '' }}>{{ $kompiOption }}</option>
         @endforeach
       </select>
       @endif
       
-      <button class="btn btn-ghost btn-sm" onclick="resetFilters()">
-        <span class="material-symbols-outlined" style="font-size:16px">refresh</span> Reset
+      <button type="submit" class="btn btn-primary btn-sm">
+        <span class="material-symbols-outlined" style="font-size:16px">search</span> Terapkan
       </button>
+      <a href="{{ route('admin.monitoring-sesi', $sesi->id) }}" class="btn btn-ghost btn-sm">
+        <span class="material-symbols-outlined" style="font-size:16px">refresh</span> Reset
+      </a>
+      </form>
     </div>
   </div>
 
@@ -115,16 +121,18 @@
               data-name="{{ strtolower($mhs->name) }}" 
               data-kompi="{{ strtolower($mhs->kompi) }}"
               data-prodi="{{ strtolower($mhs->prodi) }}"
-              data-status="{{ isset($attendances[$mhs->id]) ? 'hadir' : 'belum' }}">
+              data-status="{{ isset($attendances[$mhs->id]) ? 'hadir' : (isset($dailyAttendances[$mhs->id]) ? 'belum_sesi' : 'belum_masuk') }}">
             <td>{{ ($mahasiswaPaginated->currentPage() - 1) * $mahasiswaPaginated->perPage() + $index + 1 }}</td>
             <td><strong>{{ $mhs->name }}</strong></td>
             <td>{{ $mhs->kompi }}</td>
             <td>{{ $mhs->prodi }}</td>
             <td>
               @if(isset($attendances[$mhs->id]))
-              <span class="badge badge-green">✓ Hadir</span>
+              <span class="badge badge-green">✓ Hadir Sesi</span>
+              @elseif(!isset($dailyAttendances[$mhs->id]))
+              <span class="badge badge-yellow">Belum Absen Masuk</span>
               @else
-              <span class="badge badge-gray">− Belum Hadir</span>
+              <span class="badge badge-gray">− Belum Hadir Sesi</span>
               @endif
             </td>
             <td>
@@ -165,44 +173,6 @@
     </div>
   </div>
 </section>
-
-<script>
-function filterTable() {
-  const searchTerm = document.getElementById('search-box').value.toLowerCase();
-  const statusFilter = document.getElementById('filter-status').value;
-  const kompiFilter = document.getElementById('filter-kompi') ? document.getElementById('filter-kompi').value.toLowerCase() : '';
-  
-  const rows = document.querySelectorAll('.table-row');
-  let visibleCount = 0;
-  
-  rows.forEach(row => {
-    const name = row.dataset.name;
-    const kompi = row.dataset.kompi;
-    const prodi = row.dataset.prodi;
-    const status = row.dataset.status;
-    
-    const matchSearch = name.includes(searchTerm) || kompi.includes(searchTerm) || prodi.includes(searchTerm);
-    const matchStatus = !statusFilter || status === statusFilter;
-    const matchKompi = !kompiFilter || kompi === kompiFilter;
-    
-    if (matchSearch && matchStatus && matchKompi) {
-      row.style.display = '';
-      visibleCount++;
-    } else {
-      row.style.display = 'none';
-    }
-  });
-}
-
-function resetFilters() {
-  document.getElementById('search-box').value = '';
-  document.getElementById('filter-status').value = '';
-  if (document.getElementById('filter-kompi')) {
-    document.getElementById('filter-kompi').value = '';
-  }
-  filterTable();
-}
-</script>
 
 <style>
 /* Info Cards */
@@ -287,6 +257,11 @@ function resetFilters() {
 
 .att-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.badge-yellow {
+  background: #fef3c7;
+  color: #92400e;
 }
 </style>
 @endsection

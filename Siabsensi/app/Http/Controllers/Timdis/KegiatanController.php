@@ -129,7 +129,7 @@ class KegiatanController extends Controller
         $sesi = KegiatanSesi::findOrFail($sesiId);
         
         // Delete all attendance records for this sesi
-        DB::table('attendance')->where('sesi_id', $sesiId)->delete();
+        DB::table('attendance_sesi')->where('sesi_id', $sesiId)->delete();
         
         $sesi->delete();
 
@@ -137,6 +137,5 @@ class KegiatanController extends Controller
             ->with('success', 'Sesi dan seluruh data absensinya berhasil dihapus');
     }
 }
-
 
 

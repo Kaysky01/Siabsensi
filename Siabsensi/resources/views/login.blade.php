@@ -22,6 +22,13 @@
         <div class="login-subtitle">Masuk ke sistem absensi cerdas</div>
       </div>
 
+      @if(auth()->check())
+      <div style="margin-bottom:16px;padding:12px 14px;border-radius:10px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:13px;line-height:1.6">
+        Anda sedang login sebagai <strong>{{ auth()->user()->full_name ?? auth()->user()->username }}</strong>.
+        Jika Anda masuk dengan akun lain, sesi akun saat ini akan otomatis diganti.
+      </div>
+      @endif
+
       <form id="login-form" action="{{ route('auth') }}" method="POST">
         @csrf
         <div class="form-group">

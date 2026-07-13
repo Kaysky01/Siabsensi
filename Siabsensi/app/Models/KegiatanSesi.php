@@ -45,7 +45,7 @@ class KegiatanSesi extends Model
      */
     public function attendances()
     {
-        return $this->hasMany(Attendance::class, 'sesi_id', 'id');
+        return $this->hasMany(AttendanceSesi::class, 'sesi_id', 'id');
     }
 
     /**
@@ -54,7 +54,6 @@ class KegiatanSesi extends Model
     public function getTotalHadirAttribute(): int
     {
         return $this->attendances()
-            ->whereNotNull('check_in')
             ->count();
     }
 

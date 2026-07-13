@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Garda;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\AttendanceSesi;
 use App\Models\KegiatanSesi;
 use App\Models\Mahasiswa;
 use App\Models\PkkmbSchedule;
@@ -36,6 +37,7 @@ class AttendanceController extends Controller
     public function manualAttendance($sesiId)
     {
         $user = Auth::user();
+        $search = trim((string) request('search', ''));
         
         if (!$user->assigned_kompi) {
             return redirect()->route('garda.dashboard')->with('error', 'Kompi belum ditugaskan');
@@ -48,32 +50,50 @@ class AttendanceController extends Controller
             abort(500, 'Tanggal tidak ditemukan untuk sesi ini');
         }
 
-        $mahasiswaList = Mahasiswa::where('is_active', 1)
+        $mahasiswaQuery = Mahasiswa::where('is_active', 1)
             ->where('kompi', $user->assigned_kompi)
-            ->orderBy('name')
-            ->get();
+            ->orderBy('name');
 
-        $attendances = Attendance::where('sesi_id', $sesiId)
-            ->whereIn('mahasiswa_id', $mahasiswaList->pluck('id'))
+        if ($search !== '') {
+            $mahasiswaQuery->where(function ($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%")
+                    ->orWhere('prodi', 'like', "%{$search}%");
+            });
+        }
+
+        $filteredMahasiswaIds = (clone $mahasiswaQuery)->pluck('id');
+        $dailyAttendances = Attendance::daily()
+            ->where('date', $tanggal->format('Y-m-d'))
+            ->whereNotNull('check_in')
+            ->whereIn('mahasiswa_id', $filteredMahasiswaIds)
+            ->get()
+            ->keyBy('mahasiswa_id');
+
+        $attendances = AttendanceSesi::where('sesi_id', $sesiId)
+            ->whereIn('mahasiswa_id', $filteredMahasiswaIds)
             ->get()
             ->keyBy('mahasiswa_id');
         
-        $perPage = 20;
-        $currentPage = request()->get('page', 1);
-        $mahasiswaPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
-            $mahasiswaList->forPage($currentPage, $perPage),
-            $mahasiswaList->count(),
-            $perPage,
-            $currentPage,
-            ['path' => request()->url(), 'query' => request()->query()]
-        );
+        $mahasiswaPaginated = (clone $mahasiswaQuery)
+            ->paginate(20)
+            ->withQueryString();
+        $eligibleMahasiswaIds = $dailyAttendances->keys()->values()->all();
 
-        return view('garda.absen-kegiatan', compact('sesi', 'mahasiswaPaginated', 'attendances'));
+        return view('garda.absen-kegiatan', compact(
+            'sesi',
+            'mahasiswaPaginated',
+            'attendances',
+            'dailyAttendances',
+            'eligibleMahasiswaIds',
+            'search'
+        ));
     }
 
     public function absenKegiatan($sesiId)
     {
         $user = Auth::user();
+        $search = trim((string) request('search', ''));
         
         if (!$user->assigned_kompi) {
             return redirect()->route('garda.dashboard')->with('error', 'Kompi belum ditugaskan');
@@ -86,27 +106,44 @@ class AttendanceController extends Controller
             abort(500, 'Tanggal tidak ditemukan untuk sesi ini');
         }
 
-        $mahasiswaList = Mahasiswa::where('is_active', 1)
+        $mahasiswaQuery = Mahasiswa::where('is_active', 1)
             ->where('kompi', $user->assigned_kompi)
-            ->orderBy('name')
-            ->get();
+            ->orderBy('name');
 
-        $attendances = Attendance::where('sesi_id', $sesiId)
-            ->whereIn('mahasiswa_id', $mahasiswaList->pluck('id'))
+        if ($search !== '') {
+            $mahasiswaQuery->where(function ($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%")
+                    ->orWhere('prodi', 'like', "%{$search}%");
+            });
+        }
+
+        $filteredMahasiswaIds = (clone $mahasiswaQuery)->pluck('id');
+        $dailyAttendances = Attendance::daily()
+            ->where('date', $tanggal->format('Y-m-d'))
+            ->whereNotNull('check_in')
+            ->whereIn('mahasiswa_id', $filteredMahasiswaIds)
             ->get()
             ->keyBy('mahasiswa_id');
 
-        $perPage = 20;
-        $currentPage = request()->get('page', 1);
-        $mahasiswaPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
-            $mahasiswaList->forPage($currentPage, $perPage),
-            $mahasiswaList->count(),
-            $perPage,
-            $currentPage,
-            ['path' => request()->url(), 'query' => request()->query()]
-        );
+        $attendances = AttendanceSesi::where('sesi_id', $sesiId)
+            ->whereIn('mahasiswa_id', $filteredMahasiswaIds)
+            ->get()
+            ->keyBy('mahasiswa_id');
 
-        return view('garda.absen-kegiatan', compact('sesi', 'mahasiswaPaginated', 'attendances'));
+        $mahasiswaPaginated = (clone $mahasiswaQuery)
+            ->paginate(20)
+            ->withQueryString();
+        $eligibleMahasiswaIds = $dailyAttendances->keys()->values()->all();
+
+        return view('garda.absen-kegiatan', compact(
+            'sesi',
+            'mahasiswaPaginated',
+            'attendances',
+            'dailyAttendances',
+            'eligibleMahasiswaIds',
+            'search'
+        ));
     }
 
     public function store(Request $request, $sesiId)
@@ -122,6 +159,10 @@ class AttendanceController extends Controller
         $validated = $request->validate([
             'hadir' => 'nullable|array',
             'hadir.*' => 'exists:mahasiswa,id',
+            'search' => 'nullable|string',
+            'select_all_eligible' => 'nullable|boolean',
+            'excluded_ids' => 'nullable|array',
+            'excluded_ids.*' => 'exists:mahasiswa,id',
         ]);
 
         $hadirIds = $validated['hadir'] ?? [];
@@ -144,19 +185,66 @@ class AttendanceController extends Controller
                 ->pluck('id')
                 ->toArray();
 
-            Attendance::where('sesi_id', $sesiId)
-                ->whereIn('mahasiswa_id', $allMahasiswaIds)
+            $search = trim((string) ($validated['search'] ?? ''));
+            $targetMahasiswaIds = $allMahasiswaIds;
+            if ($search !== '') {
+                $targetMahasiswaIds = Mahasiswa::where('is_active', 1)
+                    ->where('kompi', $user->assigned_kompi)
+                    ->where(function ($query) use ($search) {
+                        $query->where('name', 'like', "%{$search}%")
+                            ->orWhere('id', 'like', "%{$search}%")
+                            ->orWhere('prodi', 'like', "%{$search}%");
+                    })
+                    ->pluck('id')
+                    ->toArray();
+            }
+
+            $eligibleDailyAttendances = Attendance::daily()
+                ->where('date', $date)
+                ->whereNotNull('check_in')
+                ->whereIn('mahasiswa_id', $targetMahasiswaIds)
+                ->get()
+                ->keyBy('mahasiswa_id');
+
+            if ($request->boolean('select_all_eligible')) {
+                $eligibleMahasiswaQuery = Mahasiswa::where('is_active', 1)
+                    ->where('kompi', $user->assigned_kompi)
+                    ->whereIn('id', $eligibleDailyAttendances->keys()->all());
+
+                if ($search !== '') {
+                    $eligibleMahasiswaQuery->where(function ($query) use ($search) {
+                        $query->where('name', 'like', "%{$search}%")
+                            ->orWhere('id', 'like', "%{$search}%")
+                            ->orWhere('prodi', 'like', "%{$search}%");
+                    });
+                }
+
+                $excludedIds = collect($validated['excluded_ids'] ?? []);
+                $hadirIds = $eligibleMahasiswaQuery->pluck('id')
+                    ->reject(fn ($id) => $excludedIds->contains($id))
+                    ->values()
+                    ->all();
+            }
+
+            $invalidMahasiswaIds = collect($hadirIds)
+                ->reject(fn ($mahasiswaId) => $eligibleDailyAttendances->has($mahasiswaId))
+                ->values();
+
+            if ($invalidMahasiswaIds->isNotEmpty()) {
+                throw new \RuntimeException('Terdapat mahasiswa yang belum absen masuk harian sehingga tidak dapat diabsen per sesi.');
+            }
+
+            AttendanceSesi::where('sesi_id', $sesiId)
+                ->whereIn('mahasiswa_id', $targetMahasiswaIds)
                 ->delete();
 
             $attendanceData = [];
             foreach ($hadirIds as $mahasiswaId) {
                 $attendanceData[] = [
+                    'attendance_id' => $eligibleDailyAttendances[$mahasiswaId]->id,
                     'mahasiswa_id' => $mahasiswaId,
-                    'kegiatan_id' => $sesi->kegiatan_id,
                     'sesi_id' => $sesiId,
-                    'date' => $date,
                     'status' => 'present',
-                    'check_in' => $now,
                     'absen_by' => $user->username,
                     'absen_at' => $now,
                     'created_at' => $now,
@@ -164,7 +252,7 @@ class AttendanceController extends Controller
             }
 
             if (!empty($attendanceData)) {
-                Attendance::insert($attendanceData);
+                AttendanceSesi::insert($attendanceData);
             }
 
             DB::commit();
