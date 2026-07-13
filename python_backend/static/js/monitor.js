@@ -1053,6 +1053,41 @@ fetchLatestAttendance();
 // Polling setiap 2 detik untuk delta updates
 setInterval(fetchLatestAttendance, 2000);
 
+// ===== PHYSICAL BARCODE SCANNER INTEGRATION =====
+let barcodeBuffer = "";
+let lastKeyTime = Date.now();
+
+document.addEventListener('keydown', function(e) {
+    // Abaikan input jika user sedang fokus mengetik di input form atau textarea
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+    }
+
+    const currentTime = Date.now();
+    
+    // Scanner fisik mengetik sangat cepat (< 50ms antar huruf). 
+    // Jika jeda terlalu lama, anggap ketikan manual biasa dan reset buffer.
+    if (currentTime - lastKeyTime > 50) {
+        barcodeBuffer = "";
+    }
+    
+    lastKeyTime = currentTime;
+
+    // Jika Enter ditekan, proses buffer sebagai barcode (bila tidak kosong)
+    if (e.key === 'Enter') {
+        if (barcodeBuffer.length > 0) {
+            console.log("Scanner Fisik Mendeteksi:", barcodeBuffer);
+            recordAttendance(barcodeBuffer, 1.0);
+            barcodeBuffer = "";
+            e.preventDefault();
+        }
+    } 
+    // Simpan karakter tunggal (huruf/angka)
+    else if (e.key.length === 1) {
+        barcodeBuffer += e.key;
+    }
+});
+
 // Re-render tiap 10 detik untuk update countdown cooldown
 setInterval(() => {
     if (currentAttendanceList.length > 0) {
