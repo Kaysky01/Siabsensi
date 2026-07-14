@@ -340,17 +340,14 @@ class MahasiswaController extends Controller
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
         
-        $kegiatanTersedia = \App\Models\Kegiatan::where('is_active', true)
-            ->orderBy('tanggal_pelaksanaan', 'asc')
-            ->get();
-            
-        $riwayatKegiatan = Attendance::where('mahasiswa_id', $mahasiswa->id)
-            ->whereNotNull('kegiatan_id')
-            ->with('kegiatan')
-            ->orderBy('check_in', 'desc')
+        // Riwayat Sesi (UTAMA - dari attendance_sesi)
+        // Ini adalah data utama yang ditampilkan karena sistem sekarang menggunakan sesi
+        $riwayatSesi = \App\Models\AttendanceSesi::where('mahasiswa_id', $mahasiswa->id)
+            ->with(['sesi.kegiatan', 'sesi.pkkmbSchedule'])
+            ->orderBy('created_at', 'desc')
             ->get();
         
-        return view('mahasiswa.kegiatan', compact('mahasiswa', 'kegiatanTersedia', 'riwayatKegiatan'));
+        return view('mahasiswa.kegiatan', compact('mahasiswa', 'riwayatSesi'));
     }
 
     public function absenKegiatan(Request $request)

@@ -345,29 +345,29 @@
                 <div id="admin-card-depan" style="width: 1099px; height: 1537px; position: absolute; top: 0; left: 0; transform-origin: top left; background-color: white; border-radius: 30px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 2px solid var(--border-light);">
                     <!-- Dynamic background will be set via JS -->
                     
-                    <!-- Area Foto (Kiri Atas, bentuk bulat) -->
-                    <div id="admin-photo-container" style="position: absolute; top: 45%; left: 30%; width: 280px; height: 280px; z-index: 5; margin-left: -140px; display: none;">
+                    <!-- QR CODE - Center Tengah -->
+                    <div style="position: absolute; top: 56%; left: 50%; z-index: 5; background: transparent; transform: translate(-50%, -50%);">
+                        <div id="admin-qr-container" style="transform: scale(2.5); transform-origin: center center; background: transparent;"></div>
+                    </div>
+
+                    <!-- FOTO - Center Atas -->
+                    <div id="admin-photo-container" style="position: absolute; top: 18%; left: 50%; width: 280px; height: 280px; z-index: 5; transform: translateX(-50%); display: none;">
                         <!-- White border circle -->
-                        <div style="position: absolute; width: 280px; height: 280px; border-radius: 50%; background: white; box-shadow: 0 8px 24px rgba(0,0,0,0.12);"></div>
+                        <div style="position: absolute; width: 320px; height: 320px; border-radius: 50%; background: white; box-shadow: 0 12px 32px rgba(0,0,0,0.15);"></div>
                         <!-- Image container -->
-                        <div style="position: absolute; width: 265px; height: 265px; top: 7.5px; left: 7.5px; border-radius: 50%; background: white; overflow: hidden;">
-                            <img id="admin-photo-img" src="" alt="Foto" crossorigin="anonymous" style="width: 265px; height: 265px; object-fit: cover; object-position: center; display: block; border-radius: 50%;">
+                        <div style="position: absolute; width: 300px; height: 300px; top: 10px; left: 10px; border-radius: 50%; background: white; overflow: hidden;">
+                            <img id="admin-photo-img" src="" alt="Foto" crossorigin="anonymous" style="width: 300px; height: 300px; object-fit: cover; object-position: center; display: block; border-radius: 50%;">
                         </div>
                     </div>
                     
-                    <!-- QR Code (Kanan Atas, sejajar dengan foto) -->
-                    <div style="position: absolute; top: 45%; left: 65%; z-index: 5; background: transparent; margin-left: -125px;">
-                        <div id="admin-qr-container" style="transform: scale(2); transform-origin: center center; background: transparent;"></div>
+                    <!-- NAMA - Center Bawah -->
+                    <div style="position: absolute; top: 71.5%; left: 0; right: 0; text-align: center; padding: 0 60px; z-index: 10;">
+                        <div id="admin-mhs-name" style="font-size: 48px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1.15; word-break: break-word;"></div>
                     </div>
 
-                    <!-- Area Nama -->
-                    <div style="position: absolute; top: 70%; left: 0; right: 0; text-align: center; padding: 0 60px; z-index: 10;">
-                        <div id="admin-mhs-name" style="font-size: 44px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1.15; word-break: break-word;"></div>
-                    </div>
-
-                    <!-- Area Kompi & Prodi -->
-                    <div style="position: absolute; top: 75%; left: 0; right: 0; text-align: center; padding: 0 60px; z-index: 10;">
-                        <div id="admin-mhs-info" style="font-size: 32px; font-weight: 600; color: #334155; letter-spacing: 0.3px; line-height: 1.3;"></div>
+                    <!-- KOMPI | PRODI - Center Bawah -->
+                    <div style="position: absolute; top: 76%; left: 0; right: 0; text-align: center; padding: 0 60px; z-index: 10;">
+                        <div id="admin-mhs-info" style="font-size: 39.5px; font-weight: 600; color: #334155; letter-spacing: 0.3px; line-height: 1.3;"></div>
                     </div>
                 </div>
             </div>
