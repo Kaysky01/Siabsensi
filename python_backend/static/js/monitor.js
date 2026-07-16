@@ -1,4 +1,4 @@
-const API_URL = 'http://127.0.0.1:8000/api'; // Laravel Server API
+const API_URL = 'https://pkkmb.polinela.ac.id/api'; // Laravel Server API
 const PYTHON_API_URL = 'http://127.0.0.1:5000/api/python';
 const LOCAL_STORAGE_KEY = 'siabsen_local_sync_data';
 const COOLDOWN_MS = 10 * 1000; // 10 detik (sebelumnya 1 jam)
@@ -566,7 +566,7 @@ async function syncDataToServer() {
                        <p style="font-size:13px;color:#991b1b;margin-top:12px;font-family:monospace;">${err.message || err}</p>
                        <p style="margin-top:12px;font-size:13px;">Pastikan:</p>
                        <ul style="text-align:left;font-size:13px;margin-left:20px;">
-                         <li>Laravel server berjalan di <code>http://127.0.0.1:8000</code></li>
+                         <li>Laravel server berjalan di <code>https://pkkmb.polinela.ac.id</code></li>
                          <li>Python backend berjalan di <code>http://127.0.0.1:5000</code></li>
                          <li>Tidak ada firewall yang memblokir koneksi</li>
                        </ul>`,
@@ -1056,6 +1056,8 @@ setInterval(fetchLatestAttendance, 2000);
 // ===== PHYSICAL BARCODE SCANNER INTEGRATION =====
 let barcodeBuffer = "";
 let lastKeyTime = Date.now();
+let isPhysicalScannerConnected = false;
+let scannerTimeout = null;
 
 document.addEventListener('keydown', function(e) {
     // Abaikan input jika user sedang fokus mengetik di input form atau textarea
@@ -1078,6 +1080,39 @@ document.addEventListener('keydown', function(e) {
         if (barcodeBuffer.length > 0) {
             console.log("Scanner Fisik Mendeteksi:", barcodeBuffer);
             recordAttendance(barcodeBuffer, 1.0);
+            
+            // UI Indicator Update
+            const ind = document.getElementById('scanner-indicator');
+            const txt = document.getElementById('scanner-status-text');
+            if (ind && txt) {
+                ind.style.background = '#d1fae5';
+                ind.style.color = '#065f46';
+                ind.style.borderColor = '#10b981';
+                txt.textContent = 'Scanner: Terhubung';
+                
+                // Tampilkan toast hanya untuk scan pertama
+                if (!isPhysicalScannerConnected) {
+                    if (typeof showToast !== 'undefined') {
+                        showToast('Scanner Fisik Terhubung!', '#10b981');
+                    }
+                    isPhysicalScannerConnected = true;
+                }
+                
+                // Flash animasi sedikit
+                ind.style.transform = 'scale(1.05)';
+                setTimeout(() => ind.style.transform = 'scale(1)', 200);
+
+                // Reset kembali ke standby jika tidak ada aktivitas selama 10 detik
+                clearTimeout(scannerTimeout);
+                scannerTimeout = setTimeout(() => {
+                    ind.style.background = '#f3f4f6';
+                    ind.style.color = '#4b5563';
+                    ind.style.borderColor = '#d1d5db';
+                    txt.textContent = 'Scanner: Standby';
+                    isPhysicalScannerConnected = false;
+                }, 10000);
+            }
+
             barcodeBuffer = "";
             e.preventDefault();
         }
