@@ -208,6 +208,11 @@ def monitor_view():
     """Serve the local monitor frontend"""
     return render_template('monitor.html')
 
+@app.route('/scanner-test', methods=['GET'])
+def scanner_test_view():
+    """Serve the local scanner test page"""
+    return render_template('index.html')
+
 @app.route('/cctv', methods=['GET'])
 def cctv_view():
     """Serve the fullscreen CCTV frontend"""

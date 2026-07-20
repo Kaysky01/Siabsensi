@@ -96,10 +96,10 @@
                 </a>
 
                 <!-- Scanner Fisik Indicator -->
-                <div id="scanner-indicator" style="padding: 8px 12px; background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; transition: all 0.3s ease;">
+                <button id="scanner-indicator" onclick="connectSerialScanner()" style="padding: 8px 12px; background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; transition: all 0.3s ease; cursor: pointer; outline: none; border-style: solid;">
                     <span class="material-symbols-outlined" style="font-size: 16px;">qr_code_scanner</span>
-                    <span id="scanner-status-text">Scanner: Standby</span>
-                </div>
+                    <span id="scanner-status-text">Hubungkan Scanner (Serial)</span>
+                </button>
 
                 <!-- Info: sinkronisasi otomatis by tanggal -->
                 <div style="width:100%;margin-top:4px;padding:6px 10px;background:#f0fdf4;border-radius:6px;border:1px solid #bbf7d0;font-size:12px;color:#166534;display:flex;align-items:center;gap:6px">

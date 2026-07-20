@@ -293,8 +293,8 @@ function startQRDetection(videoElement) {
         // Dynamic delay: Sesuaikan kecepatan dengan jumlah kamera yang aktif
         // Jika banyak kamera, beri jeda lebih lama agar CPU Python tidak hang
         const activeCount = activeStreams.size > 0 ? activeStreams.size : 1;
-        const dynamicDelay = Math.max(1000, activeCount * 600); 
-        
+        const dynamicDelay = Math.max(1000, activeCount * 600);
+
         setTimeout(detectFrame, dynamicDelay);
     }
 
@@ -319,7 +319,7 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
         });
 
         const data = await res.json();
-        
+
         // Handle SweetAlert if server sends show_alert flag
         if (data.show_alert && typeof Swal !== 'undefined') {
             Swal.fire({
@@ -329,7 +329,7 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
                 confirmButtonColor: data.alert_type === 'error' ? '#ef4444' : (data.alert_type === 'warning' ? '#f59e0b' : '#3b82f6')
             });
         }
-        
+
         if (res.ok) {
             if (data.success) {
                 // === SIMPAN KE LOCAL UNTUK SYNC NANTI ===
@@ -340,7 +340,7 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
                     playBeep();
                     const actionText = data.result.status === 'checked_in' ? 'absen masuk' : 'absen pulang';
                     const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
-                    
+
                     // Show toast if no alert
                     if (!data.show_alert) {
                         showToast(`${mahasiswaName} berhasil ${actionText}`);
@@ -368,7 +368,7 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
             // Alert already shown by show_alert flag above
             const msg = data.message || `Error ${res.status}`;
             console.warn('[Attendance]', msg);
-            
+
             // Only show toast if no alert was displayed
             if (!data.show_alert) {
                 showToast(msg, res.status >= 500 ? '#ef4444' : '#f97316');
@@ -391,13 +391,13 @@ function getLocalSyncData() {
 function getLocalTime() {
     const now = new Date();
     const pad = n => n < 10 ? '0' + n : n;
-    return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 }
 
 function saveToLocalSync(responseData) {
     const data = getLocalSyncData();
     const actionTime = responseData.result.time || getLocalTime();
-    
+
     // For monitor view (no kegiatan selector), always use null for daily attendance
     const kegiatanId = null;
 
@@ -489,16 +489,16 @@ async function syncDataToServer() {
 
         if (res.ok) {
             const resData = await res.json();
-            
+
             // Check for rejections
             const rejectedCount = resData.rejected_count || 0;
             const syncedCount = resData.synced_count || 0;
             const rejectionReasons = resData.rejection_reasons || [];
-            
+
             if (rejectedCount > 0) {
                 // Some data was rejected
                 console.warn("Beberapa data ditolak:", rejectionReasons);
-                
+
                 // Mark only successfully synced data
                 // For now, mark all as synced since we don't know which ones were rejected
                 // In production, Laravel should return IDs of successfully synced records
@@ -506,7 +506,7 @@ async function syncDataToServer() {
                     if (!d.synced) d.synced = true;
                 });
                 localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-                
+
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         title: 'Sinkronisasi Selesai',
@@ -548,7 +548,7 @@ async function syncDataToServer() {
                     showToast("Sinkronisasi berhasil!", "#10b981");
                 }
             }
-            
+
             if (btn) btn.textContent = 'Sync ke Server';
 
             // Re-render
@@ -608,13 +608,13 @@ function executeClearLocalData() {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     sessionStorage.removeItem('siabsen_checkin_times');
     currentAttendanceList = [];
-    
+
     // Hapus file backup excel di python
     fetch(`${PYTHON_API_URL}/backup`, { method: 'DELETE' })
         .catch(err => console.warn('Gagal menghapus file excel backup lokal', err));
 
     // Reset in-memory attendance state di Python
-    fetch(`${PYTHON_API_URL}/reset-state`, { 
+    fetch(`${PYTHON_API_URL}/reset-state`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -627,7 +627,7 @@ function executeClearLocalData() {
     if (typeof updateStats === 'function') {
         updateStats([]);
     }
-    
+
     if (typeof Swal !== 'undefined') {
         Swal.fire('Terhapus!', 'Data absensi lokal dan file excel backup telah dibersihkan.', 'success');
     } else {
@@ -949,7 +949,7 @@ function playBeep() {
         console.warn('[SIABSEN] Audio belum diaktifkan. Klik "Aktifkan Suara" terlebih dahulu.');
         return;
     }
-    
+
     try {
         // Reset ke awal dan play
         beepSound.currentTime = 0;
@@ -999,12 +999,12 @@ async function loadKegiatan() {
                 if (saved) {
                     select.value = saved;
                 }
-                
+
                 // Save on change with confirmation
                 select.addEventListener('change', async (e) => {
                     const newValue = e.target.value;
                     const oldValue = localStorage.getItem('siabsen_kegiatan_id');
-                    
+
                     if (oldValue && newValue !== oldValue) {
                         if (typeof Swal !== 'undefined') {
                             const { isConfirmed } = await Swal.fire({
@@ -1017,7 +1017,7 @@ async function loadKegiatan() {
                                 confirmButtonText: 'Ya, Ganti',
                                 cancelButtonText: 'Batal'
                             });
-                            
+
                             if (!isConfirmed) {
                                 e.target.value = oldValue;
                                 return;
@@ -1029,9 +1029,9 @@ async function loadKegiatan() {
                             }
                         }
                     }
-                    
+
                     localStorage.setItem('siabsen_kegiatan_id', newValue);
-                    
+
                     // Bersihkan cache log UI agar fresh untuk kegiatan yang baru
                     if (typeof executeClearLocalData === 'function') {
                         executeClearLocalData();
@@ -1059,28 +1059,121 @@ let lastKeyTime = Date.now();
 let isPhysicalScannerConnected = false;
 let scannerTimeout = null;
 
-document.addEventListener('keydown', function(e) {
+// Web Serial Scanner State
+let serialPort = null;
+let serialReader = null;
+
+async function connectSerialScanner() {
+    if (!("serial" in navigator)) {
+        Swal.fire({
+            title: 'Tidak Didukung',
+            text: 'Browser Anda tidak mendukung Web Serial API. Gunakan Chrome, Edge, atau Opera terbaru.',
+            icon: 'error',
+            confirmButtonColor: '#ef4444'
+        });
+        return;
+    }
+
+    try {
+        serialPort = await navigator.serial.requestPort();
+        await serialPort.open({ baudRate: 9600 });
+
+        const ind = document.getElementById('scanner-indicator');
+        const txt = document.getElementById('scanner-status-text');
+        if (ind && txt) {
+            ind.style.background = '#d1fae5';
+            ind.style.color = '#065f46';
+            ind.style.borderColor = '#10b981';
+            txt.textContent = 'Scanner: Terhubung (COM)';
+            if (typeof showToast !== 'undefined') {
+                showToast('Scanner Fisik Terhubung (COM)!', '#10b981');
+            }
+        }
+
+        readSerialData();
+    } catch (err) {
+        console.error('Serial connection error:', err);
+        Swal.fire({
+            title: 'Gagal Terhubung',
+            text: 'Gagal membuka port serial: ' + err.message,
+            icon: 'error',
+            confirmButtonColor: '#ef4444'
+        });
+    }
+}
+
+async function readSerialData() {
+    const decoder = new TextDecoderStream();
+    serialPort.readable.pipeTo(decoder.writable);
+    serialReader = decoder.readable.getReader();
+
+    let buffer = '';
+
+    try {
+        while (true) {
+            const { value, done } = await serialReader.read();
+            if (done) break;
+
+            buffer += value;
+
+            // Jika data lengkap diakhiri newline atau carriage return
+            if (buffer.includes('\n') || buffer.includes('\r')) {
+                const parts = buffer.split(/[\r\n]+/);
+                buffer = parts.pop() || ''; // Simpan sisa input yang tidak lengkap
+
+                for (const part of parts) {
+                    const code = part.trim();
+                    if (code) {
+                        console.log("Scanner Fisik (Serial) Mendeteksi:", code);
+                        // Flash indikator hijau saat scan berhasil
+                        const ind = document.getElementById('scanner-indicator');
+                        if (ind) {
+                            ind.style.transform = 'scale(1.05)';
+                            setTimeout(() => ind.style.transform = 'scale(1)', 200);
+                        }
+
+                        recordAttendance(code, 1.0);
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Serial read error:', err);
+        const ind = document.getElementById('scanner-indicator');
+        const txt = document.getElementById('scanner-status-text');
+        if (ind && txt) {
+            ind.style.background = '#f3f4f6';
+            ind.style.color = '#4b5563';
+            ind.style.borderColor = '#d1d5db';
+            txt.textContent = 'Hubungkan Scanner (Serial)';
+            if (typeof showToast !== 'undefined') {
+                showToast('Scanner terputus!', '#ef4444');
+            }
+        }
+    }
+}
+
+document.addEventListener('keydown', function (e) {
     // Abaikan input jika user sedang fokus mengetik di input form atau textarea
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
         return;
     }
 
     const currentTime = Date.now();
-    
-    // Scanner fisik mengetik sangat cepat (< 50ms antar huruf). 
-    // Jika jeda terlalu lama, anggap ketikan manual biasa dan reset buffer.
-    if (currentTime - lastKeyTime > 50) {
+
+    // Toleransi interval ketikan scanner keyboard emulation diperlonggar (300ms)
+    if (currentTime - lastKeyTime > 300) {
         barcodeBuffer = "";
     }
-    
+
     lastKeyTime = currentTime;
 
-    // Jika Enter ditekan, proses buffer sebagai barcode (bila tidak kosong)
+    // Jika Enter ditekan, proses buffer sebagai barcode
     if (e.key === 'Enter') {
         if (barcodeBuffer.length > 0) {
-            console.log("Scanner Fisik Mendeteksi:", barcodeBuffer);
+            console.log("Scanner Keyboard Emulation Mendeteksi:", barcodeBuffer);
             recordAttendance(barcodeBuffer, 1.0);
-            
+
             // UI Indicator Update
             const ind = document.getElementById('scanner-indicator');
             const txt = document.getElementById('scanner-status-text');
@@ -1088,27 +1181,24 @@ document.addEventListener('keydown', function(e) {
                 ind.style.background = '#d1fae5';
                 ind.style.color = '#065f46';
                 ind.style.borderColor = '#10b981';
-                txt.textContent = 'Scanner: Terhubung';
-                
-                // Tampilkan toast hanya untuk scan pertama
+                txt.textContent = 'Scanner: Terhubung (Keyboard)';
+
                 if (!isPhysicalScannerConnected) {
                     if (typeof showToast !== 'undefined') {
                         showToast('Scanner Fisik Terhubung!', '#10b981');
                     }
                     isPhysicalScannerConnected = true;
                 }
-                
-                // Flash animasi sedikit
+
                 ind.style.transform = 'scale(1.05)';
                 setTimeout(() => ind.style.transform = 'scale(1)', 200);
 
-                // Reset kembali ke standby jika tidak ada aktivitas selama 10 detik
                 clearTimeout(scannerTimeout);
                 scannerTimeout = setTimeout(() => {
                     ind.style.background = '#f3f4f6';
                     ind.style.color = '#4b5563';
                     ind.style.borderColor = '#d1d5db';
-                    txt.textContent = 'Scanner: Standby';
+                    txt.textContent = serialPort ? 'Scanner: Terhubung (COM)' : 'Hubungkan Scanner (Serial)';
                     isPhysicalScannerConnected = false;
                 }, 10000);
             }
@@ -1116,8 +1206,8 @@ document.addEventListener('keydown', function(e) {
             barcodeBuffer = "";
             e.preventDefault();
         }
-    } 
-    // Simpan karakter tunggal (huruf/angka)
+    }
+    // Simpan karakter tunggal (huruf/angka/tanda baca)
     else if (e.key.length === 1) {
         barcodeBuffer += e.key;
     }
