@@ -336,7 +336,7 @@ class AdminController extends Controller
 
         $header = array_shift($rows);
         $headerMap = $this->resolveMahasiswaImportHeaderMap($header);
-        $requiredHeaders = ['nomor_registrasi', 'name', 'jurusan', 'prodi', 'tanggal_lahir'];
+        $requiredHeaders = ['nomor_registrasi', 'name', 'prodi', 'tanggal_lahir'];
         $missingHeaders = [];
 
         foreach ($requiredHeaders as $field) {
@@ -475,15 +475,15 @@ class AdminController extends Controller
     private function resolveMahasiswaImportHeaderMap(array $header): array
     {
         $aliases = [
-            'nomor_registrasi' => ['nomor registrasi', 'nomor_registrasi', 'nomorregistrasi', 'id', 'nim', 'username'],
+            'nomor_registrasi' => ['nomor registrasi', 'nomor_registrasi', 'nomorregistrasi', 'id', 'nim', 'username', 'no pendaftaran', 'no. pendaftaran'],
             'name' => ['nama', 'nama lengkap', 'name'],
             'kompi' => ['kompi', 'kelompok', 'group'],
             'jurusan' => ['jurusan', 'jurusan polinela'],
-            'prodi' => ['prodi', 'prodi polinela', 'program studi'],
+            'prodi' => ['prodi', 'prodi polinela', 'program studi', 'prodi diterima'],
             'tanggal_lahir' => ['tanggal lahir', 'tanggal_lahir', 'tgl lahir', 'tgl_lahir'],
             'email' => ['email', 'e mail', 'e-mail'],
             'no_telp_mahasiswa' => ['telp mahasiswa', 'no telp mahasiswa', 'tlp mahasiswa', 'telepon mahasiswa', 'no_telp_mahasiswa'],
-            'no_telp_ortu' => ['telp ortu', 'no telp ortu', 'tlp ortu', 'telepon ortu', 'telp orang tua', 'no telp orang tua', 'no_telp_ortu'],
+            'no_telp_ortu' => ['telp ortu', 'no telp ortu', 'tlp ortu', 'telepon ortu', 'telp orang tua', 'no telp orang tua', 'no_telp_ortu', 'no hp ayah', 'no. hp ayah'],
         ];
 
         $normalizedAliasMap = [];
@@ -572,7 +572,18 @@ class AdminController extends Controller
                 return Carbon::instance(ExcelDate::excelToDateTimeObject((float) $value))->format('Y-m-d');
             }
 
-            return Carbon::parse(trim((string) $value))->format('Y-m-d');
+            $dateString = trim((string) $value);
+
+            // Coba parsing spesifik DD/MM/YYYY dulu jika menggunakan slash
+            if (strpos($dateString, '/') !== false) {
+                try {
+                    return Carbon::createFromFormat('d/m/Y', $dateString)->format('Y-m-d');
+                } catch (\Throwable $e) {
+                    // fall back ke Carbon::parse
+                }
+            }
+
+            return Carbon::parse($dateString)->format('Y-m-d');
         } catch (\Throwable $e) {
             throw new \RuntimeException("Baris {$rowNumber}: tanggal lahir tidak valid.");
         }
@@ -583,29 +594,40 @@ class AdminController extends Controller
         $jurusanInput = $this->normalizeMahasiswaImportValue($jurusanValue);
         $prodiInput = $this->normalizeMahasiswaImportValue($prodiValue);
 
-        if ($jurusanInput === null) {
-            throw new \RuntimeException("Baris {$rowNumber}: jurusan wajib diisi.");
-        }
-
         if ($prodiInput === null) {
             throw new \RuntimeException("Baris {$rowNumber}: prodi wajib diisi.");
         }
 
-        $jurusan = Jurusan::whereRaw('LOWER(nama) = ?', [strtolower($jurusanInput)])->first();
-        if (!$jurusan) {
-            $jurusan = Jurusan::create(['nama' => $jurusanInput]);
+        if ($jurusanInput !== null) {
+            $jurusan = Jurusan::whereRaw('LOWER(nama) = ?', [strtolower($jurusanInput)])->first();
+            if (!$jurusan) {
+                $jurusan = Jurusan::create(['nama' => $jurusanInput]);
+            }
+
+            $prodi = Prodi::where('jurusan_id', $jurusan->id)
+                ->whereRaw('LOWER(nama) = ?', [strtolower($prodiInput)])
+                ->first();
+
+            if (!$prodi) {
+                $prodi = Prodi::create([
+                    'jurusan_id' => $jurusan->id,
+                    'nama' => $prodiInput,
+                ]);
+            }
+
+            return [
+                'jurusan' => $jurusan->nama,
+                'prodi' => $prodi->nama,
+            ];
         }
 
-        $prodi = Prodi::where('jurusan_id', $jurusan->id)
-            ->whereRaw('LOWER(nama) = ?', [strtolower($prodiInput)])
-            ->first();
+        $prodi = Prodi::whereRaw('LOWER(nama) = ?', [strtolower($prodiInput)])->first();
 
         if (!$prodi) {
-            $prodi = Prodi::create([
-                'jurusan_id' => $jurusan->id,
-                'nama' => $prodiInput,
-            ]);
+            throw new \RuntimeException("Baris {$rowNumber}: prodi '{$prodiInput}' tidak ditemukan di master data. Pastikan ProdiSeeder sudah dijalankan atau tambahkan prodi melalui menu master data.");
         }
+
+        $jurusan = $prodi->jurusan;
 
         return [
             'jurusan' => $jurusan->nama,

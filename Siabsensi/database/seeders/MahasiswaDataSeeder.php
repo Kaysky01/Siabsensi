@@ -2,10 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Models\Prodi;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 class MahasiswaDataSeeder extends Seeder
 {
@@ -25,17 +28,18 @@ class MahasiswaDataSeeder extends Seeder
 
     public function run()
     {
-        $csvFile = __DIR__ . '/data/mahasiswa.csv';
+        $excelFile = __DIR__ . '/data/data-mahasiswa-20260720-133554.xlsx';
 
-        if (!file_exists($csvFile)) {
-            $this->command->error("CSV file not found: {$csvFile}");
+        if (!file_exists($excelFile)) {
+            $this->command->error("Excel file not found: {$excelFile}");
             return;
         }
 
-        $this->command->info('Membaca file data mahasiswa...');
+        $this->command->info('Membaca file data mahasiswa dari Excel (proses ini mungkin butuh waktu beberapa menit)...');
         
-        $handle = fopen($csvFile, 'r');
-        $header = fgetcsv($handle); // skip header
+        $spreadsheet = IOFactory::load($excelFile);
+        $sheet = $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray();
         
         $chunkSize   = 500;
         $mahasiswaChunk = [];
@@ -43,51 +47,67 @@ class MahasiswaDataSeeder extends Seeder
         $count = 0;
         
         $now = Carbon::now();
+        $prodiCache = [];
 
-        while (($row = fgetcsv($handle)) !== false) {
-            // Index map:
-            // 0: No, 1: Nama, 2: Email, 3: Tanggal Lahir (d/m/Y),
-            // 4: Status Registrasi, 5: No. Pendaftaran (ID), 6: Prodi Diterima,
-            // 7: Jurusan Asal, 8: No. HP Ayah, 9: No. HP Ibu
+        // Skip baris pertama (index 0) karena header
+        for ($i = 1; $i < count($rows); $i++) {
+            $row = $rows[$i];
 
-            $id = trim($row[5]);
+            // Mapping berdasarkan struktur file xlsx terbaru:
+            // 0: No | 1: Nama | 2: Email | 3: Tanggal Lahir | 4: No. Pendaftaran | 5: Prodi Diterima | 6: No. HP Ayah
+            
+            $id = trim((string) ($row[4] ?? ''));
             if (empty($id) || $id === '-') {
                 continue; // Skip invalid ID
             }
 
-            $nama  = trim($row[1]);
-            $email = trim($row[2]);
+            $nama  = trim((string) ($row[1] ?? ''));
+            $email = trim((string) ($row[2] ?? ''));
             $email = ($email !== '-' && !empty($email)) ? $email : null;
 
-            $tglLahirStr = trim($row[3]);
+            $tglLahirStr = trim((string) ($row[3] ?? ''));
             $tanggalLahir = null;
             if (!empty($tglLahirStr) && $tglLahirStr !== '-') {
                 try {
-                    $tanggalLahir = Carbon::createFromFormat('d/m/Y', $tglLahirStr)->format('Y-m-d');
+                    if (is_numeric($tglLahirStr)) {
+                        $tanggalLahir = Carbon::instance(ExcelDate::excelToDateTimeObject((float) $tglLahirStr))->format('Y-m-d');
+                    } elseif (strpos($tglLahirStr, '/') !== false) {
+                        $tanggalLahir = Carbon::createFromFormat('d/m/Y', $tglLahirStr)->format('Y-m-d');
+                    } else {
+                        $tanggalLahir = Carbon::parse($tglLahirStr)->format('Y-m-d');
+                    }
                 } catch (\Exception $e) {
                     $tanggalLahir = null;
                 }
             }
 
-            $prodi   = trim($row[6]);
-            $jurusan = $prodi; // User requested: sesuaikan aja prodinya ambil
-
-            $hpAyah = trim($row[8]);
-            $hpIbu  = trim($row[9]);
-
-            $noTelpOrtu = null;
-            if ($hpAyah !== '-' && !empty($hpAyah)) {
-                $noTelpOrtu = $hpAyah;
-            } elseif ($hpIbu !== '-' && !empty($hpIbu)) {
-                $noTelpOrtu = $hpIbu;
+            $prodiName = trim((string) ($row[5] ?? ''));
+            $jurusanName = $prodiName; // Fallback jika tidak ketemu relasinya
+            
+            // Resolve Jurusan otomatis dari nama Prodi (case-insensitive)
+            if (!empty($prodiName)) {
+                $prodiKey = strtolower($prodiName);
+                if (isset($prodiCache[$prodiKey])) {
+                    $jurusanName = $prodiCache[$prodiKey];
+                } else {
+                    $prodiModel = Prodi::with('jurusan')->whereRaw('LOWER(nama) = ?', [$prodiKey])->first();
+                    if ($prodiModel && $prodiModel->jurusan) {
+                        $jurusanName = $prodiModel->jurusan->nama;
+                        $prodiName = $prodiModel->nama; // Normalize nama prodi
+                        $prodiCache[$prodiKey] = $jurusanName;
+                    }
+                }
             }
+
+            $noTelpOrtu = trim((string) ($row[6] ?? ''));
+            $noTelpOrtu = ($noTelpOrtu !== '-' && !empty($noTelpOrtu)) ? $noTelpOrtu : null;
 
             $mahasiswaChunk[] = [
                 'id'               => $id,
                 'name'             => $nama,
                 'kompi'            => '-',
-                'jurusan'          => $jurusan,
-                'prodi'            => $prodi,
+                'jurusan'          => $jurusanName,
+                'prodi'            => $prodiName,
                 'tanggal_lahir'    => $tanggalLahir,
                 'email'            => $email,
                 'no_telp_mahasiswa'=> null,
@@ -143,7 +163,6 @@ class MahasiswaDataSeeder extends Seeder
             $this->command->info("Inserted {$count} records...");
         }
 
-        fclose($handle);
         $this->command->info("Seeder selesai. Total mahasiswa + user dibuat: {$count}");
         $this->command->info("Password default: tanggal+bulan+tahun lahir (contoh lahir 08/06/2008 → password: 08062008)");
     }

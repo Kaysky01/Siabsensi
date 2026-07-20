@@ -21,7 +21,7 @@ class JurusanSeeder extends Seeder
             'Budidaya Tanaman Perkebunan',
             'Ekonomi dan Bisnis',
             'Perikanan dan Kelautan',
-            'Perternakan',
+            'Peternakan',
             'Teknik',
             'Teknologi Informasi',
             'Teknologi Pertanian',
