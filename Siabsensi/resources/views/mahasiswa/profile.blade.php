@@ -2,6 +2,9 @@
 @section('title', 'Profil Mahasiswa — SIABSEN')
 
 @section('content')
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
 <div class="page-header">
   <div>
     <div class="page-title">Edit Profil</div>
@@ -91,8 +94,9 @@
         </ul>
       </div>
       
-      <form action="{{ route('mahasiswa.profile.photo') }}" method="POST" enctype="multipart/form-data">
+      <form id="form-photo-upload" action="{{ route('mahasiswa.profile.photo') }}" method="POST" enctype="multipart/form-data">
         @csrf
+        <input type="hidden" name="cropped_image" id="cropped-image-data">
         <label style="font-size:13px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:8px">
           Upload Foto {{ $mahasiswa->photo_url ? 'Baru' : '' }} (JPG/PNG/WEBP, max 2MB)
         </label>
@@ -100,11 +104,8 @@
           <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;font-weight:600;transition:all 0.2s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='var(--border)'">
             <span class="material-symbols-outlined" style="font-size:16px">upload</span>
             Pilih Foto
-            <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="previewFoto(this)">
+            <input type="file" id="input-file-photo" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="openCropper(this)">
           </label>
-          <button type="submit" id="btn-upload-foto" class="btn btn-primary" style="padding:9px 18px;font-size:13px" disabled>
-            <span class="material-symbols-outlined" style="font-size:16px">save</span> Simpan Foto
-          </button>
           @if($mahasiswa->photo_url)
           <span style="font-size:12px;color:var(--text-muted);font-style:italic">
             Foto saat ini akan diganti dengan foto baru
@@ -201,23 +202,110 @@
   </form>
 </div>
 
+<!-- Modal Cropper -->
+<div class="modal-backdrop" id="modal-cropper" style="z-index: 1000;">
+  <div class="modal" style="max-width:500px; width:100%; padding:20px; background:var(--surface); border-radius:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="margin:0;font-size:18px">Sesuaikan Foto</h3>
+      <button type="button" class="btn-icon" onclick="closeCropperModal()" style="border:none;background:transparent;cursor:pointer">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    
+    <div style="width:100%;max-height:400px;overflow:hidden;background:#e5e7eb;display:flex;justify-content:center;align-items:center;border-radius:8px">
+      <img id="image-to-crop" style="max-width:100%;display:block">
+    </div>
+
+    <div style="margin-top:16px;text-align:center;font-size:13px;color:var(--text-muted)">
+      Gunakan scroll mouse untuk zoom in/out. Geser gambar untuk menyesuaikan posisi.
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:20px">
+      <button type="button" class="btn btn-ghost" onclick="closeCropperModal()">Batal</button>
+      <button type="button" class="btn btn-primary" onclick="processCrop()" id="btn-process-crop">
+        <span class="material-symbols-outlined" style="font-size:16px">crop</span> Crop & Simpan
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
-function previewFoto(input) {
+let cropper = null;
+
+function openCropper(input) {
   if (input.files && input.files[0]) {
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      var preview = document.getElementById('photo-preview');
-      var placeholder = document.getElementById('photo-preview-placeholder');
-      if (preview) {
-        preview.src = e.target.result;
-        preview.style.display = 'block';
-      }
-      if (placeholder) placeholder.style.display = 'none';
-      var btn = document.getElementById('btn-upload-foto');
-      if (btn) btn.removeAttribute('disabled');
+    const file = input.files[0];
+    
+    // Validasi ukuran (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Ukuran foto terlalu besar. Maksimal 2MB.");
+      input.value = "";
+      return;
     }
-    reader.readAsDataURL(input.files[0]);
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const image = document.getElementById('image-to-crop');
+      image.src = e.target.result;
+      
+      document.getElementById('modal-cropper').classList.add('show');
+      
+      // Hancurkan cropper lama jika ada
+      if (cropper !== null) {
+        cropper.destroy();
+      }
+      
+      // Inisialisasi cropper baru
+      cropper = new Cropper(image, {
+        aspectRatio: 1 / 1,
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 1,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: false,
+        cropBoxResizable: false,
+        toggleDragModeOnDblclick: false,
+      });
+    }
+    reader.readAsDataURL(file);
   }
+}
+
+function closeCropperModal() {
+  document.getElementById('modal-cropper').classList.remove('show');
+  document.getElementById('input-file-photo').value = "";
+  if (cropper) {
+    cropper.destroy();
+    cropper = null;
+  }
+}
+
+function processCrop() {
+  if (!cropper) return;
+  
+  const btn = document.getElementById('btn-process-crop');
+  btn.innerHTML = 'Memproses...';
+  btn.disabled = true;
+
+  // Dapatkan hasil crop dalam format base64
+  const canvas = cropper.getCroppedCanvas({
+    width: 500, // Ukuran resolusi standar
+    height: 500,
+  });
+
+  const base64Image = canvas.toDataURL('image/jpeg', 0.85);
+
+  // Masukkan string base64 ke input hidden
+  document.getElementById('cropped-image-data').value = base64Image;
+  
+  // Hapus name "photo" agar file asli tidak terkirim via input file
+  document.getElementById('input-file-photo').removeAttribute("name");
+
+  // Submit form
+  document.getElementById('form-photo-upload').submit();
 }
 </script>
 @endsection

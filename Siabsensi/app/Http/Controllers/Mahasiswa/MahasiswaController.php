@@ -175,6 +175,44 @@ class MahasiswaController extends Controller
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
 
+        // Jika menggunakan cropper, data dikirim sebagai string base64 melalui 'cropped_image'
+        if ($request->filled('cropped_image')) {
+            $base64Image = $request->input('cropped_image');
+            
+            // Ekstrak base64 string
+            // format: data:image/jpeg;base64,iVBORw0K...
+            $parts = explode(';', $base64Image);
+            if (count($parts) == 2) {
+                $imageType = explode('/', $parts[0])[1]; // jpeg, png, dst.
+                $imageBase64 = explode(',', $parts[1])[1];
+                $imageData = base64_decode($imageBase64);
+                
+                $ext = $imageType === 'jpeg' ? 'jpg' : $imageType;
+                
+                // Buat nama folder: {nama_lowercase_underscore}_{mahasiswa_id}
+                $nameSafe   = strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $mahasiswa->name));
+                $folderName = $nameSafe . '_' . $mahasiswa->id;
+                
+                // Hapus foto lama jika ada
+                if ($mahasiswa->photo_path) {
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($mahasiswa->photo_path);
+                }
+                
+                $fileName = 'photo_' . time() . '.' . $ext;
+                $path = 'berkas/' . $folderName . '/' . $fileName;
+                
+                // Simpan file
+                \Illuminate\Support\Facades\Storage::disk('public')->put($path, $imageData);
+                
+                $mahasiswa->photo_path = $path;
+                $mahasiswa->save();
+                
+                return back()->with('success', 'Foto profil berhasil diunggah.');
+            }
+            return back()->with('error', 'Gagal memproses foto.');
+        }
+
+        // Fallback jika tidak menggunakan base64 (upload normal)
         $request->validate([
             'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
         ], [
