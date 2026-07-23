@@ -83,19 +83,6 @@
         </button>
       </div>
 
-      @if(session('success'))
-      <div style="background:var(--success-light);color:var(--success);padding:12px 20px;border-bottom:1px solid var(--success);display:flex;align-items:center;gap:8px">
-        <span class="material-symbols-outlined" style="font-size:18px">check_circle</span>
-        {{ session('success') }}
-      </div>
-      @endif
-      @if(session('error'))
-      <div style="background:var(--danger-light);color:var(--danger);padding:12px 20px;border-bottom:1px solid var(--danger);display:flex;align-items:center;gap:8px">
-        <span class="material-symbols-outlined" style="font-size:18px">error</span>
-        {{ session('error') }}
-      </div>
-      @endif
-
       @yield('content')
     </main>
   </div>

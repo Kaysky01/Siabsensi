@@ -167,7 +167,9 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::post('/sertifikat/toggle-lock/{id}', [AdminController::class, 'toggleSertifikatLock'])->name('admin.sertifikat.toggle-lock');
     Route::post('/sertifikat/bulk-toggle', [AdminController::class, 'bulkToggleSertifikatLock'])->name('admin.sertifikat.bulk-toggle');
     Route::get('/izin', [AdminController::class, 'izin'])->name('admin.izin');
+    Route::post('/izin/verify', [AdminController::class, 'verifyIzin'])->name('admin.izin.verify');
     Route::get('/kehadiran', [AdminController::class, 'kehadiran'])->name('admin.kehadiran');
+    Route::post('/kehadiran/verify', [AdminController::class, 'verifyKehadiran'])->name('admin.kehadiran.verify');
 
     Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
     Route::get('/settings', [AdminController::class, 'settings'])->name('admin.settings');
@@ -293,6 +295,7 @@ Route::middleware(['auth', 'role:mahasiswa'])->prefix('mahasiswa')->group(functi
 
     Route::get('/izin', [MahasiswaController::class, 'izin'])->name('mahasiswa.izin');
     Route::post('/izin', [MahasiswaController::class, 'submitIzin'])->name('mahasiswa.izin.submit');
+    Route::delete('/izin/{id}', [MahasiswaController::class, 'deleteIzin'])->name('mahasiswa.izin.delete');
     
     Route::get('/kehadiran', [MahasiswaController::class, 'kehadiran'])->name('mahasiswa.kehadiran');
     Route::post('/kehadiran', [MahasiswaController::class, 'submitKehadiran'])->name('mahasiswa.kehadiran.submit');
@@ -340,12 +343,15 @@ Route::post('/api/sync', function (Request $request) {
         foreach ($data as $record) {
             if (!isset($record['mahasiswa_id'])) continue;
             
-            $qrOrId = $record['mahasiswa_id'];
+            // Bersihkan semua karakter yang bukan alphanumeric, strip, dan underscore
+            $qrOrId = preg_replace('/[^a-zA-Z0-9\-_]/', '', $record['mahasiswa_id']);
+            
             $mahasiswa = Mahasiswa::where('qr_code_id', $qrOrId)->orWhere('id', $qrOrId)->first();
             
             if (!$mahasiswa) {
-                $cleanId = str_replace(['QR-', '-'], '', $qrOrId);
-                $mahasiswa = Mahasiswa::where('id', $cleanId)->first();
+                // Coba bersihkan awalan 'QR-' atau '-'
+                $cleanId = preg_replace('/^(QR-|-)/i', '', $qrOrId);
+                $mahasiswa = Mahasiswa::where('id', $cleanId)->orWhere('qr_code_id', $cleanId)->first();
             }
             if (!$mahasiswa) {
                 $rejectedCount++;

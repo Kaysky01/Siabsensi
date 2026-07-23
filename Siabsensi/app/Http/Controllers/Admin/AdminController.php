@@ -977,6 +977,7 @@ class AdminController extends Controller
         $izinTable = (new IzinSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
         $filterStatus = $request->get('status', '');
+        $searchQuery = $request->get('search', '');
 
         $query = IzinSubmission::join($mhsTable, "$izinTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kompi")
@@ -988,6 +989,10 @@ class AdminController extends Controller
 
         if ($filterStatus) {
             $query->where("$izinTable.status", $filterStatus);
+        }
+
+        if ($searchQuery) {
+            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
         }
 
         $submissions = $query->paginate(20)->withQueryString();
@@ -1010,7 +1015,7 @@ class AdminController extends Controller
     {
         $validated = $request->validate([
             'submission_id' => 'required|integer',
-            'action' => 'required|in:approve,reject',
+            'action' => 'required|in:approve,reject,cancel',
             'rejection_reason' => 'nullable|string',
         ]);
 
@@ -1022,6 +1027,22 @@ class AdminController extends Controller
             if ($submission->mahasiswa->kompi !== $user->assigned_kompi) {
                 return redirect()->back()->with('error', 'Anda hanya bisa memverifikasi pengajuan dari kompi Anda.');
             }
+        }
+
+        if ($validated['action'] === 'cancel') {
+            $submission->status = 'pending';
+            $submission->verified_by = null;
+            $submission->verified_at = null;
+            $submission->rejection_reason = null;
+            $submission->save();
+
+            // Jika dibatalkan, hapus dari tabel attendance bila sebelumnya disetujui
+            Attendance::where('mahasiswa_id', $submission->mahasiswa_id)
+                ->where('date', $submission->date)
+                ->where('status', $submission->submission_type)
+                ->delete();
+
+            return redirect()->route('admin.izin')->with('success', 'Verifikasi pengajuan berhasil dibatalkan (dikembalikan ke Menunggu).');
         }
 
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
@@ -1050,6 +1071,7 @@ class AdminController extends Controller
         $khdTable = (new KehadiranSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
         $filterStatus = $request->get('status', '');
+        $searchQuery = $request->get('search', '');
 
         $query = KehadiranSubmission::join($mhsTable, "$khdTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kompi")
@@ -1061,6 +1083,10 @@ class AdminController extends Controller
 
         if ($filterStatus) {
             $query->where("$khdTable.status", $filterStatus);
+        }
+
+        if ($searchQuery) {
+            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
         }
 
         $submissions = $query->paginate(20)->withQueryString();
@@ -1083,8 +1109,8 @@ class AdminController extends Controller
     {
         $validated = $request->validate([
             'submission_id' => 'required|integer',
-            'action' => 'required|in:approve,reject',
-            'reject_reason' => 'nullable|string',
+            'action' => 'required|in:approve,reject,cancel',
+            'rejection_reason' => 'nullable|string',
         ]);
 
         $submission = KehadiranSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
@@ -1097,11 +1123,28 @@ class AdminController extends Controller
             }
         }
 
+        if ($validated['action'] === 'cancel') {
+            $submission->status = 'pending';
+            $submission->verified_by = null;
+            $submission->verified_at = null;
+            $submission->rejection_reason = null;
+            $submission->save();
+
+            // Hapus dari attendance jika sebelumnya disetujui
+            $dateOnly = Carbon::parse($submission->date)->format('Y-m-d');
+            Attendance::where('mahasiswa_id', $submission->mahasiswa_id)
+                ->where('date', $dateOnly)
+                ->where('status', 'present')
+                ->delete();
+
+            return redirect()->route('admin.kehadiran')->with('success', 'Verifikasi kehadiran berhasil dibatalkan (dikembalikan ke Menunggu).');
+        }
+
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
         $submission->verified_by = Auth::user()->username;
         $submission->verified_at = Carbon::now();
         if ($validated['action'] === 'reject') {
-            $submission->rejection_reason = $validated['reject_reason'];
+            $submission->rejection_reason = $validated['rejection_reason'];
         }
         $submission->save();
 

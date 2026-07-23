@@ -5,7 +5,7 @@
 <div class="page-header">
   <div>
     <div class="page-title">Portal Mahasiswa SIABSEN</div>
-    <div class="page-sub">Selamat datang, {{ $mahasiswa->name }}!</div>
+    <div class="page-sub">Selamat datang, <strong>{{ $mahasiswa->name }}</strong>! — <span style="display:inline-block;background:var(--primary);color:#fff;padding:2px 10px;border-radius:6px;font-weight:600;font-size:13px;vertical-align:middle">Kompi {{ $mahasiswa->kompi }}</span></div>
   </div>
   <div class="header-actions">
     <a href="{{ route('mahasiswa.dashboard') }}" class="btn btn-ghost btn-sm">
@@ -44,31 +44,31 @@
   <!-- Dashboard Statistics -->
   <div>
     <!-- Stats Cards Grid -->
-    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:16px">
+    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:16px">
+      <div class="stat-card">
+        <span class="material-symbols-outlined stat-icon" style="color:var(--info);background:var(--info-light);padding:8px;border-radius:8px">event_note</span>
+        <div class="stat-label" style="margin-top:12px;font-size:13px;color:var(--text-muted)">Total Jadwal</div>
+        <div class="stat-value" style="font-size:24px;font-weight:700">{{ $stats['totalJadwal'] }}</div>
+      </div>
       <div class="stat-card">
         <span class="material-symbols-outlined stat-icon" style="color:var(--primary);background:var(--primary-light);padding:8px;border-radius:8px">calendar_month</span>
         <div class="stat-label" style="margin-top:12px;font-size:13px;color:var(--text-muted)">Total Hari Hadir</div>
         <div class="stat-value" style="font-size:24px;font-weight:700">{{ $stats['totalHadir'] }}</div>
       </div>
       <div class="stat-card">
-        <span class="material-symbols-outlined stat-icon" style="color:var(--success);background:var(--success-light);padding:8px;border-radius:8px">check_circle</span>
-        <div class="stat-label" style="margin-top:12px;font-size:13px;color:var(--text-muted)">Hadir Bulan Ini</div>
-        <div class="stat-value" style="font-size:24px;font-weight:700">{{ $stats['hadirBulanIni'] }}</div>
+        <span class="material-symbols-outlined stat-icon" style="color:var(--danger);background:var(--danger-light);padding:8px;border-radius:8px">event_busy</span>
+        <div class="stat-label" style="margin-top:12px;font-size:13px;color:var(--text-muted)">Tidak Hadir</div>
+        <div class="stat-value" style="font-size:24px;font-weight:700">{{ $stats['tidakHadir'] }}</div>
       </div>
       <div class="stat-card">
         <span class="material-symbols-outlined stat-icon" style="color:#D97706;background:var(--warning-light);padding:8px;border-radius:8px">schedule</span>
         <div class="stat-label" style="margin-top:12px;font-size:13px;color:var(--text-muted)">Izin/Sakit</div>
         <div class="stat-value" style="font-size:24px;font-weight:700">{{ $stats['totalIzin'] }}</div>
       </div>
-      <div class="stat-card">
-        <span class="material-symbols-outlined stat-icon" style="color:var(--danger);background:var(--danger-light);padding:8px;border-radius:8px">event_busy</span>
-        <div class="stat-label" style="margin-top:12px;font-size:13px;color:var(--text-muted)">Tidak Hadir (Alpha)</div>
-        <div class="stat-value" style="font-size:24px;font-weight:700">{{ $stats['tidakHadir'] }}</div>
-      </div>
     </div>
 
     <!-- Additional Stats Row -->
-    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px">
+    <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:24px">
       <div class="stat-card">
         <span class="material-symbols-outlined stat-icon" style="color:var(--info);background:var(--info-light);padding:8px;border-radius:8px">percent</span>
         <div class="stat-label" style="margin-top:12px;font-size:13px;color:var(--text-muted)">Persentase Kehadiran</div>

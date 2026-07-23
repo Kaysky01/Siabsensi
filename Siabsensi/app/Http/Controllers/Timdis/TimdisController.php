@@ -77,6 +77,7 @@ class TimdisController extends Controller
         $izinTable = (new IzinSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
         $filterStatus = $request->get('status', '');
+        $searchQuery = $request->get('search', '');
 
         $query = IzinSubmission::join($mhsTable, "$izinTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kompi")
@@ -84,6 +85,10 @@ class TimdisController extends Controller
 
         if ($filterStatus) {
             $query->where("$izinTable.status", $filterStatus);
+        }
+
+        if ($searchQuery) {
+            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
         }
 
         $submissions = $query->paginate(20)->withQueryString();
@@ -104,11 +109,27 @@ class TimdisController extends Controller
     {
         $validated = $request->validate([
             'submission_id' => 'required|integer',
-            'action' => 'required|in:approve,reject',
+            'action' => 'required|in:approve,reject,cancel',
             'rejection_reason' => 'nullable|string',
         ]);
 
         $submission = IzinSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
+
+        if ($validated['action'] === 'cancel') {
+            $submission->status = 'pending';
+            $submission->verified_by = null;
+            $submission->verified_at = null;
+            $submission->rejection_reason = null;
+            $submission->save();
+
+            // Jika dibatalkan, hapus dari tabel attendance bila sebelumnya disetujui
+            Attendance::where('mahasiswa_id', $submission->mahasiswa_id)
+                ->where('date', $submission->date)
+                ->where('status', $submission->submission_type)
+                ->delete();
+
+            return redirect()->route('timdis.izin-timdis')->with('success', 'Verifikasi pengajuan berhasil dibatalkan (dikembalikan ke Menunggu).');
+        }
 
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
         /** @var \App\Models\User $user */
@@ -139,6 +160,7 @@ class TimdisController extends Controller
         $khdTable = (new KehadiranSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
         $filterStatus = $request->get('status', '');
+        $searchQuery = $request->get('search', '');
 
         $query = KehadiranSubmission::join($mhsTable, "$khdTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kompi")
@@ -146,6 +168,10 @@ class TimdisController extends Controller
 
         if ($filterStatus) {
             $query->where("$khdTable.status", $filterStatus);
+        }
+
+        if ($searchQuery) {
+            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
         }
 
         $submissions = $query->paginate(20)->withQueryString();
@@ -166,11 +192,28 @@ class TimdisController extends Controller
     {
         $validated = $request->validate([
             'submission_id' => 'required|integer',
-            'action' => 'required|in:approve,reject',
+            'action' => 'required|in:approve,reject,cancel',
             'reject_reason' => 'nullable|string',
         ]);
 
         $submission = KehadiranSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
+
+        if ($validated['action'] === 'cancel') {
+            $submission->status = 'pending';
+            $submission->verified_by = null;
+            $submission->verified_at = null;
+            $submission->rejection_reason = null;
+            $submission->save();
+
+            // Hapus dari attendance jika sebelumnya disetujui
+            $dateOnly = Carbon::parse($submission->date)->format('Y-m-d');
+            Attendance::where('mahasiswa_id', $submission->mahasiswa_id)
+                ->where('date', $dateOnly)
+                ->where('status', 'present')
+                ->delete();
+
+            return redirect()->route('timdis.kehadiran-timdis')->with('success', 'Verifikasi kehadiran berhasil dibatalkan (dikembalikan ke Menunggu).');
+        }
 
         $submission->status = $validated['action'] === 'approve' ? 'approved' : 'rejected';
         /** @var \App\Models\User $user */

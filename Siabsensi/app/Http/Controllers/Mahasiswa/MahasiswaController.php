@@ -5,9 +5,10 @@ namespace App\Http\Controllers\Mahasiswa;
 use App\Exports\RiwayatAbsensiExport;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
-use App\Models\Mahasiswa; // Pastikan Model di-import
-use Carbon\Carbon;        // Import Carbon untuk manipulasi tanggal
-use Illuminate\Http\Request; // Import Auth untuk otorisasi
+use App\Models\Mahasiswa;
+use App\Models\PkkmbSchedule;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\CarbonPeriod;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -30,6 +31,10 @@ class MahasiswaController extends Controller
         }
 
         // Stats
+        $totalJadwal = PkkmbSchedule::where('is_active', true)
+            ->where('tanggal', '<=', Carbon::today())
+            ->count();
+
         $totalHadir = $mahasiswa->attendances()->whereIn('status', ['hadir', 'present'])->count();
         $hadirBulanIni = $mahasiswa->attendances()
             ->whereIn('status', ['hadir', 'present'])
@@ -37,20 +42,20 @@ class MahasiswaController extends Controller
             ->whereYear('created_at', Carbon::now()->year)
             ->count();
         $totalIzin = $mahasiswa->izinSubmissions()->where('status', 'approved')->count();
-        $totalAlpha = $mahasiswa->attendances()->where('status', 'alpha')->count();
+        $totalAlpha = max(0, $totalJadwal - $totalHadir - $totalIzin);
         
-        $totalHariKerja = $totalHadir + $totalIzin + $totalAlpha;
-        $persentase = $totalHariKerja > 0 ? round(($totalHadir / $totalHariKerja) * 100) : 0;
+        $persentase = $totalJadwal > 0 ? round(($totalHadir / $totalJadwal) * 100) : 0;
 
         $stats = [
+            'totalJadwal' => $totalJadwal,
             'totalHadir' => $totalHadir,
             'hadirBulanIni' => $hadirBulanIni,
             'totalIzin' => $totalIzin,
             'tidakHadir' => $totalAlpha,
             'persentaseKehadiran' => $persentase,
             'rataRataDurasi' => '8 jam',
-            'streakTerpanjang' => 0, // Placeholder
-            'terlambat' => 0, // Placeholder
+            'streakTerpanjang' => 0,
+            'terlambat' => 0,
         ];
 
         // Recent Activity
@@ -325,20 +330,55 @@ class MahasiswaController extends Controller
             'date' => 'required|date',
             'reason' => 'required|string',
             'bukti' => 'required|file|mimes:pdf,jpg,jpeg,png|max:2048',
+        ], [
+            'type.required' => 'Jenis pengajuan wajib dipilih.',
+            'type.in' => 'Jenis pengajuan tidak valid.',
+            'date.required' => 'Tanggal izin/sakit wajib diisi.',
+            'date.date' => 'Format tanggal tidak valid.',
+            'reason.required' => 'Alasan wajib diisi.',
+            'bukti.required' => 'Bukti lampiran wajib diunggah.',
+            'bukti.file' => 'Bukti harus berupa file.',
+            'bukti.mimes' => 'Format bukti harus PDF, JPG, JPEG, atau PNG.',
+            'bukti.max' => 'Ukuran bukti maksimal 2MB.',
         ]);
 
-        $path = $request->file('bukti')->store('izin_bukti', 'public');
+        try {
+            $path = $request->file('bukti')->store('izin_bukti', 'public');
 
-        \App\Models\IzinSubmission::create([
-            'mahasiswa_id' => Auth::user()->mahasiswa_id,
-            'submission_type' => $request->type,
-            'date' => $request->date,
-            'keterangan' => $request->reason,
-            'bukti_path' => $path,
-            'status' => 'pending',
-        ]);
+            \App\Models\IzinSubmission::create([
+                'mahasiswa_id' => Auth::user()->mahasiswa_id,
+                'submission_type' => $request->type,
+                'date' => $request->date,
+                'keterangan' => $request->reason,
+                'bukti_path' => $path,
+                'status' => 'pending',
+            ]);
 
-        return back()->with('success', 'Pengajuan ' . $request->type . ' berhasil dikirim.');
+            return back()->with('success', 'Pengajuan ' . $request->type . ' berhasil dikirim.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Gagal mengirim pengajuan. Silakan coba lagi.')->withInput();
+        }
+    }
+
+    public function deleteIzin($id)
+    {
+        $izin = \App\Models\IzinSubmission::where('id', $id)
+            ->where('mahasiswa_id', Auth::user()->mahasiswa_id)
+            ->firstOrFail();
+
+        if ($izin->status !== 'pending') {
+            return back()->with('error', 'Hanya pengajuan dengan status Menunggu yang dapat dihapus.');
+        }
+
+        try {
+            if ($izin->bukti_path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($izin->bukti_path);
+            }
+            $izin->delete();
+            return back()->with('success', 'Pengajuan berhasil dihapus.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Gagal menghapus pengajuan.');
+        }
     }
     
     public function kehadiran()

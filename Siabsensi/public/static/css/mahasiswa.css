@@ -254,6 +254,27 @@
 
 /* Responsive Enhancements */
 @media (max-width: 768px) {
+    .page-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .page-header > div:first-child {
+        flex: 1 1 100%;
+    }
+
+    .page-header .header-actions {
+        margin-left: auto;
+    }
+
+    .page-title {
+        font-size: 26px;
+    }
+
+    .page-sub {
+        font-size: 13px;
+    }
+
     .stats-grid {
         grid-template-columns: 1fr;
     }
@@ -270,6 +291,51 @@
     .btn {
         width: 100%;
         justify-content: center;
+    }
+
+    .page-header .header-actions .btn {
+        width: auto;
+    }
+
+    .panel {
+        padding: 12px;
+    }
+
+    .stat-card {
+        padding: 12px;
+    }
+
+    .stat-value {
+        font-size: 20px !important;
+    }
+
+    .modal {
+        width: calc(100% - 32px) !important;
+        max-width: calc(100% - 32px) !important;
+        padding: 16px;
+        margin: 16px;
+        max-height: 85vh;
+    }
+
+    .modal-backdrop {
+        padding: 16px;
+    }
+
+    .modal-title {
+        font-size: 18px;
+    }
+
+    .modal-actions {
+        flex-direction: column-reverse;
+    }
+
+    .modal-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .form-row-2 {
+        grid-template-columns: 1fr;
     }
     
     .activity-item {
