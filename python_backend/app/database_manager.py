@@ -277,6 +277,38 @@ class DatabaseManager:
                 FOREIGN KEY (mahasiswa_id) REFERENCES mahasiswa(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         """)
+
+        # Tabel untuk jadwal PKKMB
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pkkmb_schedules (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                hari_ke INT NOT NULL,
+                tanggal DATE NOT NULL,
+                check_in_start TIME NOT NULL,
+                check_in_end TIME NOT NULL,
+                check_out_start TIME NOT NULL,
+                check_out_end TIME NOT NULL,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_tanggal (tanggal),
+                INDEX idx_active (is_active)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """)
+
+        # Tabel untuk kegiatan PKKMB
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS kegiatan (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                nama VARCHAR(255) NOT NULL,
+                tanggal_pelaksanaan DATE,
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_tanggal (tanggal_pelaksanaan),
+                INDEX idx_active (is_active)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """)
         
         conn.commit()
         cursor.close()

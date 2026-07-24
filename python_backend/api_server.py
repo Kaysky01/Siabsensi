@@ -852,10 +852,10 @@ def test_laravel_connection():
     try:
         from app.laravel_sync import LaravelSyncService
         
-        # Get Laravel URL from query params or use default
-        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        # Get Laravel URL from query params or use default hosting URL
+        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
         
-        sync_service = LaravelSyncService(laravel_url)
+        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
         result = sync_service.test_connection()
         
         if result['success']:
@@ -876,10 +876,9 @@ def sync_mahasiswa_from_laravel():
     try:
         from app.laravel_sync import LaravelSyncService
         
-        # Get Laravel URL from query params or use default
-        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
         
-        sync_service = LaravelSyncService(laravel_url)
+        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
         
         # Fetch data from Laravel
         fetch_result = sync_service.fetch_mahasiswa()
@@ -908,9 +907,9 @@ def sync_schedules_from_laravel():
     try:
         from app.laravel_sync import LaravelSyncService
         
-        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
         
-        sync_service = LaravelSyncService(laravel_url)
+        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
         
         # Fetch data from Laravel
         fetch_result = sync_service.fetch_schedules()
@@ -939,9 +938,9 @@ def sync_kegiatan_from_laravel():
     try:
         from app.laravel_sync import LaravelSyncService
         
-        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
         
-        sync_service = LaravelSyncService(laravel_url)
+        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
         
         # Fetch data from Laravel
         fetch_result = sync_service.fetch_kegiatan()
@@ -970,10 +969,10 @@ def sync_all_from_laravel():
     try:
         from app.laravel_sync import LaravelSyncService
         
-        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
         
         logger.info(f"Starting full sync from Laravel: {laravel_url}")
-        sync_service = LaravelSyncService(laravel_url)
+        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
         
         # Sync all data
         result = sync_service.sync_all()

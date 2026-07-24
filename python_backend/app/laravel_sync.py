@@ -27,15 +27,14 @@ class LaravelSyncService:
         self.verify_ssl = verify_ssl
         self.session = requests.Session()
         self.session.headers.update({
-            'Accept': 'application/json',
+            'Accept': 'application/json, text/plain, */*',
             'Content-Type': 'application/json',
-            'User-Agent': 'Python-Sync-Client/1.0'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         })
         
         # Disable SSL verification warning if needed
-        if not verify_ssl:
-            import urllib3
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
     def _get_conn(self):
         """Dapatkan koneksi MySQL"""
@@ -366,83 +365,111 @@ class LaravelSyncService:
             mahasiswa_list: List of mahasiswa data
             
         Returns:
-            Dict dengan statistik sinkronisasi
+            Dict dengan statistik sinkronisasi dan daftar akun yang gagal terbuat
         """
         inserted = 0
         updated = 0
         errors = 0
         users_created = 0
         users_updated = 0
+        uncreated_users = []
         
-        for mhs in mahasiswa_list:
-            try:
-                # Check if mahasiswa exists
-                existing = self._execute(
-                    "SELECT id FROM mahasiswa WHERE id = %s",
-                    (mhs['id'],),
-                    fetch_one=True
-                )
-                
-                if existing:
-                    # Update existing record
-                    self._execute("""
-                        UPDATE mahasiswa SET
-                            name = %s,
-                            kompi = %s,
-                            jurusan = %s,
-                            prodi = %s,
-                            email = %s,
-                            no_telp_mahasiswa = %s,
-                            no_telp_ortu = %s,
-                            qr_code_id = %s,
-                            is_active = %s
-                        WHERE id = %s
-                    """, (
-                        mhs.get('name'),
-                        mhs.get('kompi'),
-                        mhs.get('jurusan'),
-                        mhs.get('prodi'),
-                        mhs.get('email'),
-                        mhs.get('no_telp_mahasiswa'),
-                        mhs.get('no_telp_ortu'),
-                        mhs.get('qr_code_id'),
-                        mhs.get('is_active', 1),
-                        mhs['id']
-                    ))
-                    updated += 1
-                else:
-                    # Insert new record
-                    self._execute("""
-                        INSERT INTO mahasiswa (
-                            id, name, kompi, jurusan, prodi, email,
-                            no_telp_mahasiswa, no_telp_ortu, qr_code_id, is_active
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        mhs['id'],
-                        mhs.get('name'),
-                        mhs.get('kompi'),
-                        mhs.get('jurusan'),
-                        mhs.get('prodi'),
-                        mhs.get('email'),
-                        mhs.get('no_telp_mahasiswa'),
-                        mhs.get('no_telp_ortu'),
-                        mhs.get('qr_code_id'),
-                        mhs.get('is_active', 1)
-                    ))
-                    inserted += 1
-                
-                # OTOMATIS BUAT/UPDATE USER ACCOUNT
-                # Username = id mahasiswa (nomor registrasi)
-                # Password default = tanggal lahir (ddmmyyyy) - akan di-hash oleh Laravel
-                user_result = self._sync_user_for_mahasiswa(mhs)
-                if user_result['created']:
-                    users_created += 1
-                elif user_result['updated']:
-                    users_updated += 1
+        # Use single connection for batch sync to maximize performance & stability
+        conn = self._get_conn()
+        cursor = conn.cursor(dictionary=True)
+        
+        try:
+            for mhs in mahasiswa_list:
+                mhs_id = mhs.get('id')
+                if not mhs_id:
+                    continue
                     
-            except Exception as e:
-                logger.error(f"Error syncing mahasiswa {mhs.get('id')}: {e}")
-                errors += 1
+                mhs_name = mhs.get('name', 'Tanpa Nama')
+                is_active = 1 if mhs.get('is_active', True) else 0
+                
+                try:
+                    # Check if mahasiswa exists
+                    cursor.execute("SELECT id FROM mahasiswa WHERE id = %s", (mhs_id,))
+                    existing = cursor.fetchone()
+                    
+                    if existing:
+                        cursor.execute("""
+                            UPDATE mahasiswa SET
+                                name = %s,
+                                kompi = %s,
+                                jurusan = %s,
+                                prodi = %s,
+                                email = %s,
+                                no_telp_mahasiswa = %s,
+                                no_telp_ortu = %s,
+                                qr_code_id = %s,
+                                is_active = %s
+                            WHERE id = %s
+                        """, (
+                            mhs_name,
+                            mhs.get('kompi'),
+                            mhs.get('jurusan'),
+                            mhs.get('prodi'),
+                            mhs.get('email'),
+                            mhs.get('no_telp_mahasiswa'),
+                            mhs.get('no_telp_ortu'),
+                            mhs.get('qr_code_id'),
+                            is_active,
+                            mhs_id
+                        ))
+                        updated += 1
+                    else:
+                        cursor.execute("""
+                            INSERT INTO mahasiswa (
+                                id, name, kompi, jurusan, prodi, email,
+                                no_telp_mahasiswa, no_telp_ortu, qr_code_id, is_active
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            mhs_id,
+                            mhs_name,
+                            mhs.get('kompi'),
+                            mhs.get('jurusan'),
+                            mhs.get('prodi'),
+                            mhs.get('email'),
+                            mhs.get('no_telp_mahasiswa'),
+                            mhs.get('no_telp_ortu'),
+                            mhs.get('qr_code_id'),
+                            is_active
+                        ))
+                        inserted += 1
+                    
+                    # OTOMATIS BUAT/UPDATE USER ACCOUNT
+                    user_res = self._sync_user_with_cursor(cursor, mhs)
+                    if user_res.get('created'):
+                        users_created += 1
+                    elif user_res.get('updated'):
+                        users_updated += 1
+                    else:
+                        uncreated_users.append({
+                            'id': mhs_id,
+                            'name': mhs_name,
+                            'email': mhs.get('email', '-'),
+                            'reason': user_res.get('error', 'Gagal membuat/update akun user')
+                        })
+                        
+                except Exception as inner_e:
+                    logger.error(f"Error syncing mahasiswa {mhs_id}: {inner_e}")
+                    errors += 1
+                    uncreated_users.append({
+                        'id': mhs_id,
+                        'name': mhs_name,
+                        'email': mhs.get('email', '-'),
+                        'reason': f"Database error: {str(inner_e)}"
+                    })
+                    
+            conn.commit()
+        except Exception as batch_e:
+            logger.error(f"Batch sync error: {batch_e}")
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
         
         return {
             'success': True,
@@ -451,35 +478,28 @@ class LaravelSyncService:
             'errors': errors,
             'total': len(mahasiswa_list),
             'users_created': users_created,
-            'users_updated': users_updated
+            'users_updated': users_updated,
+            'uncreated_users': uncreated_users,
+            'uncreated_count': len(uncreated_users)
         }
     
-    def _sync_user_for_mahasiswa(self, mahasiswa: Dict) -> Dict:
+    def _sync_user_with_cursor(self, cursor, mahasiswa: Dict) -> Dict:
         """
-        Buat atau update user account untuk mahasiswa
-        
-        Args:
-            mahasiswa: Data mahasiswa
-            
-        Returns:
-            Dict dengan status operasi (created/updated)
+        Buat atau update user account untuk mahasiswa menggunakan cursor yang sama
         """
         try:
-            # Username = id mahasiswa
-            username = mahasiswa['id']
+            username = str(mahasiswa['id']).strip()
             full_name = mahasiswa.get('name', '')
-            is_active = mahasiswa.get('is_active', 1)
+            is_active = 1 if mahasiswa.get('is_active', True) else 0
             
-            # Cek apakah user sudah ada
-            existing_user = self._execute(
-                "SELECT id FROM users WHERE username = %s",
-                (username,),
-                fetch_one=True
-            )
+            if not username:
+                return {'created': False, 'updated': False, 'error': 'ID / Username kosong'}
+                
+            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+            existing_user = cursor.fetchone()
             
             if existing_user:
-                # Update existing user
-                self._execute("""
+                cursor.execute("""
                     UPDATE users SET
                         full_name = %s,
                         is_active = %s,
@@ -488,22 +508,74 @@ class LaravelSyncService:
                 """, (full_name, is_active, username))
                 return {'created': False, 'updated': True}
             else:
-                # Buat user baru
-                # Password default akan di-set di Laravel berdasarkan tanggal lahir
-                # Untuk Python, kita set password placeholder yang akan di-override saat login pertama
                 import hashlib
                 default_password = hashlib.md5(username.encode()).hexdigest()
                 
-                self._execute("""
+                cursor.execute("""
                     INSERT INTO users (username, password, full_name, role, is_active)
                     VALUES (%s, %s, %s, 'mahasiswa', %s)
                 """, (username, default_password, full_name, is_active))
                 return {'created': True, 'updated': False}
                 
         except Exception as e:
-            logger.error(f"Error syncing user for mahasiswa {mahasiswa.get('id')}: {e}")
-            return {'created': False, 'updated': False}
+            logger.error(f"Error syncing user for {mahasiswa.get('id')}: {e}")
+            return {'created': False, 'updated': False, 'error': str(e)}
+            
+    def _sync_user_for_mahasiswa(self, mahasiswa: Dict) -> Dict:
+        """
+        Buat atau update user account untuk mahasiswa (standalone method)
+        """
+        conn = self._get_conn()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            res = self._sync_user_with_cursor(cursor, mahasiswa)
+            conn.commit()
+            return res
+        except Exception as e:
+            conn.rollback()
+            return {'created': False, 'updated': False, 'error': str(e)}
+        finally:
+            cursor.close()
+            conn.close()
     
+    def sync_schedules_to_local(self, schedules: List[Dict]) -> Dict:
+        """
+        Simpan/update data jadwal PKKMB ke database MySQL lokal
+        
+        Args:
+            schedules: List of schedule data
+            
+        Returns:
+            Dict dengan statistik sinkronisasi
+        """
+        inserted = 0
+        updated = 0
+        errors = 0
+        
+    def _parse_date_string(self, tanggal_str):
+        """Parse string tanggal ke object date (datetime.date) dengan penanganan timezone"""
+        if not tanggal_str:
+            return None
+        try:
+            from dateutil import parser as dateparser
+            import pytz
+            
+            # Coba isoparse dulu
+            try:
+                dt = dateparser.isoparse(tanggal_str)
+            except Exception:
+                dt = dateparser.parse(tanggal_str)
+                
+            if dt.tzinfo is not None:
+                jakarta_tz = pytz.timezone('Asia/Jakarta')
+                dt = dt.astimezone(jakarta_tz)
+            return dt.date()
+        except Exception as e:
+            logger.warning(f"Gagal parse date '{tanggal_str}': {e}")
+            if isinstance(tanggal_str, str) and len(tanggal_str) >= 10:
+                return tanggal_str[:10]
+            return tanggal_str
+
     def sync_schedules_to_local(self, schedules: List[Dict]) -> Dict:
         """
         Simpan/update data jadwal PKKMB ke database MySQL lokal
@@ -520,26 +592,9 @@ class LaravelSyncService:
         
         for schedule in schedules:
             try:
-                # Parse tanggal from ISO format to date only
-                # Laravel sends: "2026-07-22T17:00:00.000000Z"
-                # We need: "2026-07-23" (in Asia/Jakarta timezone)
                 tanggal_str = schedule.get('tanggal')
-                if tanggal_str:
-                    # Parse ISO format datetime
-                    from dateutil import parser as dateparser
-                    import pytz
-                    
-                    dt = dateparser.isoparse(tanggal_str)
-                    
-                    # Convert to Asia/Jakarta timezone
-                    jakarta_tz = pytz.timezone('Asia/Jakarta')
-                    dt_jakarta = dt.astimezone(jakarta_tz)
-                    
-                    # Extract date only
-                    tanggal_date = dt_jakarta.date()
-                    logger.info(f"Schedule {schedule['id']}: UTC {tanggal_str} -> Jakarta {tanggal_date}")
-                else:
-                    tanggal_date = None
+                tanggal_date = self._parse_date_string(tanggal_str)
+                is_active = 1 if schedule.get('is_active', True) else 0
                 
                 # Check if schedule exists
                 existing = self._execute(
@@ -567,7 +622,7 @@ class LaravelSyncService:
                         schedule.get('check_in_end'),
                         schedule.get('check_out_start'),
                         schedule.get('check_out_end'),
-                        schedule.get('is_active', 1),
+                        is_active,
                         schedule['id']
                     ))
                     updated += 1
@@ -586,7 +641,7 @@ class LaravelSyncService:
                         schedule.get('check_in_end'),
                         schedule.get('check_out_start'),
                         schedule.get('check_out_end'),
-                        schedule.get('is_active', 1)
+                        is_active
                     ))
                     inserted += 1
                     
@@ -618,19 +673,9 @@ class LaravelSyncService:
         
         for kegiatan in kegiatan_list:
             try:
-                # Parse tanggal_pelaksanaan from ISO format to date only
                 tanggal_str = kegiatan.get('tanggal_pelaksanaan')
-                if tanggal_str:
-                    from dateutil import parser as dateparser
-                    import pytz
-                    
-                    dt = dateparser.isoparse(tanggal_str)
-                    jakarta_tz = pytz.timezone('Asia/Jakarta')
-                    dt_jakarta = dt.astimezone(jakarta_tz)
-                    tanggal_date = dt_jakarta.date()
-                    logger.info(f"Kegiatan {kegiatan['id']}: UTC {tanggal_str} -> Jakarta {tanggal_date}")
-                else:
-                    tanggal_date = None
+                tanggal_date = self._parse_date_string(tanggal_str)
+                is_active = 1 if kegiatan.get('is_active', True) else 0
                 
                 # Check if kegiatan exists
                 existing = self._execute(
@@ -650,7 +695,7 @@ class LaravelSyncService:
                     """, (
                         kegiatan.get('nama'),
                         tanggal_date,
-                        kegiatan.get('is_active', 1),
+                        is_active,
                         kegiatan['id']
                     ))
                     updated += 1
@@ -663,7 +708,7 @@ class LaravelSyncService:
                         kegiatan['id'],
                         kegiatan.get('nama'),
                         tanggal_date,
-                        kegiatan.get('is_active', 1)
+                        is_active
                     ))
                     inserted += 1
                     
