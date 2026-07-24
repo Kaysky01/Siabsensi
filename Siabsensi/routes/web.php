@@ -550,3 +550,13 @@ Route::get('/file-bukti/{path}', function ($path) {
     }
     return response()->file($filePath);
 })->where('path', '.*');
+
+// ─── PYTHON SYNC API ROUTES ────────────────────────────────────────────────
+// Routes untuk Python backend menarik data dari Laravel
+Route::prefix('api/sync')->group(function () {
+    Route::get('/mahasiswa', [\App\Http\Controllers\Api\SyncController::class, 'mahasiswa']);
+    Route::get('/schedules', [\App\Http\Controllers\Api\SyncController::class, 'schedules']);
+    Route::get('/kegiatan', [\App\Http\Controllers\Api\SyncController::class, 'kegiatan']);
+    Route::get('/system-config', [\App\Http\Controllers\Api\SyncController::class, 'systemConfig']);
+    Route::get('/status', [\App\Http\Controllers\Api\SyncController::class, 'status']);
+});

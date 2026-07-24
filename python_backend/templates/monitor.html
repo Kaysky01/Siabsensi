@@ -101,6 +101,12 @@
                     <span id="scanner-status-text">Hubungkan Scanner (Serial)</span>
                 </button>
 
+                <!-- Sync Master Data Button -->
+                <button onclick="showSyncMasterDataDialog()" style="padding: 8px 12px; background: #10b981; color: white; border: none; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer;">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">cloud_download</span>
+                    <span>Sync Master Data</span>
+                </button>
+
                 <!-- Info: sinkronisasi otomatis by tanggal -->
                 <div style="width:100%;margin-top:4px;padding:6px 10px;background:#f0fdf4;border-radius:6px;border:1px solid #bbf7d0;font-size:12px;color:#166534;display:flex;align-items:center;gap:6px">
                     <span class="material-symbols-outlined" style="font-size:14px;">event_available</span>
@@ -202,6 +208,7 @@
         }
     </style>
 
-    <script src="/static/js/monitor.js?v=10"></script>
+    <script src="/static/js/monitor.js?v=11"></script>
+    <script src="/static/js/sync_master.js?v=2"></script>
 </body>
 </html>

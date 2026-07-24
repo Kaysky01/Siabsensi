@@ -1,0 +1,803 @@
+"""
+Laravel Sync Service
+Modul untuk menarik data dari Laravel API dan menyimpan ke database MySQL lokal Python
+"""
+
+import requests
+import logging
+from typing import Dict, List, Optional
+from datetime import datetime
+import mysql.connector
+
+from app.config_db import MYSQL_CONFIG
+
+logger = logging.getLogger('LaravelSync')
+
+
+class LaravelSyncService:
+    def __init__(self, laravel_base_url: str = "https://pkkmb.polinela.ac.id", verify_ssl: bool = True):
+        """
+        Initialize Laravel Sync Service
+        
+        Args:
+            laravel_base_url: Base URL Laravel server (default: http://127.0.0.1:8000)
+            verify_ssl: Verify SSL certificates for HTTPS (default: True)
+        """
+        self.base_url = laravel_base_url.rstrip('/')
+        self.verify_ssl = verify_ssl
+        self.session = requests.Session()
+        self.session.headers.update({
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'Python-Sync-Client/1.0'
+        })
+        
+        # Disable SSL verification warning if needed
+        if not verify_ssl:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+    def _get_conn(self):
+        """Dapatkan koneksi MySQL"""
+        return mysql.connector.connect(**MYSQL_CONFIG)
+    
+    def _execute(self, query, params=None, fetch_one=False, fetch_all=False):
+        """Execute MySQL query dengan error handling"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        try:
+            if params:
+                cursor.execute(query, params)
+            else:
+                cursor.execute(query)
+            
+            result = None
+            if fetch_one:
+                row = cursor.fetchone()
+                if row:
+                    columns = [desc[0] for desc in cursor.description]
+                    result = dict(zip(columns, row))
+            elif fetch_all:
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                result = [dict(zip(columns, row)) for row in rows]
+            else:
+                conn.commit()
+                result = cursor.lastrowid
+            
+            return result
+        except mysql.connector.Error as e:
+            logger.error(f"Database error: {e}")
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+    
+    def test_connection(self) -> Dict:
+        """
+        Test koneksi ke Laravel API
+        
+        Returns:
+            Dict dengan status koneksi
+        """
+        try:
+            # Try to connect to the sync status endpoint
+            response = self.session.get(
+                f"{self.base_url}/api/sync/status", 
+                timeout=10,
+                verify=self.verify_ssl
+            )
+            response.raise_for_status()
+            return {
+                'success': True,
+                'message': 'Koneksi ke Laravel API berhasil',
+                'data': response.json()
+            }
+        except requests.exceptions.SSLError as e:
+            logger.error(f"SSL error to {self.base_url}: {e}")
+            return {
+                'success': False,
+                'message': f'SSL Error: Sertifikat tidak valid. Coba gunakan HTTP atau hubungi administrator server.'
+            }
+        except requests.exceptions.Timeout:
+            logger.error(f"Connection timeout to {self.base_url}")
+            return {
+                'success': False,
+                'message': f'Timeout: Server tidak merespon dalam 10 detik. Pastikan Laravel server berjalan di {self.base_url}'
+            }
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error to {self.base_url}: {e}")
+            # Check if it's a "Remote end closed connection" error
+            error_msg = str(e).lower()
+            if 'remote end closed' in error_msg or 'connection aborted' in error_msg:
+                return {
+                    'success': False,
+                    'message': f'Server menutup koneksi: Pastikan endpoint /api/sync/status tersedia di {self.base_url}'
+                }
+            return {
+                'success': False,
+                'message': f'Gagal terhubung ke Laravel: Pastikan server berjalan di {self.base_url} dan dapat diakses'
+            }
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error from {self.base_url}: {e}")
+            status_code = e.response.status_code
+            if status_code == 404:
+                return {
+                    'success': False,
+                    'message': f'Endpoint tidak ditemukan (404): Pastikan route /api/sync/status sudah terdaftar di Laravel'
+                }
+            elif status_code == 500:
+                return {
+                    'success': False,
+                    'message': f'Server error (500): Ada error di Laravel. Cek log Laravel untuk detail.'
+                }
+            return {
+                'success': False,
+                'message': f'Error HTTP {status_code}: {e.response.text[:200]}'
+            }
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error to {self.base_url}: {e}")
+            return {
+                'success': False,
+                'message': f'Gagal terhubung ke Laravel: {str(e)}'
+            }
+    
+    def fetch_mahasiswa(self) -> Dict:
+        """
+        Menarik semua data mahasiswa dari Laravel API
+        
+        Returns:
+            Dict dengan status dan data mahasiswa
+        """
+        try:
+            logger.info("Fetching mahasiswa data from Laravel...")
+            response = self.session.get(
+                f"{self.base_url}/api/sync/mahasiswa", 
+                timeout=60,
+                verify=self.verify_ssl
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            if not data.get('success'):
+                return {
+                    'success': False,
+                    'message': data.get('message', 'Failed to fetch mahasiswa')
+                }
+            
+            mahasiswa_list = data.get('data', [])
+            logger.info(f"Fetched {len(mahasiswa_list)} mahasiswa records")
+            
+            return {
+                'success': True,
+                'data': mahasiswa_list,
+                'count': len(mahasiswa_list)
+            }
+            
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout fetching mahasiswa from {self.base_url}")
+            return {
+                'success': False,
+                'message': 'Timeout: Server tidak merespon. Coba lagi atau periksa koneksi internet.'
+            }
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Connection error fetching mahasiswa: {e}")
+            return {
+                'success': False,
+                'message': f'Gagal terhubung ke server: {str(e)}'
+            }
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error fetching mahasiswa: {e}")
+            return {
+                'success': False,
+                'message': f'Error HTTP {e.response.status_code}: Endpoint mungkin tidak tersedia'
+            }
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching mahasiswa: {e}")
+            return {
+                'success': False,
+                'message': f'Error fetching mahasiswa: {str(e)}'
+            }
+    
+    def fetch_users(self) -> Dict:
+        """
+        Menarik semua data users (untuk akun login mahasiswa) dari Laravel API
+        
+        Returns:
+            Dict dengan status dan data users
+        """
+        try:
+            logger.info("Fetching users data from Laravel...")
+            response = self.session.get(
+                f"{self.base_url}/api/sync/users", 
+                timeout=60,
+                verify=self.verify_ssl
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            if not data.get('success'):
+                return {
+                    'success': False,
+                    'message': data.get('message', 'Failed to fetch users')
+                }
+            
+            users_list = data.get('data', [])
+            logger.info(f"Fetched {len(users_list)} user records")
+            
+            return {
+                'success': True,
+                'data': users_list,
+                'count': len(users_list)
+            }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching users: {e}")
+            return {
+                'success': False,
+                'message': f'Error fetching users: {str(e)}'
+            }
+    
+    def fetch_schedules(self) -> Dict:
+        """
+        Menarik data jadwal PKKMB dari Laravel API
+        
+        Returns:
+            Dict dengan status dan data jadwal
+        """
+        try:
+            logger.info("Fetching schedules from Laravel...")
+            response = self.session.get(
+                f"{self.base_url}/api/sync/schedules", 
+                timeout=30,
+                verify=self.verify_ssl
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            if not data.get('success'):
+                return {
+                    'success': False,
+                    'message': data.get('message', 'Failed to fetch schedules')
+                }
+            
+            schedules = data.get('data', [])
+            logger.info(f"Fetched {len(schedules)} schedule records")
+            
+            return {
+                'success': True,
+                'data': schedules,
+                'count': len(schedules)
+            }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching schedules: {e}")
+            return {
+                'success': False,
+                'message': f'Error fetching schedules: {str(e)}'
+            }
+    
+    def fetch_kegiatan(self) -> Dict:
+        """
+        Menarik data kegiatan dari Laravel API
+        
+        Returns:
+            Dict dengan status dan data kegiatan
+        """
+        try:
+            logger.info("Fetching kegiatan from Laravel...")
+            response = self.session.get(
+                f"{self.base_url}/api/sync/kegiatan", 
+                timeout=30,
+                verify=self.verify_ssl
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            if not data.get('success'):
+                return {
+                    'success': False,
+                    'message': data.get('message', 'Failed to fetch kegiatan')
+                }
+            
+            kegiatan_list = data.get('data', [])
+            logger.info(f"Fetched {len(kegiatan_list)} kegiatan records")
+            
+            return {
+                'success': True,
+                'data': kegiatan_list,
+                'count': len(kegiatan_list)
+            }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching kegiatan: {e}")
+            return {
+                'success': False,
+                'message': f'Error fetching kegiatan: {str(e)}'
+            }
+    
+    def fetch_system_config(self) -> Dict:
+        """
+        Menarik system config (termasuk grace period) dari Laravel API
+        
+        Returns:
+            Dict dengan status dan data config
+        """
+        try:
+            logger.info("Fetching system config from Laravel...")
+            response = self.session.get(
+                f"{self.base_url}/api/sync/system-config", 
+                timeout=30,
+                verify=self.verify_ssl
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            if not data.get('success'):
+                return {
+                    'success': False,
+                    'message': data.get('message', 'Failed to fetch system config')
+                }
+            
+            config_list = data.get('data', [])
+            logger.info(f"Fetched {len(config_list)} system config records")
+            
+            return {
+                'success': True,
+                'data': config_list,
+                'count': len(config_list)
+            }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching system config: {e}")
+            return {
+                'success': False,
+                'message': f'Error fetching system config: {str(e)}'
+            }
+    
+    def sync_mahasiswa_to_local(self, mahasiswa_list: List[Dict]) -> Dict:
+        """
+        Simpan/update data mahasiswa ke database MySQL lokal
+        OTOMATIS MEMBUAT USER ACCOUNT untuk setiap mahasiswa
+        
+        Args:
+            mahasiswa_list: List of mahasiswa data
+            
+        Returns:
+            Dict dengan statistik sinkronisasi
+        """
+        inserted = 0
+        updated = 0
+        errors = 0
+        users_created = 0
+        users_updated = 0
+        
+        for mhs in mahasiswa_list:
+            try:
+                # Check if mahasiswa exists
+                existing = self._execute(
+                    "SELECT id FROM mahasiswa WHERE id = %s",
+                    (mhs['id'],),
+                    fetch_one=True
+                )
+                
+                if existing:
+                    # Update existing record
+                    self._execute("""
+                        UPDATE mahasiswa SET
+                            name = %s,
+                            kompi = %s,
+                            jurusan = %s,
+                            prodi = %s,
+                            email = %s,
+                            no_telp_mahasiswa = %s,
+                            no_telp_ortu = %s,
+                            qr_code_id = %s,
+                            is_active = %s
+                        WHERE id = %s
+                    """, (
+                        mhs.get('name'),
+                        mhs.get('kompi'),
+                        mhs.get('jurusan'),
+                        mhs.get('prodi'),
+                        mhs.get('email'),
+                        mhs.get('no_telp_mahasiswa'),
+                        mhs.get('no_telp_ortu'),
+                        mhs.get('qr_code_id'),
+                        mhs.get('is_active', 1),
+                        mhs['id']
+                    ))
+                    updated += 1
+                else:
+                    # Insert new record
+                    self._execute("""
+                        INSERT INTO mahasiswa (
+                            id, name, kompi, jurusan, prodi, email,
+                            no_telp_mahasiswa, no_telp_ortu, qr_code_id, is_active
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        mhs['id'],
+                        mhs.get('name'),
+                        mhs.get('kompi'),
+                        mhs.get('jurusan'),
+                        mhs.get('prodi'),
+                        mhs.get('email'),
+                        mhs.get('no_telp_mahasiswa'),
+                        mhs.get('no_telp_ortu'),
+                        mhs.get('qr_code_id'),
+                        mhs.get('is_active', 1)
+                    ))
+                    inserted += 1
+                
+                # OTOMATIS BUAT/UPDATE USER ACCOUNT
+                # Username = id mahasiswa (nomor registrasi)
+                # Password default = tanggal lahir (ddmmyyyy) - akan di-hash oleh Laravel
+                user_result = self._sync_user_for_mahasiswa(mhs)
+                if user_result['created']:
+                    users_created += 1
+                elif user_result['updated']:
+                    users_updated += 1
+                    
+            except Exception as e:
+                logger.error(f"Error syncing mahasiswa {mhs.get('id')}: {e}")
+                errors += 1
+        
+        return {
+            'success': True,
+            'inserted': inserted,
+            'updated': updated,
+            'errors': errors,
+            'total': len(mahasiswa_list),
+            'users_created': users_created,
+            'users_updated': users_updated
+        }
+    
+    def _sync_user_for_mahasiswa(self, mahasiswa: Dict) -> Dict:
+        """
+        Buat atau update user account untuk mahasiswa
+        
+        Args:
+            mahasiswa: Data mahasiswa
+            
+        Returns:
+            Dict dengan status operasi (created/updated)
+        """
+        try:
+            # Username = id mahasiswa
+            username = mahasiswa['id']
+            full_name = mahasiswa.get('name', '')
+            is_active = mahasiswa.get('is_active', 1)
+            
+            # Cek apakah user sudah ada
+            existing_user = self._execute(
+                "SELECT id FROM users WHERE username = %s",
+                (username,),
+                fetch_one=True
+            )
+            
+            if existing_user:
+                # Update existing user
+                self._execute("""
+                    UPDATE users SET
+                        full_name = %s,
+                        is_active = %s,
+                        role = 'mahasiswa'
+                    WHERE username = %s
+                """, (full_name, is_active, username))
+                return {'created': False, 'updated': True}
+            else:
+                # Buat user baru
+                # Password default akan di-set di Laravel berdasarkan tanggal lahir
+                # Untuk Python, kita set password placeholder yang akan di-override saat login pertama
+                import hashlib
+                default_password = hashlib.md5(username.encode()).hexdigest()
+                
+                self._execute("""
+                    INSERT INTO users (username, password, full_name, role, is_active)
+                    VALUES (%s, %s, %s, 'mahasiswa', %s)
+                """, (username, default_password, full_name, is_active))
+                return {'created': True, 'updated': False}
+                
+        except Exception as e:
+            logger.error(f"Error syncing user for mahasiswa {mahasiswa.get('id')}: {e}")
+            return {'created': False, 'updated': False}
+    
+    def sync_schedules_to_local(self, schedules: List[Dict]) -> Dict:
+        """
+        Simpan/update data jadwal PKKMB ke database MySQL lokal
+        
+        Args:
+            schedules: List of schedule data
+            
+        Returns:
+            Dict dengan statistik sinkronisasi
+        """
+        inserted = 0
+        updated = 0
+        errors = 0
+        
+        for schedule in schedules:
+            try:
+                # Parse tanggal from ISO format to date only
+                # Laravel sends: "2026-07-22T17:00:00.000000Z"
+                # We need: "2026-07-23" (in Asia/Jakarta timezone)
+                tanggal_str = schedule.get('tanggal')
+                if tanggal_str:
+                    # Parse ISO format datetime
+                    from dateutil import parser as dateparser
+                    import pytz
+                    
+                    dt = dateparser.isoparse(tanggal_str)
+                    
+                    # Convert to Asia/Jakarta timezone
+                    jakarta_tz = pytz.timezone('Asia/Jakarta')
+                    dt_jakarta = dt.astimezone(jakarta_tz)
+                    
+                    # Extract date only
+                    tanggal_date = dt_jakarta.date()
+                    logger.info(f"Schedule {schedule['id']}: UTC {tanggal_str} -> Jakarta {tanggal_date}")
+                else:
+                    tanggal_date = None
+                
+                # Check if schedule exists
+                existing = self._execute(
+                    "SELECT id FROM pkkmb_schedules WHERE id = %s",
+                    (schedule['id'],),
+                    fetch_one=True
+                )
+                
+                if existing:
+                    # Update existing record
+                    self._execute("""
+                        UPDATE pkkmb_schedules SET
+                            hari_ke = %s,
+                            tanggal = %s,
+                            check_in_start = %s,
+                            check_in_end = %s,
+                            check_out_start = %s,
+                            check_out_end = %s,
+                            is_active = %s
+                        WHERE id = %s
+                    """, (
+                        schedule.get('hari_ke'),
+                        tanggal_date,
+                        schedule.get('check_in_start'),
+                        schedule.get('check_in_end'),
+                        schedule.get('check_out_start'),
+                        schedule.get('check_out_end'),
+                        schedule.get('is_active', 1),
+                        schedule['id']
+                    ))
+                    updated += 1
+                else:
+                    # Insert new record
+                    self._execute("""
+                        INSERT INTO pkkmb_schedules (
+                            id, hari_ke, tanggal, check_in_start, check_in_end,
+                            check_out_start, check_out_end, is_active
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        schedule['id'],
+                        schedule.get('hari_ke'),
+                        tanggal_date,
+                        schedule.get('check_in_start'),
+                        schedule.get('check_in_end'),
+                        schedule.get('check_out_start'),
+                        schedule.get('check_out_end'),
+                        schedule.get('is_active', 1)
+                    ))
+                    inserted += 1
+                    
+            except Exception as e:
+                logger.error(f"Error syncing schedule {schedule.get('id')}: {e}")
+                errors += 1
+        
+        return {
+            'success': True,
+            'inserted': inserted,
+            'updated': updated,
+            'errors': errors,
+            'total': len(schedules)
+        }
+    
+    def sync_kegiatan_to_local(self, kegiatan_list: List[Dict]) -> Dict:
+        """
+        Simpan/update data kegiatan ke database MySQL lokal
+        
+        Args:
+            kegiatan_list: List of kegiatan data
+            
+        Returns:
+            Dict dengan statistik sinkronisasi
+        """
+        inserted = 0
+        updated = 0
+        errors = 0
+        
+        for kegiatan in kegiatan_list:
+            try:
+                # Parse tanggal_pelaksanaan from ISO format to date only
+                tanggal_str = kegiatan.get('tanggal_pelaksanaan')
+                if tanggal_str:
+                    from dateutil import parser as dateparser
+                    import pytz
+                    
+                    dt = dateparser.isoparse(tanggal_str)
+                    jakarta_tz = pytz.timezone('Asia/Jakarta')
+                    dt_jakarta = dt.astimezone(jakarta_tz)
+                    tanggal_date = dt_jakarta.date()
+                    logger.info(f"Kegiatan {kegiatan['id']}: UTC {tanggal_str} -> Jakarta {tanggal_date}")
+                else:
+                    tanggal_date = None
+                
+                # Check if kegiatan exists
+                existing = self._execute(
+                    "SELECT id FROM kegiatan WHERE id = %s",
+                    (kegiatan['id'],),
+                    fetch_one=True
+                )
+                
+                if existing:
+                    # Update existing record
+                    self._execute("""
+                        UPDATE kegiatan SET
+                            nama = %s,
+                            tanggal_pelaksanaan = %s,
+                            is_active = %s
+                        WHERE id = %s
+                    """, (
+                        kegiatan.get('nama'),
+                        tanggal_date,
+                        kegiatan.get('is_active', 1),
+                        kegiatan['id']
+                    ))
+                    updated += 1
+                else:
+                    # Insert new record
+                    self._execute("""
+                        INSERT INTO kegiatan (id, nama, tanggal_pelaksanaan, is_active)
+                        VALUES (%s, %s, %s, %s)
+                    """, (
+                        kegiatan['id'],
+                        kegiatan.get('nama'),
+                        tanggal_date,
+                        kegiatan.get('is_active', 1)
+                    ))
+                    inserted += 1
+                    
+            except Exception as e:
+                logger.error(f"Error syncing kegiatan {kegiatan.get('id')}: {e}")
+                errors += 1
+        
+        return {
+            'success': True,
+            'inserted': inserted,
+            'updated': updated,
+            'errors': errors,
+            'total': len(kegiatan_list)
+        }
+    
+    def sync_system_config_to_local(self, config_list: List[Dict]) -> Dict:
+        """
+        Simpan/update system config ke database MySQL lokal
+        
+        Args:
+            config_list: List of config data
+            
+        Returns:
+            Dict dengan statistik sinkronisasi
+        """
+        inserted = 0
+        updated = 0
+        errors = 0
+        
+        for config in config_list:
+            try:
+                config_key = config.get('config_key')
+                config_value = config.get('config_value')
+                description = config.get('description', '')
+                
+                # Check if config exists
+                existing = self._execute(
+                    "SELECT id FROM system_config WHERE config_key = %s",
+                    (config_key,),
+                    fetch_one=True
+                )
+                
+                if existing:
+                    # Update existing record
+                    self._execute("""
+                        UPDATE system_config SET
+                            config_value = %s,
+                            description = %s
+                        WHERE config_key = %s
+                    """, (config_value, description, config_key))
+                    updated += 1
+                else:
+                    # Insert new record
+                    self._execute("""
+                        INSERT INTO system_config (config_key, config_value, description)
+                        VALUES (%s, %s, %s)
+                    """, (config_key, config_value, description))
+                    inserted += 1
+                    
+            except Exception as e:
+                logger.error(f"Error syncing system config {config.get('config_key')}: {e}")
+                errors += 1
+        
+        return {
+            'success': True,
+            'inserted': inserted,
+            'updated': updated,
+            'errors': errors,
+            'total': len(config_list)
+        }
+    
+    def sync_all(self) -> Dict:
+        """
+        Sinkronisasi semua data dari Laravel (mahasiswa, schedules, kegiatan, system_config)
+        Otomatis membuat user account untuk setiap mahasiswa
+        
+        Returns:
+            Dict dengan status sinkronisasi lengkap
+        """
+        results = {
+            'success': True,
+            'mahasiswa': {'success': False},
+            'schedules': {'success': False},
+            'kegiatan': {'success': False},
+            'system_config': {'success': False}
+        }
+        
+        # Test connection first
+        conn_test = self.test_connection()
+        if not conn_test['success']:
+            results['success'] = False
+            results['message'] = conn_test['message']
+            return results
+        
+        # Sync Mahasiswa (+ auto create users)
+        logger.info("Starting mahasiswa sync...")
+        mhs_fetch = self.fetch_mahasiswa()
+        if mhs_fetch['success']:
+            mhs_sync = self.sync_mahasiswa_to_local(mhs_fetch['data'])
+            results['mahasiswa'] = mhs_sync
+        else:
+            results['mahasiswa'] = mhs_fetch
+            results['success'] = False
+        
+        # Sync Schedules
+        logger.info("Starting schedules sync...")
+        sch_fetch = self.fetch_schedules()
+        if sch_fetch['success']:
+            sch_sync = self.sync_schedules_to_local(sch_fetch['data'])
+            results['schedules'] = sch_sync
+        else:
+            results['schedules'] = sch_fetch
+            results['success'] = False
+        
+        # Sync Kegiatan
+        logger.info("Starting kegiatan sync...")
+        keg_fetch = self.fetch_kegiatan()
+        if keg_fetch['success']:
+            keg_sync = self.sync_kegiatan_to_local(keg_fetch['data'])
+            results['kegiatan'] = keg_sync
+        else:
+            results['kegiatan'] = keg_fetch
+            results['success'] = False
+        
+        # Sync System Config
+        logger.info("Starting system config sync...")
+        cfg_fetch = self.fetch_system_config()
+        if cfg_fetch['success']:
+            cfg_sync = self.sync_system_config_to_local(cfg_fetch['data'])
+            results['system_config'] = cfg_sync
+        else:
+            results['system_config'] = cfg_fetch
+            # Don't fail completely if system_config sync fails
+            logger.warning("System config sync failed, but continuing...")
+        
+        logger.info("Sync completed!")
+        return results

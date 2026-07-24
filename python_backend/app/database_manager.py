@@ -69,6 +69,24 @@ class DatabaseManager:
         conn = self._get_conn()
         cursor = conn.cursor()
         
+        # Tabel users
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                full_name VARCHAR(255),
+                role ENUM('admin', 'timdis', 'garda', 'mahasiswa') DEFAULT 'mahasiswa',
+                is_active TINYINT(1) DEFAULT 1,
+                last_login DATETIME,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_username (username),
+                INDEX idx_role (role),
+                INDEX idx_active (is_active)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """)
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS mahasiswa (
                 id VARCHAR(50) PRIMARY KEY,
@@ -142,6 +160,35 @@ class DatabaseManager:
             cursor.execute("ALTER TABLE attendance ADD COLUMN sesi_id BIGINT UNSIGNED NULL")
         except mysql.connector.Error:
             pass  # Column already exists
+        
+        try:
+            cursor.execute("ALTER TABLE attendance ADD COLUMN is_late TINYINT(1) DEFAULT 0")
+        except mysql.connector.Error:
+            pass  # Column already exists
+            
+        try:
+            cursor.execute("ALTER TABLE attendance ADD COLUMN late_duration INT DEFAULT 0")
+        except mysql.connector.Error:
+            pass  # Column already exists
+        
+        # Tabel system_config untuk menyimpan konfigurasi sistem
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_config (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                config_key VARCHAR(255) UNIQUE NOT NULL,
+                config_value TEXT,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_key (config_key)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """)
+        
+        # Insert default grace period jika belum ada
+        cursor.execute("""
+            INSERT IGNORE INTO system_config (config_key, config_value, description)
+            VALUES ('attendance_grace_period_minutes', '40', 'Grace period untuk keterlambatan absensi dalam menit')
+        """)
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS camera_streams (

@@ -789,6 +789,215 @@ def get_kegiatan():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
+def convert_timedelta_to_str(obj):
+    """Convert timedelta objects to HH:MM:SS string format for JSON serialization"""
+    from datetime import timedelta
+    
+    if obj is None:
+        return None
+    
+    if isinstance(obj, timedelta):
+        # Convert timedelta to HH:MM:SS format
+        total_seconds = int(obj.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    
+    if isinstance(obj, dict):
+        return {key: convert_timedelta_to_str(value) for key, value in obj.items()}
+    
+    if isinstance(obj, list):
+        return [convert_timedelta_to_str(item) for item in obj]
+    
+    return obj
+
+@app.route('/api/python/debug/schedule', methods=['GET'])
+def debug_schedule():
+    """Debug endpoint to check schedule"""
+    try:
+        if db is None:
+            return jsonify({'success': False, 'message': 'Database not connected'}), 500
+        
+        from datetime import datetime
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Get today's schedule
+        schedule = db.get_today_schedule()
+        
+        # Get all schedules
+        all_schedules = db.get_all_schedules()
+        
+        # Get grace period
+        grace_period = db.get_grace_period_minutes()
+        
+        # Convert timedelta objects to strings
+        schedule = convert_timedelta_to_str(schedule)
+        all_schedules = convert_timedelta_to_str(all_schedules)
+        
+        return jsonify({
+            'success': True,
+            'today': today,
+            'today_schedule': schedule,
+            'all_schedules': all_schedules,
+            'grace_period_minutes': grace_period
+        })
+    except Exception as e:
+        logger.error(f"Debug schedule error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/python/sync/test-connection', methods=['GET'])
+def test_laravel_connection():
+    """Test koneksi ke Laravel API"""
+    try:
+        from app.laravel_sync import LaravelSyncService
+        
+        # Get Laravel URL from query params or use default
+        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        
+        sync_service = LaravelSyncService(laravel_url)
+        result = sync_service.test_connection()
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+            
+    except Exception as e:
+        logger.error(f"Test connection error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/python/sync/mahasiswa', methods=['GET'])
+def sync_mahasiswa_from_laravel():
+    """Sinkronisasi data mahasiswa dari Laravel API ke database lokal"""
+    try:
+        from app.laravel_sync import LaravelSyncService
+        
+        # Get Laravel URL from query params or use default
+        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        
+        sync_service = LaravelSyncService(laravel_url)
+        
+        # Fetch data from Laravel
+        fetch_result = sync_service.fetch_mahasiswa()
+        if not fetch_result['success']:
+            return jsonify(fetch_result), 500
+        
+        # Sync to local database
+        sync_result = sync_service.sync_mahasiswa_to_local(fetch_result['data'])
+        
+        return jsonify({
+            'success': True,
+            'message': f'Sinkronisasi mahasiswa berhasil',
+            'stats': sync_result
+        })
+        
+    except Exception as e:
+        logger.error(f"Sync mahasiswa error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/python/sync/schedules', methods=['GET'])
+def sync_schedules_from_laravel():
+    """Sinkronisasi data jadwal PKKMB dari Laravel API ke database lokal"""
+    try:
+        from app.laravel_sync import LaravelSyncService
+        
+        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        
+        sync_service = LaravelSyncService(laravel_url)
+        
+        # Fetch data from Laravel
+        fetch_result = sync_service.fetch_schedules()
+        if not fetch_result['success']:
+            return jsonify(fetch_result), 500
+        
+        # Sync to local database
+        sync_result = sync_service.sync_schedules_to_local(fetch_result['data'])
+        
+        return jsonify({
+            'success': True,
+            'message': f'Sinkronisasi jadwal berhasil',
+            'stats': sync_result
+        })
+        
+    except Exception as e:
+        logger.error(f"Sync schedules error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/python/sync/kegiatan', methods=['GET'])
+def sync_kegiatan_from_laravel():
+    """Sinkronisasi data kegiatan dari Laravel API ke database lokal"""
+    try:
+        from app.laravel_sync import LaravelSyncService
+        
+        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        
+        sync_service = LaravelSyncService(laravel_url)
+        
+        # Fetch data from Laravel
+        fetch_result = sync_service.fetch_kegiatan()
+        if not fetch_result['success']:
+            return jsonify(fetch_result), 500
+        
+        # Sync to local database
+        sync_result = sync_service.sync_kegiatan_to_local(fetch_result['data'])
+        
+        return jsonify({
+            'success': True,
+            'message': f'Sinkronisasi kegiatan berhasil',
+            'stats': sync_result
+        })
+        
+    except Exception as e:
+        logger.error(f"Sync kegiatan error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/python/sync/all', methods=['GET'])
+def sync_all_from_laravel():
+    """Sinkronisasi semua data (mahasiswa, schedules, kegiatan) dari Laravel ke database lokal"""
+    try:
+        from app.laravel_sync import LaravelSyncService
+        
+        laravel_url = request.args.get('laravel_url', 'http://127.0.0.1:8000')
+        
+        logger.info(f"Starting full sync from Laravel: {laravel_url}")
+        sync_service = LaravelSyncService(laravel_url)
+        
+        # Sync all data
+        result = sync_service.sync_all()
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': 'Sinkronisasi semua data berhasil!',
+                'results': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result.get('message', 'Sinkronisasi gagal'),
+                'results': result
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Sync all error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
 
 if __name__ == '__main__':
     print("=" * 60)
