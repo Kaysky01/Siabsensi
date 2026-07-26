@@ -89,7 +89,15 @@
                   <span style="color:var(--text-muted);font-size:12px">-</span>
                 @endif
               </td>
-              <td><span class="time-val">{{ $att->check_in ? Carbon\Carbon::parse($att->check_in)->format('H:i') : '-' }}</span></td>
+              <td>
+                @if($att->absen_by)
+                  <span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #0284c7;font-size:11px" title="Waktu: {{ $att->check_in ? Carbon\Carbon::parse($att->check_in)->format('H:i') : '-' }}">
+                    Kehadiran Manual (oleh {{ $att->absen_by }})
+                  </span>
+                @else
+                  <span class="time-val">{{ $att->check_in ? Carbon\Carbon::parse($att->check_in)->format('H:i') : '-' }}</span>
+                @endif
+              </td>
               <td>
                 @php
                   $statusClass = match($att->status) {

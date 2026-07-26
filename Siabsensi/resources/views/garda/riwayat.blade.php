@@ -82,17 +82,23 @@
             </div>
           </td>
           <td>
-            {{ \Carbon\Carbon::parse($item->date)->format('d M Y') }}
+            {{ \Carbon\Carbon::parse($item->created_at)->format('d M Y') }}
           </td>
           <td>
-            @if($item->check_in)
-              {{ \Carbon\Carbon::parse($item->check_in)->format('H:i') }}
+            @if($item->absen_by)
+              <span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #0284c7;font-size:11px" title="Waktu: {{ $item->absen_at ? \Carbon\Carbon::parse($item->absen_at)->format('H:i') : (\Carbon\Carbon::parse($item->created_at)->format('H:i')) }}">
+                Kehadiran Manual
+              </span>
+            @elseif($item->absen_at)
+              {{ \Carbon\Carbon::parse($item->absen_at)->format('H:i') }}
+            @elseif($item->created_at)
+              {{ \Carbon\Carbon::parse($item->created_at)->format('H:i') }}
             @else
               -
             @endif
           </td>
           <td>
-            {{ optional($item->sesi)->nama_sesi ?? 'Sesi Tidak Ditemukan' }}
+            {{ optional($item->sesi)->nama_sesi ?? $item->nama_sesi ?? 'Sesi Tidak Ditemukan' }}
           </td>
           <td>
             @if($item->status === 'present')
@@ -142,10 +148,10 @@
   .att-table tbody td { padding: 12px; border-bottom: 1px solid var(--border); }
   .att-table tbody tr:hover { background: var(--bg); }
   .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-  .badge-green { background: var(--success-light); color: var(--success); }
-  .badge-blue { background: var(--info-light); color: var(--info); }
-  .badge-yellow { background: #ffeaa7; color: #d63031; }
-  .badge-red { background: var(--danger-light); color: var(--danger); }
+  .badge-green { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
+  .badge-blue { background: #e0f2fe; color: #0369a1; border: 1px solid #0284c7; }
+  .badge-yellow { background: #fef9c3; color: #854d0e; border: 1px solid #eab308; }
+  .badge-red { background: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
   .badge-gray { background: var(--border); color: var(--text-muted); }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-weight: 600; text-decoration: none; font-size: 14px; transition: all 0.2s; }
   .btn-primary { background: var(--primary); color: white; }
