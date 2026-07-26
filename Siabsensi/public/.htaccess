@@ -23,3 +23,21 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# ── Security: Sembunyikan informasi server ──
+<IfModule mod_headers.c>
+    # Hapus header yang membocorkan info server
+    Header unset X-Powered-By
+    Header always unset X-Powered-By
+    Header unset Server
+
+    # Tambahkan security headers sebagai fallback (jika middleware belum jalan)
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-Permitted-Cross-Domain-Policies "none"
+</IfModule>
+
+# Sembunyikan versi Apache
+ServerSignature Off
+

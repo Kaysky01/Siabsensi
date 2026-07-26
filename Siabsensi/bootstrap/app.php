@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CekRole;
+use App\Http\Middleware\SecurityHeaders;
 use App\Models\User;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions; // <-- WAJIB: Tambahkan ini untuk membaca request
@@ -18,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Sangat penting untuk hosting: Percayai SSL/Proxy agar sesi tidak terputus
         $middleware->trustProxies(at: '*');
+
+        // Security Headers: Tambahkan header keamanan ke SEMUA response
+        // Ini middleware global, bukan hanya web group, agar mencakup semua route.
+        $middleware->append(SecurityHeaders::class);
         
         // Add request logging
         $middleware->web(\App\Http\Middleware\LogRequests::class);
