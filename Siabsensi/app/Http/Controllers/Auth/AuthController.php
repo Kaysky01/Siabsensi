@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\RecaptchaService;
+use App\Services\RateLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -14,7 +16,7 @@ class AuthController extends Controller
         return view('login');
     }
 
-    public function auth(Request $request)
+    public function auth(Request $request, RecaptchaService $recaptchaService, RateLimitService $rateLimitService)
     {
         if (Auth::check()) {
             Auth::logout();
@@ -25,11 +27,23 @@ class AuthController extends Controller
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
+            'g-recaptcha-response' => 'required',
+        ], [
+            'g-recaptcha-response.required' => 'Silakan centang kotak "Saya bukan robot".',
         ]);
 
         $username = trim($request->username);
         $password = trim($request->password);
         $remember = $request->boolean('remember');
+        $recaptchaToken = $request->input('g-recaptcha-response');
+        $ip = $request->ip();
+
+        // Validate reCAPTCHA
+        if (!$recaptchaService->validate($recaptchaToken, $ip)) {
+            return back()->withErrors([
+                'username' => 'Verifikasi reCAPTCHA gagal. Silakan coba lagi.',
+            ])->onlyInput('username');
+        }
 
         // Coba login normal (username + password)
         if (Auth::attempt([
@@ -49,6 +63,9 @@ class AuthController extends Controller
                     'username' => 'Akun Anda telah dinonaktifkan. Silakan hubungi Administrator.',
                 ])->onlyInput('username');
             }
+
+            // SUCCESS: Reset rate limit
+            $rateLimitService->resetAttempts($username, $ip);
 
             $request->session()->regenerate();
             $user->update(['last_login' => now()]);
@@ -91,6 +108,9 @@ class AuthController extends Controller
                     ])->onlyInput('username');
                 }
 
+                // SUCCESS: Reset rate limit
+                $rateLimitService->resetAttempts($username, $ip);
+
                 $request->session()->regenerate();
                 $userByNim->update(['last_login' => now()]);
 
@@ -98,9 +118,20 @@ class AuthController extends Controller
             }
         }
 
-        return back()->withErrors([
-            'username' => 'Nomor Registrasi atau password yang Anda masukkan salah.',
-        ])->onlyInput('username');
+        // FAILED: Record failed attempt
+        $attempts = $rateLimitService->recordFailedAttempt($username, $ip);
+        $remainingAttempts = $rateLimitService->getRemainingAttempts($username, $ip);
+
+        if ($remainingAttempts > 0) {
+            return back()->withErrors([
+                'username' => "Nomor Registrasi atau password yang Anda masukkan salah. Sisa percobaan: {$remainingAttempts} kali.",
+            ])->onlyInput('username');
+        } else {
+            return back()->withErrors([
+                'username' => 'Terlalu banyak percobaan login gagal. Silakan tunggu 2 menit.',
+            ])->onlyInput('username')
+              ->with('lockout_seconds', RateLimitService::LOCKOUT_DURATION);
+        }
     }
 
 

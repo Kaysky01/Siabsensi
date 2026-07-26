@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700" rel="stylesheet">
   <link rel="stylesheet" href="{{ asset('static/css/login.css') }}">
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
   <div class="login-container">
@@ -67,6 +68,11 @@
                 {{ $message }}
             </div>
         @enderror
+        @error('g-recaptcha-response')
+            <div class="error-message show" style="display: block;">
+                {{ $message }}
+            </div>
+        @enderror
         @if(session('error'))
             <div style="color: red; margin-bottom: 15px; padding: 10px; border: 1px solid red; background-color: #fdd;">
                 {{ session('error') }}
@@ -82,12 +88,74 @@
           </span>
         </div>
 
+        <!-- reCAPTCHA Widget -->
+        <div class="recaptcha-wrapper">
+          <div class="g-recaptcha" 
+               data-sitekey="{{ config('recaptcha.site_key') }}"
+               data-theme="light"
+               data-size="normal">
+          </div>
+          <div class="recaptcha-error" id="recaptcha-error" style="display: none;">
+            <span class="material-symbols-outlined">error</span>
+            Silakan centang kotak "Saya bukan robot" terlebih dahulu.
+          </div>
+        </div>
+
         <button type="submit" class="btn-login" id="login-btn">
           <span id="login-text">Masuk</span>
         </button>
       </form>
 
       <script>
+        // Client-side validation untuk reCAPTCHA
+        document.getElementById('login-form')?.addEventListener('submit', function(e) {
+            // Check if form is disabled (during lockout)
+            const loginButton = document.getElementById('login-btn');
+            if (loginButton.disabled) {
+                e.preventDefault();
+                return false;
+            }
+
+            // Check reCAPTCHA
+            if (typeof grecaptcha !== 'undefined') {
+                const recaptchaResponse = grecaptcha.getResponse();
+                const recaptchaError = document.getElementById('recaptcha-error');
+                
+                if (!recaptchaResponse) {
+                    e.preventDefault();
+                    
+                    // Show inline error instead of alert
+                    if (recaptchaError) {
+                        recaptchaError.style.display = 'flex';
+                        
+                        // Scroll to reCAPTCHA
+                        document.querySelector('.recaptcha-wrapper').scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'center' 
+                        });
+                        
+                        // Hide error after 5 seconds
+                        setTimeout(function() {
+                            recaptchaError.style.display = 'none';
+                        }, 5000);
+                    }
+                    
+                    return false;
+                } else {
+                    // Hide error if reCAPTCHA checked
+                    if (recaptchaError) {
+                        recaptchaError.style.display = 'none';
+                    }
+                }
+            }
+            
+            // Show loading state
+            const loginText = document.getElementById('login-text');
+            loginButton.disabled = true;
+            loginText.textContent = 'Memproses...';
+        });
+
+        // Toggle password visibility
         document.getElementById('toggle-password')?.addEventListener('click', function() {
           const pw = document.getElementById('password');
           const isPassword = pw.type === 'password';
@@ -95,6 +163,65 @@
           this.querySelector('.material-symbols-outlined').textContent = isPassword ? 'visibility_off' : 'visibility';
         });
       </script>
+
+      @if(session('lockout_seconds'))
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let remainingSeconds = {{ session('lockout_seconds') }};
+            const errorMessage = document.querySelector('.error-message');
+            const loginButton = document.getElementById('login-btn');
+            const loginForm = document.getElementById('login-form');
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            
+            if (errorMessage && remainingSeconds > 0) {
+                // Disable form elements
+                loginButton.disabled = true;
+                loginButton.style.opacity = '0.5';
+                loginButton.style.cursor = 'not-allowed';
+                usernameInput.disabled = true;
+                passwordInput.disabled = true;
+                
+                // Disable reCAPTCHA if loaded
+                if (typeof grecaptcha !== 'undefined') {
+                    const recaptchaElement = document.querySelector('.g-recaptcha');
+                    if (recaptchaElement) {
+                        recaptchaElement.style.pointerEvents = 'none';
+                        recaptchaElement.style.opacity = '0.5';
+                    }
+                }
+                
+                // Countdown timer
+                const countdownInterval = setInterval(function() {
+                    remainingSeconds--;
+                    
+                    if (remainingSeconds > 0) {
+                        errorMessage.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px">lock_clock</span> Terlalu banyak percobaan login gagal. Tunggu <strong>' + remainingSeconds + ' detik</strong> lagi.';
+                    } else {
+                        clearInterval(countdownInterval);
+                        errorMessage.style.display = 'none';
+                        
+                        // Re-enable form
+                        loginButton.disabled = false;
+                        loginButton.style.opacity = '1';
+                        loginButton.style.cursor = 'pointer';
+                        usernameInput.disabled = false;
+                        passwordInput.disabled = false;
+                        
+                        // Re-enable reCAPTCHA
+                        if (typeof grecaptcha !== 'undefined') {
+                            const recaptchaElement = document.querySelector('.g-recaptcha');
+                            if (recaptchaElement) {
+                                recaptchaElement.style.pointerEvents = 'auto';
+                                recaptchaElement.style.opacity = '1';
+                            }
+                        }
+                    }
+                }, 1000);
+            }
+        });
+      </script>
+      @endif
 
       <div class="login-footer">
         <div class="login-footer-text">

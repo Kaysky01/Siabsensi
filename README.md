@@ -36,6 +36,8 @@ Sistem absensi otomatis menggunakan **YOLO object detection** untuk mendeteksi *
 - Password hashing menggunakan bcrypt
 - Role-Based Access Control: **Admin**, **Timdis**, **Garda**, **Mahasiswa**
 - Session token dengan expiry 24 jam
+- **Google reCAPTCHA v2** untuk proteksi dari bot
+- **Rate Limiting** (5 percobaan login, lockout 2 menit)
 
 ### 6. 🎓 Sertifikat Kehadiran
 - Generate sertifikat kehadiran otomatis
@@ -168,7 +170,14 @@ Edit `.env` file:
 DB_DATABASE=siabsensi
 DB_USERNAME=siabsen
 DB_PASSWORD=password_anda
+
+# Google reCAPTCHA (Get keys from: https://www.google.com/recaptcha/admin/create)
+RECAPTCHA_SITE_KEY=your_site_key_here
+RECAPTCHA_SECRET_KEY=your_secret_key_here
 ```
+
+**Setup reCAPTCHA:**
+Lihat dokumentasi lengkap di [`docs/RECAPTCHA_SETUP.md`](./Siabsensi/docs/RECAPTCHA_SETUP.md)
 
 ### Run Migrations
 

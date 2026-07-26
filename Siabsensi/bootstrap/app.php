@@ -58,6 +58,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // 3. Alias Middleware kamu yang sudah ada
         $middleware->alias([
             'role' => CekRole::class,
+            'login.ratelimit' => \App\Http\Middleware\LoginRateLimiter::class,
         ]);
 
         // 4. Pengecualian CSRF kamu yang sudah ada

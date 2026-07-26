@@ -42,39 +42,11 @@ Route::get('/', function () {
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 Route::get('/login', [AuthController::class, 'login'])->name('login');
-Route::post('/login', [AuthController::class, 'auth'])->name('auth');
+Route::post('/login', [AuthController::class, 'auth'])->name('auth')->middleware('login.ratelimit');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/logout', [AuthController::class, 'logout'])->name('logout');
 });
-
-    // DEBUG ROUTE
-    Route::get('/debug-login/{username}/{password}', function ($username, $password) {
-        $user = \App\Models\User::where('username', $username)->with('mahasiswa')->first();
-        if (!$user) return 'User not found';
-        
-        $m = $user->mahasiswa;
-        $dbTglLahir = $m ? $m->tanggal_lahir : 'no_mahasiswa';
-        $tglLahirFormat = $m && $m->tanggal_lahir ? \Carbon\Carbon::parse($m->tanggal_lahir)->format('dmY') : 'null';
-        
-        $authAttempt = \Illuminate\Support\Facades\Auth::validate([
-            'username' => $username,
-            'password' => $password
-        ]);
-
-        $hashCheck = \Illuminate\Support\Facades\Hash::check($password, $user->password);
-        
-        return [
-            'username' => $username,
-            'input_password' => $password,
-            'tgl_lahir_db' => $dbTglLahir,
-            'tgl_lahir_formatted' => $tglLahirFormat,
-            'db_hash' => $user->password,
-            'auth_attempt_result' => $authAttempt,
-            'hash_check_result' => $hashCheck,
-            'fallback_match' => ($password === $tglLahirFormat)
-        ];
-    });
 
 // ─── GARDA PAGES ────────────────────────────────────────────────────────────
 Route::middleware(['auth', 'role:garda'])->prefix('garda')->group(function () {
@@ -190,17 +162,6 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::get('/absensi-persesi', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'listSesi'])->name('admin.absensi-persesi');
     Route::get('/absensi-manual/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'index'])->name('admin.absensi-manual.index');
     Route::get('/monitoring-sesi/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'monitoring'])->name('admin.monitoring-sesi');
-    
-    // Debug route
-    Route::any('/schedule/test-route', function(\Illuminate\Http\Request $request) {
-        return response()->json([
-            'status' => 'Route works!',
-            'method' => $request->method(),
-            'auth' => Auth::check(),
-            'user' => Auth::user()->username ?? 'guest',
-            'role' => Auth::user()->role ?? 'none',
-        ]);
-    })->name('admin.schedule.test');
 
      // Redirect legacy dashboard URLs
      Route::get('/timdis/dashboard', fn() => redirect()->route('timdis.dashboard'));
@@ -238,15 +199,6 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     
     // Absensi Manual Save
     Route::post('/absensi-manual/{sesi}', [\App\Http\Controllers\Admin\AbsensiManualController::class, 'store'])->name('admin.absensi-manual.store');
-    
-    // Test route untuk debugging
-    Route::post('/test-post', function(\Illuminate\Http\Request $request) {
-        Log::info('Test POST route called', [
-            'user' => Auth::user()->username ?? 'guest',
-            'all_input' => $request->all()
-        ]);
-        return response()->json(['success' => true, 'message' => 'POST route works!', 'user' => Auth::user()->username]);
-    })->name('admin.test.post');
 });
 
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
