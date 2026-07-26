@@ -320,6 +320,17 @@ class DatabaseManager:
         query = "SELECT * FROM mahasiswa WHERE qr_code_id = %s"
         return self._execute(query, (qr_code_id,), fetch_one=True)
         
+    def add_camera(self, camera_id: str, name: str, rtsp_url: str, location: str = ''):
+        """Tambah atau update camera stream di database"""
+        self._execute("""
+            INSERT INTO camera_streams (id, name, rtsp_url, location, is_active)
+            VALUES (%s, %s, %s, %s, 1)
+            ON DUPLICATE KEY UPDATE
+                name = VALUES(name),
+                rtsp_url = VALUES(rtsp_url),
+                location = VALUES(location)
+        """, (camera_id, name, rtsp_url, location))
+        
     def get_active_kegiatan(self):
         """Ambil daftar kegiatan PKKMB yang sedang aktif dari tabel kegiatan"""
         try:
@@ -333,15 +344,26 @@ class DatabaseManager:
         """Record kehadiran dengan late tracking (timezone-aware)"""
         today = get_current_date().isoformat()
         
+        # Pastikan camera_id terdaftar di tabel camera_streams untuk menghindari foreign key error
+        if camera_id:
+            self._execute("""
+                INSERT IGNORE INTO camera_streams (id, name, rtsp_url, location, is_active)
+                VALUES (%s, %s, %s, %s, 1)
+            """, (camera_id, camera_id, 'local' if camera_id == 'WEB-SCANNER' else 'rtsp://localhost', 'Web Scanner' if camera_id == 'WEB-SCANNER' else 'Webcam'))
+
         # Jika ada kegiatan_id, ambil tanggal pelaksanaannya dari DB agar absen sinkron dengan jadwal kegiatan
         if kegiatan_id:
             kegiatan = self._execute("SELECT tanggal_pelaksanaan FROM kegiatan WHERE id = %s", (kegiatan_id,), fetch_one=True)
-            if kegiatan and kegiatan['tanggal_pelaksanaan']:
-                # handle if tanggal_pelaksanaan is a datetime.date object or string
-                if hasattr(kegiatan['tanggal_pelaksanaan'], 'isoformat'):
-                    today = kegiatan['tanggal_pelaksanaan'].isoformat()
-                else:
-                    today = str(kegiatan['tanggal_pelaksanaan'])
+            if kegiatan:
+                if kegiatan['tanggal_pelaksanaan']:
+                    # handle if tanggal_pelaksanaan is a datetime.date object or string
+                    if hasattr(kegiatan['tanggal_pelaksanaan'], 'isoformat'):
+                        today = kegiatan['tanggal_pelaksanaan'].isoformat()
+                    else:
+                        today = str(kegiatan['tanggal_pelaksanaan'])
+            else:
+                # Jika kegiatan tidak ditemukan di DB, set kegiatan_id ke None agar tidak gagal foreign key
+                kegiatan_id = None
 
         now = get_current_time()
         

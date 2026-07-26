@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.database_manager import DatabaseManager
 from app.config_db import YOLO_SETTINGS, RTSP_SETTINGS
 from app.time_validator import TimeValidator
-from app.timezone_utils import get_current_time, get_current_date, format_datetime
+from app.timezone_utils import get_current_time, get_current_date, format_datetime, make_aware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -352,7 +352,8 @@ class AttendanceProcessor:
             if not row or not row['check_in']:
                 return ('check_in', {'allowed': True, 'is_late': False, 'late_duration': 0, 'bypass_schedule': True})
             if row['check_in'] and not row['check_out']:
-                elapsed_seconds = (get_current_time() - row['check_in']).total_seconds()
+                check_in_time = make_aware(row['check_in'])
+                elapsed_seconds = (get_current_time() - check_in_time).total_seconds()
                 if elapsed_seconds < self.CHECK_OUT_MIN_SECONDS:
                     remaining = int(self.CHECK_OUT_MIN_SECONDS - elapsed_seconds)
                     return ('cooldown', {'reason': 'cooldown', 'remaining_seconds': remaining})
@@ -406,8 +407,9 @@ class AttendanceProcessor:
                     check_in_time = datetime.fromisoformat(check_in_val.replace(' ', 'T'))
                 except Exception:
                     check_in_time = datetime.strptime(check_in_val, '%Y-%m-%d %H:%M:%S')
+                check_in_time = make_aware(check_in_time)
             elif hasattr(check_in_val, 'hour'):
-                check_in_time = check_in_val
+                check_in_time = make_aware(check_in_val)
             else:
                 check_in_time = get_current_time()
             
