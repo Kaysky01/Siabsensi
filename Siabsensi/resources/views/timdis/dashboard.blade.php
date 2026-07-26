@@ -54,7 +54,7 @@
       </div>
       <table class="att-table">
         <thead>
-          <tr><th>Mahasiswa</th><th>Masuk</th><th>Keluar</th><th>Status</th></tr>
+          <tr><th>Mahasiswa</th><th>Kegiatan / Sesi</th><th>Masuk</th><th>Status</th></tr>
         </thead>
         <tbody>
           @forelse($recent as $att)
@@ -68,8 +68,14 @@
                 </div>
               </div>
             </td>
+            <td>
+              @if(isset($att->sesi))
+                <span class="badge badge-blue">{{ $att->sesi->nama_sesi }}</span>
+              @else
+                <span style="color:var(--text-muted);font-size:12px">-</span>
+              @endif
+            </td>
             <td><span class="time-val">{{ $att->check_in ? Carbon\Carbon::parse($att->check_in)->format('H:i') : '-' }}</span></td>
-            <td><span class="time-val">{{ $att->check_out ? Carbon\Carbon::parse($att->check_out)->format('H:i') : '-' }}</span></td>
             <td>
               @php
                 $statusClass = match($att->status) {

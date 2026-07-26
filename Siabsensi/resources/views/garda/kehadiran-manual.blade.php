@@ -62,7 +62,7 @@
 
   <div class="panel kehadiran-desktop">
     <table class="att-table">
-      <thead><tr><th style="width:50px;text-align:center">No</th><th>Mahasiswa</th><th>Kompi</th><th>Tanggal</th><th>Check In</th><th>Check Out</th><th>Alasan</th><th>Bukti</th><th>Status</th><th style="width:60px;text-align:center;white-space:nowrap">Aksi</th></tr></thead>
+      <thead><tr><th style="width:50px;text-align:center">No</th><th>Mahasiswa</th><th>Kompi</th><th>Tanggal</th><th>Waktu Pengajuan</th><th>Alasan</th><th>Bukti</th><th>Status</th><th style="width:60px;text-align:center;white-space:nowrap">Aksi</th></tr></thead>
       <tbody>
         @forelse($submissions as $index => $s)
         <tr>
@@ -70,8 +70,7 @@
           <td><div class="mhs-name">{{ $s->name }}</div></td>
           <td><span class="badge badge-blue">{{ $s->kompi }}</span></td>
           <td style="font-size:13px">{{ \Carbon\Carbon::parse($s->date)->format('d M Y') }}</td>
-          <td><span class="time-val">{{ $s->check_in_time ?? '-' }}</span></td>
-          <td><span class="time-val">{{ $s->check_out_time ?? '-' }}</span></td>
+          <td><span class="time-val">{{ \Carbon\Carbon::parse($s->created_at)->format('H:i') }} WIB</span></td>
           <td style="font-size:13px;max-width:200px">{{ Str::limit($s->keterangan, 50) }}</td>
           <td>
             @if($s->bukti_path)
@@ -128,14 +127,9 @@
         Tanggal: {{ \Carbon\Carbon::parse($s->date)->format('d M Y') }}
       </div>
       
-      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px">
-        <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">login</span>
-        Check In: {{ $s->check_in_time ?? '-' }}
-      </div>
-
       <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">
-        <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">logout</span>
-        Check Out: {{ $s->check_out_time ?? '-' }}
+        <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">schedule</span>
+        Waktu Pengajuan: {{ \Carbon\Carbon::parse($s->created_at)->format('H:i') }} WIB
       </div>
       
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">

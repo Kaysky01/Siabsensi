@@ -39,38 +39,73 @@
           <td><span class="badge badge-blue">{{ $m->kompi }}</span></td>
           <td style="font-size:13px">{{ $m->prodi ?? '-' }}</td>
           <td style="font-size:13px;color:var(--text-muted)">{{ $m->email ?? '-' }}</td>
-          <td style="font-size:13px;color:var(--text-muted)">{{ $m->no_telp_mahasiswa ?? '-' }}</td>
+          <td style="font-size:13px;color:var(--text-muted)">{{ $m->no_telp_mahasiswa ?? $m->no_telp ?? '-' }}</td>
           <td>
-            <div style="display:flex;gap:4px">
-              @foreach($allKegiatan as $keg)
-                @php
-                  $att = $m->attendances->filter(function($a) use ($keg) {
-                      return $a->kegiatan_id == $keg->id || \Carbon\Carbon::parse($a->date)->format('Y-m-d') === \Carbon\Carbon::parse($keg->tanggal)->format('Y-m-d');
-                  })->first();
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              @php
+                // Gabungkan daftar kegiatan lama dan sesi kegiatan baru
+                $daftarKegiatan = collect();
+                if(isset($allKegiatan)) {
+                  foreach($allKegiatan as $keg) {
+                    $daftarKegiatan->push((object)[
+                      'id' => $keg->id,
+                      'type' => 'kegiatan',
+                      'nama' => $keg->nama,
+                      'tanggal' => $keg->tanggal_pelaksanaan
+                    ]);
+                  }
+                }
+                if(isset($allSesi)) {
+                  foreach($allSesi as $sesi) {
+                    $namaSesi = $sesi->pkkmbSchedule ? "PKKMB Hari ke-{$sesi->pkkmbSchedule->hari_ke} ({$sesi->nama_sesi})" : $sesi->nama_sesi;
+                    $daftarKegiatan->push((object)[
+                      'id' => $sesi->id,
+                      'type' => 'sesi',
+                      'nama' => $namaSesi,
+                      'tanggal' => $sesi->tanggal
+                    ]);
+                  }
+                }
+              @endphp
 
-                  if(!$att || $att->status === 'alpha') {
+              @foreach($daftarKegiatan as $item)
+                @php
+                  if($item->type === 'kegiatan') {
+                    $att = $m->attendances->filter(function($a) use ($item) {
+                        return $a->kegiatan_id == $item->id || (\Carbon\Carbon::parse($a->date)->format('Y-m-d') === \Carbon\Carbon::parse($item->tanggal)->format('Y-m-d'));
+                    })->first();
+                    $attSesi = null;
+                  } else {
+                    $att = null;
+                    $attSesi = $m->sessionAttendances ? $m->sessionAttendances->where('sesi_id', $item->id)->first() : null;
+                  }
+
+                  $status = $attSesi ? $attSesi->status : ($att ? $att->status : 'alpha');
+                  $absenBy = $attSesi ? ($attSesi->absen_by ?? '-') : ($att ? ($att->absen_by ?? 'Sistem / Mandiri') : '-');
+
+                  if($status === 'alpha' || !$status) {
                     $color = '#ef4444';
-                    $title = $keg->nama . ' - Alpha';
-                  } else if ($att->status === 'izin') {
+                    $label = 'Alpha';
+                  } else if ($status === 'izin') {
                     $color = '#3b82f6';
-                    $title = $keg->nama . ' - Izin';
-                  } else if ($att->status === 'sakit') {
+                    $label = 'Izin';
+                  } else if ($status === 'sakit') {
                     $color = '#eab308';
-                    $title = $keg->nama . ' - Sakit';
-                  } else if(!$att->check_out) {
+                    $label = 'Sakit';
+                  } else if($att && !$att->check_out && !$attSesi) {
                     $color = '#1f2937';
-                    $jamMasuk = $att->check_in ? \Carbon\Carbon::parse($att->check_in)->format('H:i') : '-';
-                    $title = $keg->nama . ' - Masuk (' . $jamMasuk . ')';
+                    $label = 'Masuk';
                   } else {
                     $color = '#10b981';
-                    $jamMasuk = $att->check_in ? \Carbon\Carbon::parse($att->check_in)->format('H:i') : '-';
-                    $jamKeluar = $att->check_out ? \Carbon\Carbon::parse($att->check_out)->format('H:i') : '-';
-                    $title = $keg->nama . ' - Lengkap (In: ' . $jamMasuk . ', Out: ' . $jamKeluar . ')';
+                    $label = 'Hadir';
                   }
+                  
+                  $title = "{$item->nama} | Status: " . strtoupper($label) . " | Oleh: {$absenBy}";
                 @endphp
-                <div style="width: 14px; height: 14px; background-color: {{ $color }}; border-radius: 50%; display:inline-block; border: 1px solid rgba(0,0,0,0.1);" title="{{ $title }}"></div>
+                <div style="width: 14px; height: 14px; background-color: {{ $color }}; border-radius: 50%; display:inline-block; border: 1px solid rgba(0,0,0,0.1); cursor:pointer;" title="{{ $title }}"></div>
               @endforeach
-              @if($allKegiatan->isEmpty())
+
+              @if($daftarKegiatan->isEmpty())
                 <span style="font-size:12px;color:#9ca3af">Belum ada kegiatan</span>
               @endif
             </div>

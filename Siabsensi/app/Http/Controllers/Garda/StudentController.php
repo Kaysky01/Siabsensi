@@ -19,8 +19,9 @@ class StudentController extends Controller
         }
 
         $allKegiatan = Kegiatan::orderBy('tanggal_pelaksanaan')->get();
-        $mahasiswaList = $query->with('attendances')->orderBy('name')->paginate(20)->withQueryString();
+        $allSesi = \App\Models\KegiatanSesi::with(['kegiatan', 'pkkmbSchedule'])->orderBy('created_at', 'asc')->get();
+        $mahasiswaList = $query->with(['attendances', 'sessionAttendances'])->orderBy('name')->paginate(20)->withQueryString();
 
-        return view('garda.mahasiswa-saya', compact('mahasiswaList', 'allKegiatan'));
+        return view('garda.mahasiswa-saya', compact('mahasiswaList', 'allKegiatan', 'allSesi'));
     }
 }

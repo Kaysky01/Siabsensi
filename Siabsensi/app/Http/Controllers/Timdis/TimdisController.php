@@ -35,16 +35,13 @@ class TimdisController extends Controller
             
         $pct = $totalMahasiswa > 0 ? round(($presentToday / $totalMahasiswa) * 100, 1) : 0;
         
-        // Data untuk tabel recent (5 terakhir check-in hari ini)
-        $table = (new Attendance)->getTable();
-        $mhsTable = (new Mahasiswa)->getTable();
-
-        $recent = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
-            ->whereDate("$table.date", $today)
-            ->whereIn("$table.status", ['hadir', 'present'])
-            ->orderBy("$table.check_in", 'desc')
-            ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
-            ->take(5)
+        // Data untuk tabel recent (8 terakhir check-in hari ini, disamakan dengan Garda)
+        $recent = Attendance::with('sesi')
+            ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+            ->whereDate('attendance.date', $today)
+            ->orderBy('attendance.check_in', 'desc')
+            ->select('attendance.*', 'mahasiswa.name', 'mahasiswa.kompi')
+            ->take(8)
             ->get();
             
         // Dummy trend data untuk chart
