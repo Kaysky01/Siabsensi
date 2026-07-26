@@ -88,8 +88,7 @@
           </span>
         </div>
 
-        <!-- reCAPTCHA Widget (Temporarily Disabled) -->
-        {{--
+        <!-- reCAPTCHA Widget -->
         <div class="recaptcha-wrapper">
           <div class="g-recaptcha" 
                data-sitekey="{{ config('recaptcha.site_key') }}"
@@ -101,7 +100,6 @@
             Silakan centang kotak "Saya bukan robot" terlebih dahulu.
           </div>
         </div>
-        --}}
 
         <button type="submit" class="btn-login" id="login-btn">
           <span id="login-text">Masuk</span>
@@ -118,7 +116,6 @@
                 return false;
             }
 
-            /*
             // Check reCAPTCHA
             if (typeof grecaptcha !== 'undefined') {
                 const recaptchaResponse = grecaptcha.getResponse();
@@ -151,7 +148,6 @@
                     }
                 }
             }
-            */
             
             // Show loading state
             const loginText = document.getElementById('login-text');

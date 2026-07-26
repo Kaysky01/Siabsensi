@@ -12,7 +12,7 @@
 
   <div class="panel">
     <table class="att-table">
-      <thead><tr><th>Foto</th><th>Mahasiswa</th><th>Kompi</th><th>Prodi</th><th>Email</th><th>No. Telp</th><th>Status Kegiatan</th></tr></thead>
+      <thead><tr><th>Foto</th><th>Mahasiswa</th><th>Kompi</th><th>Prodi</th><th>Email</th><th>No. Telp</th><th>Status Harian <small style="font-weight:400;color:var(--text-muted)">(per hari PKKMB)</small></th></tr></thead>
       <tbody>
         @forelse($mahasiswaList as $m)
         <tr>
@@ -41,73 +41,46 @@
           <td style="font-size:13px;color:var(--text-muted)">{{ $m->email ?? '-' }}</td>
           <td style="font-size:13px;color:var(--text-muted)">{{ $m->no_telp_mahasiswa ?? $m->no_telp ?? '-' }}</td>
           <td>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
               @php
-                // Gabungkan daftar kegiatan lama dan sesi kegiatan baru
-                $daftarKegiatan = collect();
-                if(isset($allKegiatan)) {
-                  foreach($allKegiatan as $keg) {
-                    $daftarKegiatan->push((object)[
-                      'id' => $keg->id,
-                      'type' => 'kegiatan',
-                      'nama' => $keg->nama,
-                      'tanggal' => $keg->tanggal_pelaksanaan
-                    ]);
-                  }
-                }
-                if(isset($allSesi)) {
-                  foreach($allSesi as $sesi) {
-                    $namaSesi = $sesi->pkkmbSchedule ? "PKKMB Hari ke-{$sesi->pkkmbSchedule->hari_ke} ({$sesi->nama_sesi})" : $sesi->nama_sesi;
-                    $daftarKegiatan->push((object)[
-                      'id' => $sesi->id,
-                      'type' => 'sesi',
-                      'nama' => $namaSesi,
-                      'tanggal' => $sesi->tanggal
-                    ]);
-                  }
-                }
+                // Satu titik per hari PKKMB
+                $attendancesByDate = $m->attendances->keyBy(fn($a) => \Carbon\Carbon::parse($a->date)->format('Y-m-d'));
               @endphp
 
-              @foreach($daftarKegiatan as $item)
+              @forelse($allSchedules as $sched)
                 @php
-                  if($item->type === 'kegiatan') {
-                    $att = $m->attendances->filter(function($a) use ($item) {
-                        return $a->kegiatan_id == $item->id || (\Carbon\Carbon::parse($a->date)->format('Y-m-d') === \Carbon\Carbon::parse($item->tanggal)->format('Y-m-d'));
-                    })->first();
-                    $attSesi = null;
+                  $tgl = \Carbon\Carbon::parse($sched->tanggal)->format('Y-m-d');
+                  $att = $attendancesByDate->get($tgl);
+                  $status = $att ? $att->status : null;
+
+                  if (!$att) {
+                    // Jika hari sudah lewat: alpha, jika belum: abu
+                    if (\Carbon\Carbon::parse($tgl)->isPast()) {
+                      $color = '#ef4444'; $label = 'Alpha';
+                    } else {
+                      $color = '#d1d5db'; $label = 'Belum';
+                    }
+                  } elseif (in_array($status, ['hadir', 'present'])) {
+                    if ($att->check_in && !$att->check_out) {
+                      $color = '#1f2937'; $label = 'Masuk (belum keluar)';
+                    } else {
+                      $color = '#10b981'; $label = 'Hadir';
+                    }
+                  } elseif ($status === 'izin') {
+                    $color = '#3b82f6'; $label = 'Izin';
+                  } elseif ($status === 'sakit') {
+                    $color = '#eab308'; $label = 'Sakit';
                   } else {
-                    $att = null;
-                    $attSesi = $m->sessionAttendances ? $m->sessionAttendances->where('sesi_id', $item->id)->first() : null;
+                    $color = '#ef4444'; $label = 'Alpha';
                   }
 
-                  $status = $attSesi ? $attSesi->status : ($att ? $att->status : 'alpha');
-                  $absenBy = $attSesi ? ($attSesi->absen_by ?? '-') : ($att ? ($att->absen_by ?? 'Sistem / Mandiri') : '-');
-
-                  if($status === 'alpha' || !$status) {
-                    $color = '#ef4444';
-                    $label = 'Alpha';
-                  } else if ($status === 'izin') {
-                    $color = '#3b82f6';
-                    $label = 'Izin';
-                  } else if ($status === 'sakit') {
-                    $color = '#eab308';
-                    $label = 'Sakit';
-                  } else if($att && !$att->check_out && !$attSesi) {
-                    $color = '#1f2937';
-                    $label = 'Masuk';
-                  } else {
-                    $color = '#10b981';
-                    $label = 'Hadir';
-                  }
-                  
-                  $title = "{$item->nama} | Status: " . strtoupper($label) . " | Oleh: {$absenBy}";
+                  $title = "PKKMB Hari ke-{$sched->hari_ke} ({$tgl}) | Status: " . strtoupper($label);
                 @endphp
-                <div style="width: 14px; height: 14px; background-color: {{ $color }}; border-radius: 50%; display:inline-block; border: 1px solid rgba(0,0,0,0.1); cursor:pointer;" title="{{ $title }}"></div>
-              @endforeach
-
-              @if($daftarKegiatan->isEmpty())
-                <span style="font-size:12px;color:#9ca3af">Belum ada kegiatan</span>
-              @endif
+                <div style="width:14px;height:14px;background-color:{{ $color }};border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,0.15);cursor:pointer;flex-shrink:0"
+                     title="{{ $title }}"></div>
+              @empty
+                <span style="font-size:12px;color:#9ca3af">Belum ada jadwal</span>
+              @endforelse
             </div>
           </td>
         </tr>
@@ -119,6 +92,17 @@
   </div>
   <div style="margin-top: 16px;">
     {{ $mahasiswaList->links('pagination::bootstrap-4') }}
+  </div>
+
+  {{-- Legenda warna titik --}}
+  <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-muted);align-items:center;padding:10px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm)">
+    <span style="font-weight:600;color:var(--text)">Keterangan:</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#10b981;display:inline-block"></span>Hadir</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#1f2937;display:inline-block"></span>Masuk (blm keluar)</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#ef4444;display:inline-block"></span>Alpha</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#3b82f6;display:inline-block"></span>Izin</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#eab308;display:inline-block"></span>Sakit</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#d1d5db;display:inline-block"></span>Belum (jadwal mendatang)</span>
   </div>
 </section>
 

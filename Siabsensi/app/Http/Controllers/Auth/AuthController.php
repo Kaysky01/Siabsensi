@@ -27,25 +27,23 @@ class AuthController extends Controller
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
-            // 'g-recaptcha-response' => 'required',
+            'g-recaptcha-response' => 'required',
         ], [
-            // 'g-recaptcha-response.required' => 'Silakan centang kotak "Saya bukan robot".',
+            'g-recaptcha-response.required' => 'Silakan centang kotak "Saya bukan robot".',
         ]);
 
         $username = trim($request->username);
         $password = trim($request->password);
         $remember = $request->boolean('remember');
-        // $recaptchaToken = $request->input('g-recaptcha-response');
+        $recaptchaToken = $request->input('g-recaptcha-response');
         $ip = $request->ip();
 
         // Validate reCAPTCHA
-        /*
         if (!$recaptchaService->validate($recaptchaToken, $ip)) {
             return back()->withErrors([
                 'username' => 'Verifikasi reCAPTCHA gagal. Silakan coba lagi.',
             ])->onlyInput('username');
         }
-        */
 
         // Coba login normal (username + password)
         if (Auth::attempt([

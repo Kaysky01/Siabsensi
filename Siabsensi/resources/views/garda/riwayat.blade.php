@@ -86,22 +86,20 @@
           </td>
           <td>
             @if($item->absen_by)
-              <span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #0284c7;font-size:11px" title="Waktu: {{ $item->absen_at ? \Carbon\Carbon::parse($item->absen_at)->format('H:i') : (\Carbon\Carbon::parse($item->created_at)->format('H:i')) }}">
-                Kehadiran Manual
+              <span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #0284c7;font-size:11px">
+                Manual ({{ $item->absen_by }})
               </span>
-            @elseif($item->absen_at)
-              {{ \Carbon\Carbon::parse($item->absen_at)->format('H:i') }}
-            @elseif($item->created_at)
-              {{ \Carbon\Carbon::parse($item->created_at)->format('H:i') }}
+            @elseif($item->check_in)
+              {{ \Carbon\Carbon::parse($item->check_in)->format('H:i') }}
             @else
               -
             @endif
           </td>
           <td>
-            {{ optional($item->sesi)->nama_sesi ?? $item->nama_sesi ?? 'Sesi Tidak Ditemukan' }}
+            <span style="color:var(--text-muted);font-size:12px">Absensi Harian</span>
           </td>
           <td>
-            @if($item->status === 'present')
+            @if(in_array($item->status, ['present', 'hadir']))
               <span class="badge badge-green">Hadir</span>
             @elseif($item->status === 'izin')
               <span class="badge badge-blue">Izin</span>
