@@ -213,6 +213,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::post('/users/{id}/activate', [AdminController::class, 'activateUser'])->name('admin.users.activate');
     Route::post('/users/{id}/deactivate', [AdminController::class, 'deactivateUser'])->name('admin.users.deactivate');
     Route::post('/users/{id}/reset-password', [AdminController::class, 'resetUserPassword'])->name('admin.users.resetPassword');
+    Route::delete('/users/{id}', [AdminController::class, 'deleteUser'])->name('admin.users.destroy');
 
     // Settings
     Route::post('/settings/save', [AdminController::class, 'saveSettings'])->name('admin.settings.save');

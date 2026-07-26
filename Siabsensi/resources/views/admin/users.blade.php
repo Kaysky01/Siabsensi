@@ -57,6 +57,9 @@
               <form method="POST" action="{{ route('admin.users.activate', $u->id) }}" style="display:inline">@csrf<button type="submit" class="btn btn-ghost btn-sm" title="Aktifkan"><span class="material-symbols-outlined" style="font-size:16px;color:var(--success)">check_circle</span></button></form>
               @endif
               <button class="btn btn-ghost btn-sm" onclick="openResetPw({{ $u->id }}, '{{ $u->username }}')" title="Reset Password"><span class="material-symbols-outlined" style="font-size:16px">lock_reset</span></button>
+              @if($u->id !== Auth::id())
+              <button class="btn btn-ghost btn-sm" onclick="openDeleteUser({{ $u->id }}, '{{ addslashes($u->full_name) }}', '{{ $u->username }}', '{{ $u->role }}')" title="Hapus User"><span class="material-symbols-outlined" style="font-size:16px;color:var(--danger)">delete</span></button>
+              @endif
             </div>
           </td>
         </tr>
@@ -113,6 +116,35 @@
   </div>
 </div>
 
+{{-- Modal Hapus User --}}
+<div class="modal-backdrop" id="modal-delete-user">
+  <div class="modal">
+    <div class="modal-title" style="color:var(--danger)">
+      <span class="material-symbols-outlined" style="font-size:20px;vertical-align:middle;margin-right:4px">warning</span>
+      Hapus User
+    </div>
+    <div style="margin-bottom:16px">
+      <p style="color:var(--text-muted);margin-bottom:8px">Apakah Anda yakin ingin menghapus user ini?</p>
+      <div style="background:var(--bg-dark);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:12px">
+        <div style="font-weight:600" id="du-name"></div>
+        <div style="font-size:13px;color:var(--text-muted)">Username: <span id="du-username"></span></div>
+        <div style="font-size:13px;color:var(--text-muted)">Role: <span id="du-role" style="text-transform:uppercase;font-weight:600"></span></div>
+      </div>
+      <div id="du-admin-warning" style="display:none;background:#fff7ed;color:#9a3412;padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;border:1px solid #fdba74">
+        <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">info</span>
+        Anda akan menghapus akun admin lain. Pastikan ini disengaja.
+      </div>
+    </div>
+    <form method="POST" id="delete-user-form">
+      @csrf @method('DELETE')
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="this.closest('.modal-backdrop').classList.remove('show')">Batal</button>
+        <button type="submit" class="btn" style="background:var(--danger);color:#fff">Hapus Permanen</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 function openEditUser(id, name, email, kompi) {
   document.getElementById('edit-user-form').action = '/admin/users/' + id;
@@ -125,6 +157,17 @@ function openResetPw(id, username) {
   document.getElementById('reset-pw-form').action = '/admin/users/' + id + '/reset-password';
   document.getElementById('rp-username').textContent = username;
   document.getElementById('modal-reset-pw').classList.add('show');
+}
+function openDeleteUser(id, name, username, role) {
+  document.getElementById('delete-user-form').action = '/admin/users/' + id;
+  document.getElementById('du-name').textContent = name;
+  document.getElementById('du-username').textContent = username;
+  document.getElementById('du-role').textContent = role;
+  
+  // Show/hide admin warning if deleting admin
+  document.getElementById('du-admin-warning').style.display = role === 'admin' ? 'block' : 'none';
+  
+  document.getElementById('modal-delete-user').classList.add('show');
 }
 </script>
 @endsection

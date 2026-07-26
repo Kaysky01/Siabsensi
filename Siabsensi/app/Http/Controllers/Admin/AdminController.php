@@ -1257,6 +1257,33 @@ class AdminController extends Controller
         return redirect()->route('admin.users')->with('success', 'Password berhasil di-reset.');
     }
 
+    public function deleteUser($id)
+    {
+        $user = User::findOrFail($id);
+
+        // Tidak boleh hapus diri sendiri
+        if ($user->id === Auth::id()) {
+            return redirect()->route('admin.users')->with('error', 'Tidak dapat menghapus akun Anda sendiri.');
+        }
+
+        $username = $user->username;
+        $role = $user->role;
+
+        // Validasi agar hanya admin, garda, dan timdis yang bisa dihapus lewat sini
+        if (!in_array($role, ['admin', 'garda', 'timdis'])) {
+            return redirect()->route('admin.users')->with('error', 'Role user ini tidak valid untuk dihapus.');
+        }
+
+        // Jika garda, bersihkan referensi di tabel kompi
+        if ($role === 'garda' && $user->assigned_kompi) {
+            \App\Models\Kompi::where('garda_id', $user->username)->update(['garda_id' => null]);
+        }
+
+        $user->delete();
+
+        return redirect()->route('admin.users')->with('success', "User {$username} ({$role}) berhasil dihapus.");
+    }
+
     // ─── SETTINGS ────────────────────────────────────────────────────────────
     public function settings()
     {
