@@ -36,10 +36,14 @@ class TimdisController extends Controller
         $pct = $totalMahasiswa > 0 ? round(($presentToday / $totalMahasiswa) * 100, 1) : 0;
         
         // Data untuk tabel recent (5 terakhir check-in hari ini)
-        $recent = Attendance::with('mahasiswa')
-            ->where('date', $today)
-            ->whereIn('status', ['hadir', 'present'])
-            ->orderBy('check_in', 'desc')
+        $table = (new Attendance)->getTable();
+        $mhsTable = (new Mahasiswa)->getTable();
+
+        $recent = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+            ->whereDate("$table.date", $today)
+            ->whereIn("$table.status", ['hadir', 'present'])
+            ->orderBy("$table.check_in", 'desc')
+            ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
             ->take(5)
             ->get();
             
@@ -241,3 +245,4 @@ class TimdisController extends Controller
         return redirect()->route('timdis.kehadiran-timdis')->with('success', $msg);
     }
 }
+

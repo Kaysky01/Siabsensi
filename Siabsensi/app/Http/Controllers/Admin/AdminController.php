@@ -899,7 +899,7 @@ class AdminController extends Controller
 
         $mahasiswaPaginator = $query->paginate(20)->withQueryString();
         // Menghitung seluruh jumlah kegiatan tanpa filter tanggal
-        $totalDays = \App\Models\Kegiatan::count();
+        $totalDays = \App\Models\PkkmbSchedule::count();
         if ($totalDays == 0) {
             $totalDays = 1; // Prevent division by zero
         }
@@ -913,7 +913,7 @@ class AdminController extends Controller
                             ->whereNotNull('check_out');
                       });
             })
-            ->selectRaw('mahasiswa_id, COUNT(*) as total_hadir')
+            ->selectRaw('mahasiswa_id, COUNT(DISTINCT date) as total_hadir')
             ->groupBy('mahasiswa_id')
             ->pluck('total_hadir', 'mahasiswa_id');
 
@@ -1587,3 +1587,4 @@ class AdminController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 }
+

@@ -158,12 +158,14 @@ class Mahasiswa extends Model
         if ($this->sertifikat_status === 'locked') return false;
         if ($this->sertifikat_status === 'unlocked') return true;
 
-        $totalDays = \App\Models\Kegiatan::count();
+        // Hitung total hari dari PkkmbSchedule alih-alih Kegiatan
+        $totalDays = \App\Models\PkkmbSchedule::count();
         
         // Prevent auto-unlock if no activities exist
         if ($totalDays == 0) return false;
 
-        $attendanceCount = $this->attendances()
+        // Hanya hitung absensi harian (yang tidak ada sesi/kegiatan id) ATAU hitung unique hari jika absensi berupa sesi
+        $attendanceDays = $this->attendances()
             ->where(function ($query) {
                 $query->whereIn('status', ['izin', 'sakit'])
                       ->orWhere(function ($q) {
@@ -172,12 +174,15 @@ class Mahasiswa extends Model
                             ->whereNotNull('check_out');
                       });
             })
-            ->count();
+            // Karena sekarang memakai sesi, mahasiswa bisa absen di beberapa sesi dalam 1 hari.
+            // Maka kita hitung tanggal unik (date) di mana mereka hadir/izin/sakit, bukan count rows.
+            ->distinct('date')
+            ->count('date');
 
         // Prevent auto-unlock when there are 0 valid attendances
-        if ($attendanceCount == 0) return false;
+        if ($attendanceDays == 0) return false;
 
-        $persentase = ($attendanceCount / $totalDays) * 100;
+        $persentase = ($attendanceDays / $totalDays) * 100;
 
         return $persentase >= 80;
     }
@@ -211,3 +216,4 @@ class Mahasiswa extends Model
         ];
     }
 }
+
