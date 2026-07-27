@@ -276,6 +276,9 @@
         <a href="{{ route('garda.mahasiswa-saya') }}" class="nav-item {{ request()->routeIs('garda.mahasiswa-saya') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">group</span> Mahasiswa Saya
         </a>
+        <a href="{{ route('garda.kompi-saya') }}" class="nav-item {{ request()->routeIs('garda.kompi-saya') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">diversity_3</span> Kompi Saya
+        </a>
         <a href="{{ route('garda.riwayat') }}" class="nav-item {{ request()->routeIs('garda.riwayat') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">history</span> Riwayat Absensi
         </a>

@@ -25,7 +25,7 @@
       Swal.fire({
         icon: 'success',
         title: 'Berhasil!',
-        text: '{{ session('success') }}',
+        text: @json(session('success')),
         confirmButtonColor: '#28a745',
         timer: 3000,
         timerProgressBar: true
@@ -40,7 +40,7 @@
       Swal.fire({
         icon: 'error',
         title: 'Gagal!',
-        text: '{{ session('error') }}',
+        text: @json(session('error')),
         confirmButtonColor: '#dc3545'
       });
     });
@@ -176,12 +176,14 @@
           <button class="btn-icon btn-edit" title="Edit" onclick="openEditSchedule({{ $schedule->id }}, {{ $schedule->hari_ke }}, '{{ $schedule->tanggal->format('Y-m-d') }}', '{{ Carbon\Carbon::parse($schedule->check_in_start)->format('H:i') }}', '{{ Carbon\Carbon::parse($schedule->check_in_end)->format('H:i') }}', '{{ Carbon\Carbon::parse($schedule->check_out_start)->format('H:i') }}', '{{ Carbon\Carbon::parse($schedule->check_out_end)->format('H:i') }}', {{ $schedule->is_active ? 1 : 0 }})">
             <span class="material-symbols-outlined">edit</span>
           </button>
-          <form method="POST" action="{{ route('admin.pkkmb-schedule.destroy', $schedule->id) }}" onsubmit="return confirm('Hapus jadwal Hari ke-{{ $schedule->hari_ke }}?\n\nSemua data absensi terkait akan tetap tersimpan.')" style="margin:0">
+          {{-- Hidden form untuk proses delete --}}
+          <form method="POST" action="{{ route('admin.pkkmb-schedule.destroy', $schedule->id) }}" id="delete-form-{{ $schedule->id }}" style="margin:0">
             @csrf @method('DELETE')
-            <button type="submit" class="btn-icon btn-delete" title="Hapus">
-              <span class="material-symbols-outlined">delete</span>
-            </button>
           </form>
+          <button type="button" class="btn-icon btn-delete" title="Hapus"
+            onclick="confirmDeleteSchedule({{ $schedule->id }}, {{ $schedule->hari_ke }}, '{{ $schedule->tanggal->format('d M Y') }}')">
+            <span class="material-symbols-outlined">delete</span>
+          </button>
         </div>
       </div>
       @endforeach
@@ -385,6 +387,38 @@ function openEditSchedule(id, hariKe, tanggal, checkInStart, checkInEnd, checkOu
   document.getElementById('edit-check-out-end').value = checkOutEnd;
   document.getElementById('edit-is-active').checked = isActive == 1;
   document.getElementById('modal-edit-schedule').classList.add('show');
+}
+
+function confirmDeleteSchedule(id, hariKe, tanggal) {
+  Swal.fire({
+    icon: 'warning',
+    title: 'Hapus Jadwal PKKMB?',
+    html: `
+      <div style="text-align:left;font-size:14px;line-height:1.7">
+        <p style="margin-bottom:10px">Anda akan menghapus <strong>Jadwal Hari ke-${hariKe}</strong> (${tanggal}).</p>
+        <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:10px">
+          <strong style="color:#856404">⚠️ Data berikut juga akan ikut dihapus secara permanen:</strong>
+          <ul style="margin:8px 0 0 0;padding-left:20px;color:#664d03">
+            <li>Seluruh <b>sesi kegiatan</b> pada hari ini</li>
+            <li>Seluruh <b>absensi per-sesi</b> (attendance sesi)</li>
+            <li>Seluruh <b>absensi QR harian</b> pada tanggal ini</li>
+          </ul>
+        </div>
+        <p style="color:#dc3545;margin:0"><strong>Tindakan ini tidak dapat dibatalkan!</strong></p>
+      </div>
+    `,
+    showCancelButton: true,
+    confirmButtonColor: '#dc3545',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: '<span style="font-size:14px">Ya, Hapus Beserta Absensi</span>',
+    cancelButtonText: 'Batal',
+    reverseButtons: true,
+    focusCancel: true,
+  }).then((result) => {
+    if (result.isConfirmed) {
+      document.getElementById('delete-form-' + id).submit();
+    }
+  });
 }
 </script>
 

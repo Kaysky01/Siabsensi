@@ -199,6 +199,23 @@ class AdminController extends Controller
             $query->where('prodi', 'like', '%' . $request->prodi . '%');
         }
 
+        // Auto-fix tanggal_lahir yang masih NULL (ekstrak dari email ddmmyyyy atau default 2006-01-01)
+        Mahasiswa::whereNull('tanggal_lahir')->get()->each(function ($mhs) {
+            $dob = null;
+            if ($mhs->email && preg_match('/(\d{2})(\d{2})(\d{4})@/', $mhs->email, $matches)) {
+                $day = (int)$matches[1];
+                $month = (int)$matches[2];
+                $year = (int)$matches[3];
+                if (checkdate($month, $day, $year)) {
+                    $dob = sprintf('%04d-%02d-%02d', $year, $month, $day);
+                }
+            }
+            if (!$dob) {
+                $dob = '2006-01-01';
+            }
+            $mhs->update(['tanggal_lahir' => $dob]);
+        });
+
         $allKegiatan = \App\Models\PkkmbSchedule::orderBy('tanggal')->get();
 
         $mahasiswaList = $query->with('attendances')->orderBy('name')->paginate(20)->withQueryString();
@@ -232,9 +249,46 @@ class AdminController extends Controller
         ));
     }
 
+    private function parseFormattedDate(?string $value): ?string
+    {
+        if (empty($value)) return null;
+        $value = trim($value);
+
+        if (str_contains($value, '/')) {
+            try {
+                return Carbon::createFromFormat('d/m/Y', $value)->format('Y-m-d');
+            } catch (\Throwable $e) {
+                try {
+                    return Carbon::parse($value)->format('Y-m-d');
+                } catch (\Throwable $e2) {
+                    return null;
+                }
+            }
+        }
+
+        if (preg_match('/^(\d{2})(\d{2})(\d{4})$/', $value, $m)) {
+            if (checkdate((int)$m[2], (int)$m[1], (int)$m[3])) {
+                return sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+            }
+        }
+
+        try {
+            return Carbon::parse($value)->format('Y-m-d');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     public function storeMahasiswa(Request $request)
     {
         $this->ensureMahasiswaManagementAccess();
+
+        if ($request->has('tanggal_lahir') && $request->filled('tanggal_lahir')) {
+            $parsedDate = $this->parseFormattedDate($request->tanggal_lahir);
+            if ($parsedDate) {
+                $request->merge(['tanggal_lahir' => $parsedDate]);
+            }
+        }
 
         $validated = $request->validate([
             'id' => 'required|string|max:50|unique:mahasiswa,id',
@@ -262,13 +316,14 @@ class AdminController extends Controller
         $defaultPassword = $dob->format('dmY'); // format: ddmmyyyy
 
         User::create([
-            'username'     => $mahasiswa->id,
-            'password'     => Hash::make($defaultPassword),
-            'full_name'    => $mahasiswa->name,
-            'email'        => $mahasiswa->email,
-            'role'         => 'mahasiswa',
-            'mahasiswa_id' => $mahasiswa->id,
-            'is_active'    => 1,
+            'username'       => $mahasiswa->id,
+            'password'       => Hash::make($defaultPassword),
+            'full_name'      => $mahasiswa->name,
+            'email'          => $mahasiswa->email,
+            'role'           => 'mahasiswa',
+            'mahasiswa_id'   => $mahasiswa->id,
+            'assigned_kompi' => $mahasiswa->kompi,
+            'is_active'      => 1,
         ]);
 
         return redirect()->route($this->getMahasiswaManagementRouteName('mahasiswa'))
@@ -322,6 +377,8 @@ class AdminController extends Controller
     public function importMahasiswaCSV(Request $request)
     {
         $this->ensureMahasiswaManagementAccess();
+        @set_time_limit(300);
+        @ini_set('memory_limit', '512M');
 
         $request->validate([
             'csv_file' => 'required|mimes:csv,txt,xls,xlsx|max:5120'
@@ -350,6 +407,12 @@ class AdminController extends Controller
         }
 
         $count = 0;
+        $hashedPasswords = [];
+
+        // Optimasi: Pre-fetch existing data ke memori (Lookups)
+        $existingMahasiswaIds = array_fill_keys(Mahasiswa::pluck('id')->filter()->toArray(), true);
+        $existingUsernames    = array_fill_keys(User::pluck('username')->filter()->toArray(), true);
+        $existingEmails       = array_fill_keys(Mahasiswa::whereNotNull('email')->pluck('email')->filter()->toArray(), true);
 
         DB::beginTransaction();
         try {
@@ -371,13 +434,25 @@ class AdminController extends Controller
                     throw new \RuntimeException("Baris {$rowNumber}: nomor registrasi wajib diisi.");
                 }
 
-                if (Mahasiswa::where('id', $mahasiswaId)->exists() || User::where('username', $mahasiswaId)->exists()) {
+                if (isset($existingMahasiswaIds[$mahasiswaId]) || isset($existingUsernames[$mahasiswaId])) {
                     throw new \RuntimeException("Baris {$rowNumber}: nomor registrasi/username {$mahasiswaId} sudah digunakan.");
                 }
 
+                $email = $this->normalizeMahasiswaImportValue($record['email'] ?? null);
+                if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    throw new \RuntimeException("Baris {$rowNumber}: format email tidak valid.");
+                }
+                if ($email !== null && isset($existingEmails[$email])) {
+                    throw new \RuntimeException("Baris {$rowNumber}: email {$email} sudah digunakan.");
+                }
+
                 $tanggalLahirRaw = $record['tanggal_lahir'] ?? null;
-                $tanggalLahir = $this->parseMahasiswaImportDate($tanggalLahirRaw, $rowNumber);
+                $tanggalLahir = $this->parseMahasiswaImportDate($tanggalLahirRaw, $rowNumber, $email);
                 $defaultPassword = Carbon::parse($tanggalLahir)->format('dmY');
+
+                if (!isset($hashedPasswords[$defaultPassword])) {
+                    $hashedPasswords[$defaultPassword] = Hash::make($defaultPassword);
+                }
 
                 $jurusanProdi = $this->resolveImportedJurusanProdi(
                     $record['jurusan'] ?? null,
@@ -385,44 +460,44 @@ class AdminController extends Controller
                     $rowNumber
                 );
 
-                $email = $this->normalizeMahasiswaImportValue($record['email'] ?? null);
-                if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    throw new \RuntimeException("Baris {$rowNumber}: format email tidak valid.");
-                }
-                if ($email !== null && Mahasiswa::where('email', $email)->exists()) {
-                    throw new \RuntimeException("Baris {$rowNumber}: email {$email} sudah digunakan.");
-                }
-
                 $kompi = $this->normalizeMahasiswaImportValue($record['kompi'] ?? null) ?? '-';
 
                 $mhs = Mahasiswa::create([
-                    'id' => $mahasiswaId,
-                    'qr_code_id' => $mahasiswaId,
-                    'name' => $name,
-                    'kompi' => $kompi,
-                    'jurusan' => $jurusanProdi['jurusan'],
-                    'prodi' => $jurusanProdi['prodi'],
-                    'tanggal_lahir' => $tanggalLahir,
-                    'email' => $email,
+                    'id'                => $mahasiswaId,
+                    'qr_code_id'        => $mahasiswaId,
+                    'name'              => $name,
+                    'kompi'             => $kompi,
+                    'jurusan'           => $jurusanProdi['jurusan'],
+                    'prodi'             => $jurusanProdi['prodi'],
+                    'tanggal_lahir'     => $tanggalLahir,
+                    'email'             => $email,
                     'no_telp_mahasiswa' => $this->normalizeMahasiswaImportValue($record['no_telp_mahasiswa'] ?? null),
-                    'no_telp_ortu' => $this->normalizeMahasiswaImportValue($record['no_telp_ortu'] ?? null),
+                    'no_telp_ortu'      => $this->normalizeMahasiswaImportValue($record['no_telp_ortu'] ?? null),
                 ]);
 
                 User::create([
-                    'username' => $mhs->id,
-                    'password' => Hash::make($defaultPassword),
-                    'full_name' => $mhs->name,
-                    'email' => $mhs->email,
-                    'role' => 'mahasiswa',
-                    'mahasiswa_id' => $mhs->id,
-                    'is_active' => 1,
+                    'username'       => $mhs->id,
+                    'password'       => $hashedPasswords[$defaultPassword],
+                    'full_name'      => $mhs->name,
+                    'email'          => $mhs->email,
+                    'role'           => 'mahasiswa',
+                    'mahasiswa_id'   => $mhs->id,
+                    'assigned_kompi' => $mhs->kompi,
+                    'is_active'      => 1,
                 ]);
+
+                // Update memory lookups untuk mendeteksi duplikat internal file
+                $existingMahasiswaIds[$mahasiswaId] = true;
+                $existingUsernames[$mahasiswaId]    = true;
+                if ($email !== null) {
+                    $existingEmails[$email] = true;
+                }
 
                 $count++;
             }
 
             DB::commit();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollBack();
             return back()->with('error', 'Gagal memproses file import: ' . $e->getMessage());
         }
@@ -439,7 +514,10 @@ class AdminController extends Controller
         $extension = strtolower($extension);
 
         if (in_array($extension, ['xls', 'xlsx'], true)) {
-            $sheet = IOFactory::load($path)->getActiveSheet();
+            $reader = IOFactory::createReaderForFile($path);
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($path);
+            $sheet = $spreadsheet->getActiveSheet();
             return $sheet->toArray(null, true, true, false);
         }
 
@@ -561,18 +639,36 @@ class AdminController extends Controller
         return $value === '' ? null : $value;
     }
 
-    private function parseMahasiswaImportDate($value, int $rowNumber): string
+    private function parseMahasiswaImportDate($value, int $rowNumber, ?string $email = null): string
     {
         if ($value === null || $value === '') {
-            throw new \RuntimeException("Baris {$rowNumber}: tanggal lahir wajib diisi.");
+            if ($email && preg_match('/(\d{2})(\d{2})(\d{4})@/', $email, $matches)) {
+                $day = (int)$matches[1];
+                $month = (int)$matches[2];
+                $year = (int)$matches[3];
+                if (checkdate($month, $day, $year)) {
+                    return sprintf('%04d-%02d-%02d', $year, $month, $day);
+                }
+            }
+            return '2006-01-01'; // Default fallback agar tidak pernah NULL
         }
 
         try {
-            if (is_numeric($value)) {
-                return Carbon::instance(ExcelDate::excelToDateTimeObject((float) $value))->format('Y-m-d');
+            $dateString = trim((string) $value);
+
+            // Coba format 8-digit DDMMYYYY (misal 13012008)
+            if (preg_match('/^(\d{2})(\d{2})(\d{4})$/', $dateString, $matches)) {
+                $day = (int)$matches[1];
+                $month = (int)$matches[2];
+                $year = (int)$matches[3];
+                if (checkdate($month, $day, $year)) {
+                    return sprintf('%04d-%02d-%02d', $year, $month, $day);
+                }
             }
 
-            $dateString = trim((string) $value);
+            if (is_numeric($value) && (float)$value < 2922000) { // Excel date serial limit
+                return Carbon::instance(ExcelDate::excelToDateTimeObject((float) $value))->format('Y-m-d');
+            }
 
             // Coba parsing spesifik DD/MM/YYYY dulu jika menggunakan slash
             if (strpos($dateString, '/') !== false) {
@@ -648,6 +744,13 @@ class AdminController extends Controller
                 ->withErrors(['id' => 'Nomor registrasi tidak dapat diubah.']);
         }
 
+        if ($request->has('tanggal_lahir') && $request->filled('tanggal_lahir')) {
+            $parsedDate = $this->parseFormattedDate($request->tanggal_lahir);
+            if ($parsedDate) {
+                $request->merge(['tanggal_lahir' => $parsedDate]);
+            }
+        }
+
         $validated = $request->validate([
             'name'              => 'required|string|max:255',
             'kompi'             => 'required|string',
@@ -670,11 +773,12 @@ class AdminController extends Controller
         $mahasiswa->update($validated);
 
         // Sync user account
-        $user = User::where('mahasiswa_id', $mahasiswa->id)->first();
+        $user = User::where('mahasiswa_id', $mahasiswa->id)->orWhere('username', $mahasiswa->id)->first();
         if ($user) {
             $userUpdate = [
-                'full_name' => $validated['name'],
-                'email'     => $validated['email'] ?? $user->email,
+                'full_name'      => $validated['name'],
+                'email'          => $validated['email'] ?? $user->email,
+                'assigned_kompi' => $mahasiswa->kompi ?? $user->assigned_kompi,
             ];
             if ($passwordData) {
                 $userUpdate['password'] = Hash::make($passwordData);
@@ -778,7 +882,146 @@ class AdminController extends Controller
         return redirect()->route('admin.kompi-management')->with('success', "Kompi berhasil diperbarui untuk {$updated} mahasiswa.");
     }
 
-    // ─── HISTORY ─────────────────────────────────────────────────────────────
+    /**
+     * Download data mahasiswa per-kompi atau seluruh kompi (Excel .xlsx)
+     * Layout persis sesuai format laporan Excel: Header Biru Navy, Judul Merged, Notasi NPM Rapi
+     */
+    public function downloadKompiData(Request $request)
+    {
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(180);
+
+        $kompiFilter = $request->query('kompi');
+
+        $query = Mahasiswa::orderBy('kompi')->orderBy('name');
+        if ($kompiFilter && $kompiFilter !== 'all') {
+            $query->where('kompi', $kompiFilter);
+        }
+        $mahasiswaList = $query->get(['id', 'name', 'kompi', 'jurusan', 'prodi', 'no_telp_mahasiswa']);
+
+        $tanggal  = now()->format('d-m-Y');
+        $namaFile = $kompiFilter && $kompiFilter !== 'all'
+            ? 'Data_Kompi_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $kompiFilter) . "_{$tanggal}"
+            : "Data_Seluruh_Kompi_{$tanggal}";
+
+        $title = $kompiFilter && $kompiFilter !== 'all'
+            ? "Data Mahasiswa Kompi {$kompiFilter}"
+            : 'Data Seluruh Kompi';
+
+        $totalMhs = $mahasiswaList->count();
+
+        // ─── PhpSpreadsheet setup ─────────────────────────────────────────────
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet       = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Data Kompi');
+
+        // Styles
+        $headerStyle = [
+            'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
+            'fill'      => [
+                'fillType'   => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '1E3A8A'] // Dark blue
+            ],
+            'alignment' => [
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                'vertical'   => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER,
+            ],
+        ];
+
+        // 1. Judul Utama (A1:G1)
+        $sheet->mergeCells('A1:G1');
+        $sheet->setCellValue('A1', $title);
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('1E3A8A'));
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+        // 2. Subtitle (A2:G2)
+        $sheet->mergeCells('A2:G2');
+        $sheet->setCellValue('A2', 'Dicetak: ' . now()->format('d M Y, H:i') . ' WIB  |  Total: ' . $totalMhs . ' mahasiswa');
+        $sheet->getStyle('A2')->getFont()->setSize(10)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('475569'));
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+        // 3. Row 3: Kosong
+
+        // 4. Header Kolom (Row 4)
+        $headers = ['No', 'Kompi', 'ID / NPM', 'Nama Mahasiswa', 'Jurusan', 'Prodi', 'No. Telp'];
+        $cols    = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+
+        foreach ($headers as $idx => $hText) {
+            $colLetter = $cols[$idx];
+            $sheet->setCellValue("{$colLetter}4", $hText);
+            $sheet->getStyle("{$colLetter}4")->applyFromArray($headerStyle);
+        }
+        $sheet->getRowDimension(4)->setRowHeight(26);
+
+        // 5. Data Rows (Row 5 onwards)
+        $row = 5;
+        $altFill = [
+            'fill' => [
+                'fillType'   => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['rgb' => 'F8FAFC']
+            ]
+        ];
+
+        foreach ($mahasiswaList as $no => $m) {
+            // No
+            $sheet->setCellValue("A{$row}", $no + 1);
+            $sheet->getStyle("A{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+            // Kompi
+            $sheet->setCellValue("B{$row}", $m->kompi ?? '-');
+            $sheet->getStyle("B{$row}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+            // ID / NPM: PENTING! setValueExplicit sebagai TYPE_STRING agar tidak jadi 2,6191E+11 di Excel
+            $sheet->setCellValueExplicit("C{$row}", (string) $m->id, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+
+            // Nama Mahasiswa
+            $sheet->setCellValue("D{$row}", $m->name);
+
+            // Jurusan
+            $sheet->setCellValue("E{$row}", $m->jurusan ?? '-');
+
+            // Prodi
+            $sheet->setCellValue("F{$row}", $m->prodi ?? '-');
+
+            // No. Telp
+            $sheet->setCellValueExplicit("G{$row}", (string) ($m->no_telp_mahasiswa ?? '-'), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+
+            // Zebra striping
+            if ($no % 2 === 1) {
+                $sheet->getStyle("A{$row}:G{$row}")->applyFromArray($altFill);
+            }
+
+            $row++;
+        }
+
+        // Set Border tipis untuk tabel
+        $lastRow = $row - 1;
+        if ($lastRow >= 4) {
+            $sheet->getStyle("A4:G{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('CBD5E1'));
+        }
+
+        // Auto width untuk kolom A-G
+        foreach ($cols as $colLetter) {
+            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+        }
+
+        // Output ke stream/buffer
+        $writer  = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $tmpFile = tempnam(sys_get_temp_dir(), 'kompi_excel_');
+        $writer->save($tmpFile);
+        $content = file_get_contents($tmpFile);
+        @unlink($tmpFile);
+
+        return response($content, 200, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$namaFile}.xlsx\"",
+            'Content-Length'      => strlen($content),
+            'Cache-Control'       => 'no-store',
+        ]);
+    }
+
+
+
     public function history(Request $request)
     {
         $start = $request->get('start', Carbon::now()->subWeek()->toDateString());
@@ -917,20 +1160,12 @@ class AdminController extends Controller
             ->groupBy('mahasiswa_id')
             ->pluck('total_hadir', 'mahasiswa_id');
 
-        $mahasiswaPaginator->getCollection()->transform(function ($m) use ($totalDays, $allAttendances) {
-            $hadir = (int) ($allAttendances->get($m->id, 0));
-            $persentase = $totalDays > 0 ? round(($hadir / $totalDays) * 100, 2) : 0;
-            $m->total_hari = $totalDays;
-            $m->total_hadir = $hadir;
-            $m->persentase = $persentase;
-            
-            if ($m->sertifikat_status === 'locked') {
-                $m->status_lulus = 'Tidak Lulus';
-            } elseif ($m->sertifikat_status === 'unlocked') {
-                $m->status_lulus = 'Lulus';
-            } else {
-                $m->status_lulus = $persentase >= 80 ? 'Lulus' : 'Tidak Lulus';
-            }
+        $mahasiswaPaginator->getCollection()->transform(function ($m) {
+            $stats = $m->getCertificateStats();
+            $m->total_hari   = $stats['total_sesi'];
+            $m->total_hadir  = $stats['hadir_sesi'];
+            $m->persentase   = $stats['persentase'];
+            $m->status_lulus = $stats['can_get'] ? 'Lulus' : 'Tidak Lulus';
             return $m;
         });
         
@@ -1327,17 +1562,12 @@ class AdminController extends Controller
 
         $mahasiswa = Mahasiswa::findOrFail($id);
         
-        // Get jurusan folder
-        $jurusanFolder = $mahasiswa->jurusan;
+        $template = $mahasiswa->getIdCardTemplate();
         
-        // Check if templates exist
-        $depanPath = public_path("static/img/{$jurusanFolder}/Depan.jpg");
-        $belakangPath = public_path("static/img/{$jurusanFolder}/Belakang.jpg");
-        
-        if (!file_exists($depanPath) || !file_exists($belakangPath)) {
+        if (!$template) {
             return response()->json([
                 'success' => false,
-                'message' => "Template kartu untuk jurusan {$jurusanFolder} belum tersedia."
+                'message' => "Template kartu untuk jurusan {$mahasiswa->jurusan} belum tersedia."
             ], 404);
         }
         
@@ -1349,16 +1579,13 @@ class AdminController extends Controller
             return $svg;
         });
         
-        $templateDepan = "static/img/{$jurusanFolder}/Depan.jpg";
-        $templateBelakang = "static/img/{$jurusanFolder}/Belakang.jpg";
-        
         return response()->json([
             'success' => true, 
             'data' => [
                 'qr_code_id' => $mahasiswa->qr_code_id, 
                 'qr_svg' => $qrSvg,
-                'template_depan' => asset($templateDepan),
-                'template_belakang' => asset($templateBelakang),
+                'template_depan' => $template['depan_url'],
+                'template_belakang' => $template['belakang_url'],
                 'photo_path' => $mahasiswa->photo_url,
                 'name' => $mahasiswa->name,
                 'kompi' => $mahasiswa->kompi,

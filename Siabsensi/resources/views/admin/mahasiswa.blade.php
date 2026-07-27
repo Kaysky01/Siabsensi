@@ -2,6 +2,8 @@
 @section('title', 'Data Mahasiswa — SIABSEN')
 
 @section('content')
+<link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 @php
   $managementRoutePrefix = $managementRoutePrefix ?? (auth()->user()->role === 'timdis' ? 'timdis' : 'admin');
   $mahasiswaIndexRoute = $managementRoutePrefix . '.mahasiswa';
@@ -131,7 +133,7 @@
               <button onclick="showQrModal('{{ $m->id }}', '{{ addslashes($m->name) }}')" class="btn btn-ghost btn-sm" title="Lihat QR Code">
                 <span class="material-symbols-outlined" style="font-size:16px">qr_code_2</span>
               </button>
-              <button onclick="openEditMhs('{{ $m->id }}', '{{ addslashes($m->name) }}', '{{ $m->kompi }}', '{{ $m->jurusan }}', '{{ $m->prodi }}', '{{ $m->email }}', '{{ $m->no_telp_mahasiswa }}', '{{ $m->no_telp_ortu }}', '{{ $m->tanggal_lahir ? \Carbon\Carbon::parse($m->tanggal_lahir)->format('Y-m-d') : '' }}')" class="btn btn-ghost btn-sm" title="Edit">
+              <button onclick="openEditMhs('{{ $m->id }}', '{{ addslashes($m->name) }}', '{{ $m->kompi }}', '{{ $m->jurusan }}', '{{ $m->prodi }}', '{{ $m->email }}', '{{ $m->no_telp_mahasiswa }}', '{{ $m->no_telp_ortu }}', '{{ $m->tanggal_lahir ? \Carbon\Carbon::parse($m->tanggal_lahir)->format('d/m/Y') : '' }}')" class="btn btn-ghost btn-sm" title="Edit">
                 <span class="material-symbols-outlined" style="font-size:16px">edit</span>
               </button>
               <form method="POST" action="{{ route($mahasiswaDestroyRoute, $m->id) }}" onsubmit="return confirm('Hapus mahasiswa {{ $m->name }}?')">
@@ -198,8 +200,8 @@
           <option value="">Pilih Prodi...</option>
         </select>
       </div>
-      <div class="form-row"><label class="form-label">Tanggal Lahir *</label><input type="date" name="tanggal_lahir" class="form-input" required>
-        <small style="font-size:11px;color:var(--text-muted)">Digunakan sebagai password default (ddmmyyyy)</small>
+      <div class="form-row"><label class="form-label">Tanggal Lahir *</label><input type="text" name="tanggal_lahir" class="form-input" placeholder="DD/MM/YYYY (contoh: 13/01/2008)" required>
+        <small style="font-size:11px;color:var(--text-muted)">Format DD/MM/YYYY atau DDMMYYYY (digunakan sebagai password default)</small>
       </div>
       <div class="form-row"><label class="form-label">Email</label><input type="email" name="email" class="form-input" value="{{ old('email') }}"></div>
       <div class="form-row-2">
@@ -255,7 +257,7 @@
         </select>
       </div>
       <div class="form-row-2">
-        <div class="form-row"><label class="form-label">Tanggal Lahir</label><input type="date" name="tanggal_lahir" id="edit-tanggal-lahir" class="form-input"></div>
+        <div class="form-row"><label class="form-label">Tanggal Lahir</label><input type="text" name="tanggal_lahir" id="edit-tanggal-lahir" class="form-input" placeholder="DD/MM/YYYY (contoh: 13/01/2008)"></div>
         <div class="form-row"><label class="form-label">Email</label><input type="email" name="email" id="edit-email" class="form-input"></div>
       </div>
       <div class="form-row-2">
@@ -299,7 +301,7 @@
 <div class="modal-backdrop" id="modal-import-csv">
   <div class="modal">
     <div class="modal-title">Import Data dari Excel/CSV</div>
-    <form method="POST" action="{{ route($mahasiswaImportRoute) }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ route($mahasiswaImportRoute) }}" enctype="multipart/form-data" id="form-import-excel">
       @csrf
       <div class="form-row">
         <label class="form-label">Pilih File (.csv, .xls, .xlsx)</label>
@@ -422,6 +424,12 @@ function openEditMhs(id, name, kompi, jurusan, prodi, email, telpMhs, telpOrtu, 
   updateProdiOptions('edit', prodi);
   
   document.getElementById('edit-email').value = email;
+  if (tglLahir && tglLahir.includes('-')) {
+    const parts = tglLahir.split('-');
+    if (parts.length === 3) {
+      tglLahir = `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+  }
   document.getElementById('edit-tanggal-lahir').value = tglLahir;
   document.getElementById('edit-telp-mhs').value = telpMhs;
   document.getElementById('edit-telp-ortu').value = telpOrtu;
@@ -645,6 +653,80 @@ function updateFilterProdi() {
 
 document.addEventListener('DOMContentLoaded', function() {
   updateFilterProdi();
+
+  @if(session('success'))
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        icon: 'success',
+        title: 'Berhasil!',
+        text: @json(session('success')),
+        timer: 3500,
+        showConfirmButton: false
+      });
+    }
+  @endif
+
+  @if(session('error'))
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Import Data',
+        text: @json(session('error')),
+        confirmButtonColor: '#ef4444'
+      });
+    }
+  @endif
+
+  const importForm = document.getElementById('form-import-excel');
+  if (importForm) {
+    importForm.addEventListener('submit', function(e) {
+      const fileInput = this.querySelector('input[name="csv_file"]');
+      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        return;
+      }
+
+      const fileName = fileInput.files[0].name;
+      const modalCsv = document.getElementById('modal-import-csv');
+      if (modalCsv) modalCsv.classList.remove('show');
+
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          title: 'Memproses Import Data...',
+          html: `
+            <div style="text-align:center;padding:10px 0">
+              <div style="font-size:14px;color:#475569;margin-bottom:12px">
+                File: <strong>${fileName}</strong>
+              </div>
+              <div style="font-size:13px;color:#64748b;margin-bottom:16px">
+                Sistem sedang membaca, memvalidasi, dan meng-import baris data ke database...
+              </div>
+              <div style="width:100%;height:12px;background:#e2e8f0;border-radius:6px;overflow:hidden;position:relative;margin-bottom:12px">
+                <div id="import-progress-bar" style="width:15%;height:100%;background:linear-gradient(90deg, #3b82f6, #6366f1);border-radius:6px;transition:width 0.3s ease;"></div>
+              </div>
+              <div id="import-status-text" style="font-size:12px;font-weight:600;color:#3b82f6">Memulai pengolahan data... 15%</div>
+              <small style="display:block;margin-top:14px;color:#94a3b8">Mohon tunggu dan jangan menutup halaman saat proses berlangsung.</small>
+            </div>
+          `,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          showConfirmButton: false,
+          didOpen: () => {
+            let progress = 15;
+            const bar = document.getElementById('import-progress-bar');
+            const txt = document.getElementById('import-status-text');
+            const interval = setInterval(() => {
+              if (progress < 94) {
+                progress += Math.floor(Math.random() * 5) + 2;
+                if (progress > 94) progress = 94;
+                if (bar) bar.style.width = progress + '%';
+                if (txt) txt.textContent = `Mengimpor & menyimpan data... ${progress}%`;
+              }
+            }, 250);
+          }
+        });
+      }
+    });
+  }
 });
 </script>
 @endsection

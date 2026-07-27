@@ -46,11 +46,35 @@ class AuthController extends Controller
         }
 
         // Coba login normal (username + password)
-        if (Auth::attempt([
-            'username' => $username,
-            'password' => $password,
-        ], $remember)) {
+        $loginAttemptSuccess = false;
+        try {
+            if (Auth::attempt([
+                'username' => $username,
+                'password' => $password,
+            ], $remember)) {
+                $loginAttemptSuccess = true;
+            }
+        } catch (\Throwable $e) {
+            $loginAttemptSuccess = false;
+        }
 
+        // Jika Auth::attempt gagal (bisa jadi karena hash di DB format MD5 / plaintext / md5(NIM))
+        if (!$loginAttemptSuccess) {
+            $legacyUser = User::where('username', $username)->first();
+            if ($legacyUser) {
+                if (
+                    md5($password) === $legacyUser->password ||
+                    $password === $legacyUser->password ||
+                    md5($username) === $legacyUser->password
+                ) {
+                    $legacyUser->update(['password' => \Illuminate\Support\Facades\Hash::make($password)]);
+                    Auth::login($legacyUser, $remember);
+                    $loginAttemptSuccess = true;
+                }
+            }
+        }
+
+        if ($loginAttemptSuccess) {
             /** @var User $user */
             $user = Auth::user();
 
@@ -88,15 +112,25 @@ class AuthController extends Controller
             ->with('mahasiswa')
             ->first();
 
-        if ($userByNim && $userByNim->mahasiswa && $userByNim->mahasiswa->tanggal_lahir) {
-            $tglLahir = \Carbon\Carbon::parse($userByNim->mahasiswa->tanggal_lahir)->format('dmY'); // ddmmyyyy
+        if ($userByNim) {
+            $tglLahir = ($userByNim->mahasiswa && $userByNim->mahasiswa->tanggal_lahir)
+                ? \Carbon\Carbon::parse($userByNim->mahasiswa->tanggal_lahir)->format('dmY')
+                : null;
             
-            // Allow matching original password (if exact) or the cleaned password (numbers only)
-            if ($password === $tglLahir || $cleanPassword === $tglLahir) {
-                // Password cocok → set password di DB jika belum (migrasi dari default)
-                if (!\Illuminate\Support\Facades\Hash::check($tglLahir, $userByNim->password)) {
-                    $userByNim->update(['password' => \Illuminate\Support\Facades\Hash::make($tglLahir)]);
-                }
+            $isPasswordMatch = (
+                ($tglLahir && ($password === $tglLahir || $cleanPassword === $tglLahir)) ||
+                ($legacyPass = $userByNim->password) && (
+                    md5($password) === $legacyPass ||
+                    md5($cleanPassword) === $legacyPass ||
+                    ($tglLahir && md5($tglLahir) === $legacyPass) ||
+                    md5($username) === $legacyPass ||
+                    $password === $legacyPass
+                )
+            );
+
+            if ($isPasswordMatch) {
+                $newPass = ($tglLahir && ($password === $tglLahir || $cleanPassword === $tglLahir)) ? $tglLahir : $password;
+                $userByNim->update(['password' => \Illuminate\Support\Facades\Hash::make($newPass)]);
                 
                 // Login manual
                 Auth::login($userByNim, $remember);

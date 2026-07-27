@@ -116,7 +116,8 @@
           </tr>
         </thead>
         <tbody>
-          @forelse($mahasiswaPaginated as $index => $mhs)
+          @if(count($mahasiswaPaginated) > 0)
+          @foreach($mahasiswaPaginated as $index => $mhs)
           <tr class="table-row" 
               data-name="{{ strtolower($mhs->name) }}" 
               data-kompi="{{ strtolower($mhs->kompi) }}"
@@ -150,13 +151,14 @@
               @endif
             </td>
           </tr>
-          @empty
+          @endforeach
+          @else
           <tr>
             <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">
               Tidak ada data mahasiswa
             </td>
           </tr>
-          @endforelse
+          @endif
         </tbody>
       </table>
     </div>

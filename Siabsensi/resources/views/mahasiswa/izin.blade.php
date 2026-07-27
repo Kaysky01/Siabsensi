@@ -61,12 +61,24 @@
       <tr>
         <td style="text-align:center">{{ $loop->iteration }}</td>
         <td>{{ Carbon\Carbon::parse($izin->created_at)->format('d M Y') }}</td>
-        <td>{{ Carbon\Carbon::parse($izin->date)->format('d M Y') }}</td>
+        <td>
+          @php
+            $pkkmbSch = isset($schedules) ? $schedules->firstWhere(function($s) use ($izin) {
+              return \Carbon\Carbon::parse($s->tanggal)->format('Y-m-d') === \Carbon\Carbon::parse($izin->date)->format('Y-m-d');
+            }) : null;
+          @endphp
+          @if($pkkmbSch)
+            <div style="font-weight:600;color:var(--primary)">PKKMB Day {{ $pkkmbSch->hari_ke }}</div>
+            <div style="font-size:12px;color:var(--text-muted)">{{ \Carbon\Carbon::parse($izin->date)->format('d M Y') }}</div>
+          @else
+            {{ \Carbon\Carbon::parse($izin->date)->format('d M Y') }}
+          @endif
+        </td>
         <td>{{ ucfirst($izin->submission_type) }}</td>
         <td>{{ $izin->keterangan }}</td>
         <td>
           @if($izin->bukti_path)
-            <button type="button" class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="showBukti('{{ asset('storage/' . $izin->bukti_path) }}', '{{ Str::endsWith($izin->bukti_path, ['.jpg', '.jpeg', '.png']) ? 'image' : 'pdf' }}')">
+            <button type="button" class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px" onclick="showBukti('{{ asset('file-bukti/' . $izin->bukti_path) }}', '{{ Str::endsWith($izin->bukti_path, ['.jpg', '.jpeg', '.png']) ? 'image' : 'pdf' }}')">
               <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">visibility</span> Lihat
             </button>
           @else
@@ -123,7 +135,7 @@
     <div style="font-size:13px;color:var(--text-muted)">{{ $izin->keterangan }}</div>
     @if($izin->bukti_path)
     <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
-      <button type="button" class="btn btn-ghost btn-sm" style="font-size:12px;padding:4px 10px;width:auto" onclick="showBukti('{{ asset('storage/' . $izin->bukti_path) }}', '{{ Str::endsWith($izin->bukti_path, ['.jpg', '.jpeg', '.png']) ? 'image' : 'pdf' }}')">
+      <button type="button" class="btn btn-ghost btn-sm" style="font-size:12px;padding:4px 10px;width:auto" onclick="showBukti('{{ asset('file-bukti/' . $izin->bukti_path) }}', '{{ Str::endsWith($izin->bukti_path, ['.jpg', '.jpeg', '.png']) ? 'image' : 'pdf' }}')">
         <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">visibility</span> Lihat Bukti
       </button>
       @if($izin->status === 'pending')
@@ -163,8 +175,17 @@
       </div>
       
       <div class="form-row">
-        <label class="form-label">Tanggal Izin/Sakit</label>
-        <input type="date" name="date" class="form-input" required min="{{ date('Y-m-d') }}">
+        <label class="form-label">Kegiatan PKKMB</label>
+        <select name="date" class="form-input" required style="width:100%">
+          <option value="">-- Pilih Kegiatan PKKMB --</option>
+          @if(isset($schedules))
+            @foreach($schedules as $sch)
+              <option value="{{ \Carbon\Carbon::parse($sch->tanggal)->format('Y-m-d') }}">
+                PKKMB Day {{ $sch->hari_ke }} ({{ \Carbon\Carbon::parse($sch->tanggal)->translatedFormat('d F Y') }})
+              </option>
+            @endforeach
+          @endif
+        </select>
       </div>
       
       <div class="form-row">
@@ -174,8 +195,9 @@
 
       <div class="form-row">
         <label class="form-label">Bukti Lampiran (PDF/JPG/PNG)</label>
-        <input type="file" name="bukti" class="form-input" accept=".pdf,image/*" required>
-        <span class="form-hint">Maksimal 2MB. Untuk sakit, harap lampirkan surat dokter.</span>
+        <input type="file" name="bukti" id="input-bukti-izin" class="form-input" accept=".jpg,.jpeg,.png,.pdf" required onchange="previewFileStandalone(this, 'preview-bukti-izin')">
+        <span class="form-hint">Maksimal 10MB. Untuk sakit, harap lampirkan surat dokter.</span>
+        <div id="preview-bukti-izin" style="display:none;margin-top:12px;padding:12px;background:var(--bg,#f8fafc);border:1px dashed var(--border,#cbd5e1);border-radius:8px;text-align:center"></div>
       </div>
       
       <div class="modal-actions" style="margin-top:24px;display:flex;justify-content:flex-end;gap:12px">

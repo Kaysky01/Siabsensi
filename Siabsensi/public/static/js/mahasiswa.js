@@ -297,7 +297,7 @@ function resetIzinForm() {
   document.getElementById('izin-type-select').value = 'izin';
   document.getElementById('izin-date-input').value = new Date().toISOString().split('T')[0];
   document.getElementById('izin-keterangan-input').value = '';
-  document.getElementById('izin-bukti-input').value = '';
+  clearFilePreview('izin-bukti-input', 'izin-bukti-preview');
   document.getElementById('my-izin-table-body').innerHTML =
     '<tr><td colspan="7" class="empty-state">Memuat riwayat...</td></tr>';
 }
@@ -407,16 +407,27 @@ function openDetailMahasiswaModal(submissionId) {
   if (submission.bukti_path) {
     const ext = submission.bukti_path.split('.').pop().toLowerCase();
     const filename = submission.bukti_path.split(/[\\/]/).pop();
-    const url = API + `/izin/bukti/${filename}`;
+    const urlApi = API + `/izin/bukti/${filename}`;
+    const urlFallback = `/file-bukti/${submission.bukti_path}`;
     
-    if (['jpg', 'jpeg', 'png'].includes(ext)) {
-      buktiContainer.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:var(--radius-md);border:2px solid var(--border)">`;
+    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+      buktiContainer.innerHTML = `
+        <div style="text-align:center">
+          <img src="${urlApi}" 
+               onerror="this.onerror=null; this.src='${urlFallback}';" 
+               style="max-width:100%;max-height:400px;border-radius:var(--radius-md);border:2px solid var(--border);display:inline-block">
+          <div style="margin-top:8px">
+            <a href="${urlFallback}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:12px">
+              <span class="material-symbols-outlined" style="font-size:14px">open_in_new</span> Buka Bukti
+            </a>
+          </div>
+        </div>`;
     } else if (ext === 'pdf') {
       buktiContainer.innerHTML = `
-        <div style="padding:30px">
+        <div style="padding:20px;text-align:center">
           <span class="material-symbols-outlined" style="font-size:64px;color:var(--danger)">picture_as_pdf</span>
           <p style="margin-top:12px;font-weight:600">File PDF</p>
-          <a href="${url}" target="_blank" class="btn btn-primary" style="margin-top:12px;display:inline-flex;gap:6px">
+          <a href="${urlFallback}" target="_blank" class="btn btn-primary" style="margin-top:12px;display:inline-flex;gap:6px">
             <span class="material-symbols-outlined" style="font-size:16px">open_in_new</span> Buka PDF
           </a>
         </div>`;
@@ -579,7 +590,7 @@ function resetKehadiranForm() {
   document.getElementById('kehadiran-checkin-input').value = '';
   document.getElementById('kehadiran-checkout-input').value = '';
   document.getElementById('kehadiran-keterangan-input').value = '';
-  document.getElementById('kehadiran-bukti-input').value = '';
+  clearFilePreview('kehadiran-bukti-input', 'kehadiran-bukti-preview');
 }
 
 async function loadMyKehadiranHistory() {
@@ -1588,18 +1599,27 @@ function openDetailKehadiranModal(submissionId) {
   if (submission.bukti_path) {
     const ext = submission.bukti_path.split('.').pop().toLowerCase();
     const filename = submission.bukti_path.split(/[\\/]/).pop();
+    const urlApi = API + `/kehadiran/bukti/${filename}`;
+    const urlFallback = `/file-bukti/${submission.bukti_path}`;
     
-    // PERHATIAN: Gunakan rute kehadiran, bukan rute izin
-    const url = API + `/kehadiran/bukti/${filename}`;
-    
-    if (['jpg', 'jpeg', 'png'].includes(ext)) {
-      buktiContainer.innerHTML = `<img src="${url}" style="max-width:100%;max-height:400px;border-radius:var(--radius-md);border:2px solid var(--border)">`;
+    if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+      buktiContainer.innerHTML = `
+        <div style="text-align:center">
+          <img src="${urlApi}" 
+               onerror="this.onerror=null; this.src='${urlFallback}';" 
+               style="max-width:100%;max-height:400px;border-radius:var(--radius-md);border:2px solid var(--border);display:inline-block">
+          <div style="margin-top:8px">
+            <a href="${urlFallback}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:12px">
+              <span class="material-symbols-outlined" style="font-size:14px">open_in_new</span> Buka Bukti
+            </a>
+          </div>
+        </div>`;
     } else if (ext === 'pdf') {
       buktiContainer.innerHTML = `
-        <div style="padding:30px">
+        <div style="padding:20px;text-align:center">
           <span class="material-symbols-outlined" style="font-size:64px;color:var(--danger)">picture_as_pdf</span>
           <p style="margin-top:12px;font-weight:600">File PDF</p>
-          <a href="${url}" target="_blank" class="btn btn-primary" style="margin-top:12px;display:inline-flex;gap:6px">
+          <a href="${urlFallback}" target="_blank" class="btn btn-primary" style="margin-top:12px;display:inline-flex;gap:6px">
             <span class="material-symbols-outlined" style="font-size:16px">open_in_new</span> Buka PDF
           </a>
         </div>`;
@@ -1817,3 +1837,74 @@ async function loadRiwayatKegiatan() {
     tbody.innerHTML = '<tr><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:30px\">Belum ada riwayat absensi kegiatan</td></tr>';
   }
 }
+
+// ─── File Preview Functions ────────────────────────────────────────────────
+function previewFile(input, containerId) {
+  previewFileStandalone(input, containerId);
+}
+
+function previewFileStandalone(input, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const file = input.files && input.files[0];
+  if (!file) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  container.style.display = 'block';
+
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      container.innerHTML = `
+        <div style="position:relative;display:inline-block;max-width:100%">
+          <img src="${e.target.result}" alt="Preview Bukti Foto" 
+               style="max-width:100%;max-height:220px;border-radius:8px;border:1px solid var(--border,#e2e8f0);box-shadow:0 2px 6px rgba(0,0,0,0.1);display:block;margin:0 auto">
+          <div style="margin-top:8px;font-size:12px;color:var(--text-muted,#64748b)">
+            📷 <strong>${file.name}</strong> (${fileSizeMB} MB)
+          </div>
+          <button type="button" onclick="clearFilePreview('${input.id}', '${containerId}')" 
+                  class="btn btn-ghost btn-sm" style="margin-top:6px;color:var(--danger,#ef4444);padding:2px 8px;font-size:12px">
+            <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">delete</span> Hapus Foto
+          </button>
+        </div>`;
+    };
+    reader.readAsDataURL(file);
+  } else if (ext === 'pdf') {
+    container.innerHTML = `
+      <div style="padding:12px;text-align:center">
+        <span class="material-symbols-outlined" style="font-size:40px;color:var(--danger,#ef4444)">picture_as_pdf</span>
+        <div style="font-weight:600;font-size:13px;margin-top:4px">${file.name}</div>
+        <div style="font-size:12px;color:var(--text-muted,#64748b);margin-top:2px">${fileSizeMB} MB • File PDF Terpilih</div>
+        <button type="button" onclick="clearFilePreview('${input.id}', '${containerId}')" 
+                class="btn btn-ghost btn-sm" style="margin-top:8px;color:var(--danger,#ef4444);padding:2px 8px;font-size:12px">
+          <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle">delete</span> Hapus File
+        </button>
+      </div>`;
+  } else {
+    container.innerHTML = `
+      <div style="font-size:12px;color:var(--danger,#ef4444)">
+        Format file .${ext} tidak didukung. Harap pilih JPG, PNG, atau PDF.
+      </div>`;
+  }
+}
+
+function clearFilePreview(inputId, containerId) {
+  const input = document.getElementById(inputId);
+  if (input) input.value = '';
+  const container = document.getElementById(containerId);
+  if (container) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+  }
+}
+
+window.previewFile = previewFile;
+window.previewFileStandalone = previewFileStandalone;
+window.clearFilePreview = clearFilePreview;

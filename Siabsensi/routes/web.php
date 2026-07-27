@@ -57,6 +57,8 @@ Route::middleware(['auth', 'role:garda'])->prefix('garda')->group(function () {
     Route::get('/absen-kegiatan/{sesi}', [AttendanceController::class, 'absenKegiatan'])->name('garda.absen-kegiatan');
     Route::post('/sesi/tambah', [AttendanceController::class, 'tambahSesi'])->name('garda.sesi.tambah');
     Route::get('/mahasiswa-saya', [StudentController::class, 'myStudents'])->name('garda.mahasiswa-saya');
+    Route::get('/kompi-saya', [\App\Http\Controllers\Garda\KompiSayaController::class, 'index'])->name('garda.kompi-saya');
+    Route::post('/kompi-saya/announcement', [\App\Http\Controllers\Garda\KompiSayaController::class, 'saveAnnouncement'])->name('garda.kompi-saya.announcement');
     Route::get('/riwayat', [RiwayatController::class, '__invoke'])->name('garda.riwayat');
     Route::get('/profile', [ProfileController::class, 'profile'])->name('garda.profile');
     Route::put('/profile', [ProfileController::class, 'updateProfile'])->name('garda.profile.update');
@@ -129,6 +131,7 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
     Route::get('/mahasiswa/{id}/qr', [AdminController::class, 'qrCode'])->name('admin.mahasiswa.qr');
     Route::get('/mahasiswa-saya', [AdminController::class, 'mahasiswaSaya'])->name('admin.mahasiswa-saya');
     Route::get('/kompi-management', [AdminController::class, 'kompiManagement'])->name('admin.kompi-management');
+    Route::get('/kompi-management/download', [AdminController::class, 'downloadKompiData'])->name('admin.kompi.download');
     Route::post('/kompi-management/bulk', [AdminController::class, 'bulkUpdateKompi'])->name('admin.kompi.bulkUpdate');
     Route::post('/kompi-management/shuffle', [AdminController::class, 'shuffleKompi'])->name('admin.kompi.shuffle');
     Route::get('/history', [AdminController::class, 'history'])->name('admin.history');

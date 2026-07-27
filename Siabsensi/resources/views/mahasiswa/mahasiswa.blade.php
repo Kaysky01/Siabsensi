@@ -362,10 +362,11 @@
           <div class="form-row">
             <label class="form-label">Upload Bukti *</label>
             <input type="file" id="izin-bukti-input" class="form-input" 
-                   accept=".jpg,.jpeg,.png,.pdf" required>
+                   accept=".jpg,.jpeg,.png,.pdf" required onchange="previewFile(this, 'izin-bukti-preview')">
             <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
               Format: JPG, PNG, PDF · Maksimal 10MB · Wajib upload bukti (surat dokter, surat izin, dll)
             </small>
+            <div id="izin-bukti-preview" class="file-preview-box" style="display:none;margin-top:12px;padding:12px;background:var(--bg,#f8fafc);border:1px dashed var(--border,#cbd5e1);border-radius:8px;text-align:center"></div>
           </div>
 
           <div class="btn-group">
@@ -454,10 +455,11 @@
           <div class="form-row">
             <label class="form-label">Upload Bukti *</label>
             <input type="file" id="kehadiran-bukti-input" class="form-input" 
-                   accept=".jpg,.jpeg,.png,.pdf" required>
+                   accept=".jpg,.jpeg,.png,.pdf" required onchange="previewFile(this, 'kehadiran-bukti-preview')">
             <small style="font-size:11px;color:var(--muted);margin-top:4px;display:block">
               Format: JPG, PNG, PDF · Maksimal 10MB · Wajib upload bukti (foto selfie di lokasi, dll)
             </small>
+            <div id="kehadiran-bukti-preview" class="file-preview-box" style="display:none;margin-top:12px;padding:12px;background:var(--bg,#f8fafc);border:1px dashed var(--border,#cbd5e1);border-radius:8px;text-align:center"></div>
           </div>
 
           <div class="btn-group">

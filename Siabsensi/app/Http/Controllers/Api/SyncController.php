@@ -16,12 +16,30 @@ class SyncController extends Controller
     public function mahasiswa()
     {
         try {
+            // Otomatis isi tanggal_lahir jika masih NULL (ekstrak dari email ddmmyyyy atau default)
+            Mahasiswa::whereNull('tanggal_lahir')->get()->each(function ($mhs) {
+                $dob = null;
+                if ($mhs->email && preg_match('/(\d{2})(\d{2})(\d{4})@/', $mhs->email, $matches)) {
+                    $day = (int)$matches[1];
+                    $month = (int)$matches[2];
+                    $year = (int)$matches[3];
+                    if (checkdate($month, $day, $year)) {
+                        $dob = sprintf('%04d-%02d-%02d', $year, $month, $day);
+                    }
+                }
+                if (!$dob) {
+                    $dob = '2006-01-01';
+                }
+                $mhs->update(['tanggal_lahir' => $dob]);
+            });
+
             $mahasiswaList = Mahasiswa::select([
                 'id',
                 'name',
                 'kompi',
                 'jurusan',
                 'prodi',
+                'tanggal_lahir',
                 'email',
                 'no_telp_mahasiswa',
                 'no_telp_ortu',

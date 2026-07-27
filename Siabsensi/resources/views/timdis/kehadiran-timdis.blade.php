@@ -75,7 +75,7 @@
           <td style="font-size:13px;max-width:200px">{{ Str::limit($s->reason, 50) }}</td>
           <td>
             @if($s->bukti_path)
-            <button type="button" class="btn btn-ghost btn-sm" style="color:var(--primary);padding:4px 8px" title="Lihat Bukti" onclick="showBukti('{{ asset('storage/' . $s->bukti_path) }}', '{{ Str::endsWith($s->bukti_path, ['.jpg', '.jpeg', '.png']) ? 'image' : 'pdf' }}')">
+            <button type="button" class="btn btn-ghost btn-sm" style="color:var(--primary);padding:4px 8px" title="Lihat Bukti" onclick="showBukti('{{ asset('file-bukti/' . $s->bukti_path) }}', '{{ Str::endsWith($s->bukti_path, ['.jpg', '.jpeg', '.png']) ? 'image' : 'pdf' }}')">
               <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">visibility</span> Lihat
             </button>
             @else
@@ -145,7 +145,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-light)">
         <div>
           @if($s->bukti_path)
-          <button type="button" class="btn btn-ghost btn-sm" style="color:var(--primary);padding:4px 8px;font-size:12px;width:auto" onclick="showBukti('{{ asset('storage/' . $s->bukti_path) }}', '{{ Str::endsWith($s->bukti_path, ['.jpg', '.jpeg', '.png']) ? 'image' : 'pdf' }}')">
+          <button type="button" class="btn btn-ghost btn-sm" style="color:var(--primary);padding:4px 8px;font-size:12px;width:auto" onclick="showBukti('{{ asset('file-bukti/' . $s->bukti_path) }}', '{{ Str::endsWith($s->bukti_path, ['.jpg', '.jpeg', '.png']) ? 'image' : 'pdf' }}')">
             <span class="material-symbols-outlined" style="font-size:14px">visibility</span> Lihat Bukti
           </button>
           @endif

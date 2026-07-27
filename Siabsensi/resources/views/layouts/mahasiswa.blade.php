@@ -132,6 +132,163 @@
         }
       });
     });
+
+    function previewFileStandalone(input, containerId) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+          container.style.display = 'block';
+          if (file.type.startsWith('image/')) {
+            container.innerHTML = `
+              <div style="font-size:12px;color:var(--text-secondary,#64748b);margin-bottom:6px">Pratinjau Foto Bukti:</div>
+              <img src="${e.target.result}" style="max-height:220px;max-width:100%;border-radius:8px;border:1px solid var(--border,#cbd5e1);object-fit:contain;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+            `;
+          } else if (file.type === 'application/pdf') {
+            container.innerHTML = `
+              <div style="font-size:12px;color:var(--text-secondary,#64748b);margin-bottom:6px">Pratinjau File PDF: ${file.name}</div>
+              <iframe src="${e.target.result}" style="width:100%;height:220px;border:1px solid var(--border,#cbd5e1);border-radius:8px"></iframe>
+            `;
+          } else {
+            container.innerHTML = `<div style="font-size:13px;color:var(--primary,#2563eb);font-weight:500">📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)</div>`;
+          }
+        };
+
+        reader.readAsDataURL(file);
+      } else {
+        container.style.display = 'none';
+        container.innerHTML = '';
+      }
+    }
+
+    function showBukti(url) {
+      var content = document.getElementById('bukti-content-global');
+      var backdrop = document.getElementById('modal-bukti-global');
+      if (!content || !backdrop) return;
+      
+      var isPdf = url.toLowerCase().endsWith('.pdf');
+      if (isPdf) {
+        content.innerHTML = '<iframe src="' + url + '" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:8px"></iframe>';
+      } else {
+        content.innerHTML = '<img src="' + url + '" alt="Bukti" style="max-width:100%;max-height:75vh;border-radius:8px;border:1px solid var(--border);object-fit:contain">';
+      }
+      backdrop.classList.add('show');
+    }
   </script>
+
+  <!-- Modal Bukti Global -->
+  <div class="modal-backdrop" id="modal-bukti-global">
+    <div class="modal modal-bukti" style="max-width:700px;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="modal-title" style="margin-bottom:0">Bukti Lampiran</div>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-bukti-global').classList.remove('show')" style="padding:4px">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div id="bukti-content-global" style="text-align:center;min-height:200px"></div>
+    </div>
+  </div>
+
+  {{-- POPUP PENGUMUMAN KOMPI DARI GARDA --}}
+  @php
+    $userMhs = auth()->user();
+    $kompiName = $userMhs->mahasiswa->kompi ?? $userMhs->assigned_kompi ?? null;
+    $activeAnn = null;
+    if ($kompiName && \Illuminate\Support\Facades\Schema::hasTable('kompi_announcements')) {
+        $activeAnn = \App\Models\KompiAnnouncement::where('kompi', $kompiName)->where('is_active', 1)->first();
+    }
+  @endphp
+
+  @if($activeAnn)
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const annId = "kompi_ann_{{ $activeAnn->id }}_{{ strtotime($activeAnn->updated_at) }}";
+      if (sessionStorage.getItem(annId) === 'suppress') {
+        return;
+      }
+
+      Swal.fire({
+        padding: '24px',
+        width: '460px',
+        showConfirmButton: true,
+        confirmButtonText: 'Tutup Pengumuman',
+        confirmButtonColor: '#1e293b',
+        showDenyButton: false,
+        showCancelButton: false,
+        allowOutsideClick: true,
+        customClass: {
+          popup: 'swal2-modern-popup'
+        },
+        html: `
+          <div style="font-family:inherit">
+            <!-- Header Icon -->
+            <div style="display:flex;align-items:center;justify-content:center;margin-bottom:12px">
+              <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg, #25D366 0%, #128C7E 100%);display:flex;align-items:center;justify-content:center;color:#ffffff;box-shadow:0 6px 16px rgba(37,211,102,0.35)">
+                <span class="material-symbols-outlined" style="font-size:26px">campaign</span>
+              </div>
+            </div>
+
+            <!-- Title -->
+            <h3 style="font-size:18px;font-weight:700;color:#0f172a;margin:0 0 16px 0;line-height:1.4;text-align:center">
+              {{ addslashes($activeAnn->judul) }}
+            </h3>
+
+            <!-- Message Body -->
+            @if($activeAnn->pesan)
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #25D366;padding:14px 16px;border-radius:10px;margin-bottom:18px;text-align:left;font-size:14px;color:#334155;line-height:1.6;white-space:pre-line">
+              {{ addslashes($activeAnn->pesan) }}
+            </div>
+            @endif
+
+            <!-- WhatsApp Action Button -->
+            @if($activeAnn->link_wa)
+            <div style="text-align:center;margin-bottom:18px">
+              <a href="{{ $activeAnn->link_wa }}" target="_blank" style="background:linear-gradient(135deg, #25D366 0%, #128C7E 100%);color:#ffffff;font-weight:700;font-size:14px;padding:12px 24px;border-radius:50px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 6px 18px rgba(37,211,102,0.35);transition:transform 0.15s ease">
+                <span class="material-symbols-outlined" style="font-size:22px">groups</span>
+                Gabung Group WhatsApp Kompi
+              </a>
+            </div>
+            @endif
+
+            <!-- Checkbox Suppress Session -->
+            <div style="padding-top:14px;border-top:1px dashed #e2e8f0;display:flex;align-items:center;justify-content:center">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#64748b;cursor:pointer;user-select:none">
+                <input type="checkbox" id="chk_dont_show_session" style="width:16px;height:16px;accent-color:#25D366;cursor:pointer">
+                Jangan tampilkan lagi pada sesi ini
+              </label>
+            </div>
+          </div>
+        `
+      }).then(() => {
+        const chk = document.getElementById('chk_dont_show_session');
+        if (chk && chk.checked) {
+          sessionStorage.setItem(annId, 'suppress');
+        }
+      });
+    });
+  </script>
+  <style>
+    .swal2-modern-popup {
+      border-radius: 16px !important;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+    }
+    .swal2-modern-popup .swal2-html-container {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .swal2-modern-popup .swal2-confirm {
+      border-radius: 24px !important;
+      padding: 10px 28px !important;
+      font-weight: 600 !important;
+      font-size: 14px !important;
+      box-shadow: 0 4px 12px rgba(30, 41, 59, 0.2) !important;
+    }
+  </style>
+  @endif
 </body>
 </html>

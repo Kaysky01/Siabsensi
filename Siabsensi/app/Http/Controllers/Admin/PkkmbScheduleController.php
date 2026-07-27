@@ -129,18 +129,62 @@ class PkkmbScheduleController extends Controller
     }
 
     /**
-     * Delete PKKMB schedule
+     * Delete PKKMB schedule beserta seluruh data absensi yang terkait
      */
     public function destroy($id)
     {
         $schedule = PkkmbSchedule::findOrFail($id);
-        $hariKe = $schedule->hari_ke;
-        
-        $schedule->delete();
-        $this->invalidateScheduleCache();
+        $hariKe  = $schedule->hari_ke;
+        $tanggal = $schedule->tanggal->format('Y-m-d');
 
-        return redirect()->route('admin.pkkmb-schedule.index')
-            ->with('success', "Jadwal PKKMB Hari ke-{$hariKe} berhasil dihapus");
+        DB::beginTransaction();
+        try {
+            // 1. Ambil semua sesi yang terkait dengan jadwal ini
+            $sesiIds = DB::table('kegiatan_sesi')
+                ->where('pkkmb_schedule_id', $id)
+                ->pluck('id');
+
+            // 2. Hapus attendance_sesi berdasarkan sesi-sesi tersebut
+            $deletedSesiAbsensi = 0;
+            if ($sesiIds->isNotEmpty()) {
+                $deletedSesiAbsensi = DB::table('attendance_sesi')
+                    ->whereIn('sesi_id', $sesiIds)
+                    ->delete();
+            }
+
+            // 3. Hapus kegiatan_sesi yang terkait
+            $deletedSesi = DB::table('kegiatan_sesi')
+                ->where('pkkmb_schedule_id', $id)
+                ->delete();
+
+            // 4. Hapus absensi harian (QR scan) pada tanggal jadwal ini
+            $deletedAttendance = DB::table('attendance')
+                ->whereDate('date', $tanggal)
+                ->whereNull('kegiatan_id')
+                ->delete();
+
+            // 5. Hapus jadwal PKKMB itu sendiri
+            $schedule->delete();
+
+            DB::commit();
+            $this->invalidateScheduleCache();
+
+            $detail = [];
+            if ($deletedAttendance > 0) $detail[] = "{$deletedAttendance} data absensi harian";
+            if ($deletedSesiAbsensi > 0) $detail[] = "{$deletedSesiAbsensi} data absensi sesi";
+            if ($deletedSesi > 0)        $detail[] = "{$deletedSesi} sesi kegiatan";
+
+            $detailMsg = !empty($detail) ? ' (termasuk ' . implode(', ', $detail) . ')' : '';
+
+            return redirect()->route('admin.pkkmb-schedule.index')
+                ->with('success', "Jadwal PKKMB Hari ke-{$hariKe} berhasil dihapus{$detailMsg}.");
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Gagal menghapus jadwal PKKMB #{$id}: " . $e->getMessage());
+            return redirect()->route('admin.pkkmb-schedule.index')
+                ->with('error', 'Gagal menghapus jadwal: ' . $e->getMessage());
+        }
     }
 
     /**

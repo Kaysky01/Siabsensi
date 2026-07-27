@@ -280,16 +280,11 @@ class MahasiswaController extends Controller
             return view('mahasiswa.qr-code', compact('mahasiswa', 'missingProfileFields', 'isProfileComplete'));
         }
         
-        // Get jurusan folder
-        $jurusanFolder = $mahasiswa->jurusan;
+        $template = $mahasiswa->getIdCardTemplate();
         
-        // Check if templates exist
-        $depanPath = public_path("static/img/{$jurusanFolder}/Depan.jpg");
-        $belakangPath = public_path("static/img/{$jurusanFolder}/Belakang.jpg");
-        
-        if (!file_exists($depanPath) || !file_exists($belakangPath)) {
+        if (!$template) {
             return view('errors.template-not-found', [
-                'jurusan' => $jurusanFolder,
+                'jurusan' => $mahasiswa->jurusan ?? 'Tidak Diketahui',
                 'mahasiswa' => $mahasiswa
             ]);
         }
@@ -303,8 +298,8 @@ class MahasiswaController extends Controller
             return '<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data='.urlencode($qrData).'" />';
         });
         
-        $templateDepan = "static/img/{$jurusanFolder}/Depan.jpg";
-        $templateBelakang = "static/img/{$jurusanFolder}/Belakang.jpg";
+        $templateDepan = $template['template_depan'];
+        $templateBelakang = $template['template_belakang'];
         
         return view('mahasiswa.qr-code', compact(
             'mahasiswa',
@@ -320,7 +315,8 @@ class MahasiswaController extends Controller
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
         $riwayatIzin = $mahasiswa->izinSubmissions()->orderBy('created_at', 'desc')->get();
-        return view('mahasiswa.izin', compact('mahasiswa', 'riwayatIzin'));
+        $schedules = PkkmbSchedule::where('is_active', true)->orderBy('hari_ke')->orderBy('tanggal')->get();
+        return view('mahasiswa.izin', compact('mahasiswa', 'riwayatIzin', 'schedules'));
     }
 
     public function submitIzin(Request $request)
@@ -385,7 +381,8 @@ class MahasiswaController extends Controller
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
         $riwayatKehadiran = $mahasiswa->kehadiranSubmissions()->orderBy('created_at', 'desc')->get();
-        return view('mahasiswa.kehadiran', compact('mahasiswa', 'riwayatKehadiran'));
+        $schedules = PkkmbSchedule::where('is_active', true)->orderBy('hari_ke')->orderBy('tanggal')->get();
+        return view('mahasiswa.kehadiran', compact('mahasiswa', 'riwayatKehadiran', 'schedules'));
     }
 
     public function submitKehadiran(Request $request)
@@ -418,14 +415,28 @@ class MahasiswaController extends Controller
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
         
-        // Riwayat Sesi (UTAMA - dari attendance_sesi)
-        // Ini adalah data utama yang ditampilkan karena sistem sekarang menggunakan sesi
+        $schedules = \App\Models\PkkmbSchedule::with(['sesi' => function($query) {
+            $query->where('is_active', 1)->orderBy('jam_mulai');
+        }])
+        ->where('is_active', 1)
+        ->orderBy('tanggal')
+        ->get();
+
         $riwayatSesi = \App\Models\AttendanceSesi::where('mahasiswa_id', $mahasiswa->id)
             ->with(['sesi.kegiatan', 'sesi.pkkmbSchedule'])
             ->orderBy('created_at', 'desc')
             ->get();
         
-        return view('mahasiswa.kegiatan', compact('mahasiswa', 'riwayatSesi'));
+        $attendancesBySesi = $riwayatSesi->keyBy('sesi_id');
+
+        $dailyAttendances = \App\Models\Attendance::daily()
+            ->where('mahasiswa_id', $mahasiswa->id)
+            ->get()
+            ->keyBy(function($a) {
+                return \Carbon\Carbon::parse($a->date)->format('Y-m-d');
+            });
+
+        return view('mahasiswa.kegiatan', compact('mahasiswa', 'schedules', 'riwayatSesi', 'attendancesBySesi', 'dailyAttendances'));
     }
 
     public function absenKegiatan(Request $request)
@@ -473,22 +484,11 @@ class MahasiswaController extends Controller
     public function sertifikat()
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
-        
-        $firstKegiatan = \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan', 'asc')->first();
-        $lastKegiatan = \App\Models\Kegiatan::orderBy('tanggal_pelaksanaan', 'desc')->first();
-        
-        if ($firstKegiatan && $lastKegiatan) {
-            $startDate = $firstKegiatan->tanggal_pelaksanaan;
-            $endDate = $lastKegiatan->tanggal_pelaksanaan;
-        } else {
-            $startDate = \Carbon\Carbon::now()->startOfWeek()->format('Y-m-d');
-            $endDate = \Carbon\Carbon::now()->endOfWeek()->format('Y-m-d');
-        }
-        
-        $isLulus = $mahasiswa->canGetCertificate($startDate, $endDate);
+        $certStats = $mahasiswa->getCertificateStats();
+        $isLulus   = $certStats['can_get'];
         
         $mahasiswa->status_kelulusan = $isLulus ? 'LULUS' : 'TIDAK LULUS';
         
-        return view('mahasiswa.sertifikat', compact('mahasiswa'));
+        return view('mahasiswa.sertifikat', compact('mahasiswa', 'certStats', 'isLulus'));
     }
 }

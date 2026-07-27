@@ -79,6 +79,8 @@ class AbsensiManualController extends Controller
         }
 
         $filteredMahasiswaIds = (clone $mahasiswaQuery)->pluck('id');
+        $totalMahasiswaCount = count($filteredMahasiswaIds);
+
         $dailyAttendances = Attendance::daily()
             ->where('date', $tanggal->format('Y-m-d'))
             ->whereNotNull('check_in')
@@ -92,8 +94,30 @@ class AbsensiManualController extends Controller
             ->get()
             ->keyBy('mahasiswa_id');
         
-        // Pagination
-        $perPage = 20;
+        // Calculate total summary counts across ALL students in scope
+        $totalHadirCount = 0;
+        $totalAlphaCount = 0;
+        $totalIzinCount = 0;
+        $totalSakitCount = 0;
+
+        foreach ($filteredMahasiswaIds as $mId) {
+            $isEligible = isset($dailyAttendances[$mId]);
+            $rec = $attendances[$mId] ?? null;
+            $st = $rec ? $rec->status : ($isEligible ? 'present' : 'alpha');
+            if ($st === 'present' || $st === 'hadir') $totalHadirCount++;
+            elseif ($st === 'alpha') $totalAlphaCount++;
+            elseif ($st === 'izin') $totalIzinCount++;
+            elseif ($st === 'sakit') $totalSakitCount++;
+        }
+
+        // Pagination / Per Page handling
+        $perPageReq = request('per_page', '20');
+        if ($perPageReq === 'all') {
+            $perPage = max($totalMahasiswaCount, 1);
+        } else {
+            $perPage = (int) $perPageReq > 0 ? (int) $perPageReq : 20;
+        }
+
         $mahasiswaPaginated = (clone $mahasiswaQuery)
             ->paginate($perPage)
             ->withQueryString();
@@ -105,12 +129,18 @@ class AbsensiManualController extends Controller
             'attendances',
             'dailyAttendances',
             'eligibleMahasiswaIds',
-            'search'
+            'search',
+            'perPageReq',
+            'totalMahasiswaCount',
+            'totalHadirCount',
+            'totalAlphaCount',
+            'totalIzinCount',
+            'totalSakitCount'
         ));
     }
 
     /**
-     * Save manual attendance (bulk)
+     * Save manual attendance (bulk across all scope)
      */
     public function store(Request $request, $sesiId)
     {
@@ -118,138 +148,129 @@ class AbsensiManualController extends Controller
         $sesi = KegiatanSesi::with('kegiatan')->findOrFail($sesiId);
         
         $validated = $request->validate([
-            'hadir' => 'nullable|array',
-            'hadir.*' => 'exists:mahasiswa,id',
+            'status' => 'nullable|array',
+            'status.*' => 'required|string|in:present,alpha,izin,sakit',
+            'bulk_action' => 'nullable|string|in:present,alpha,izin,sakit',
             'search' => 'nullable|string',
-            'select_all_eligible' => 'nullable|boolean',
-            'excluded_ids' => 'nullable|array',
-            'excluded_ids.*' => 'exists:mahasiswa,id',
         ]);
 
-        $hadirIds = $validated['hadir'] ?? [];
-        
-        // Verify authorization for each mahasiswa
+        $statuses = $request->input('status', []);
+        $bulkAction = $request->input('bulk_action');
+        $search = trim((string) $request->input('search', ''));
+
+        // Determine scope of mahasiswa to process
         if ($user->role === 'garda') {
             if (!$user->assigned_kompi) {
                 return redirect()->back()->with('error', 'Anda belum memiliki kompi yang ditugaskan');
             }
-            
-            // Verify all mahasiswa belong to garda's kompi
-            $mahasiswaCheck = Mahasiswa::whereIn('id', $hadirIds)
-                ->where('kompi', '!=', $user->assigned_kompi)
-                ->exists();
-            
-            if ($mahasiswaCheck) {
-                return redirect()->back()->with('error', 'Anda hanya bisa mengabsen mahasiswa dari kompi Anda');
-            }
+            $mahasiswaQuery = Mahasiswa::where('is_active', 1)
+                ->where('kompi', $user->assigned_kompi);
+        } else if (in_array($user->role, ['admin', 'timdis'])) {
+            $mahasiswaQuery = Mahasiswa::where('is_active', 1);
+        } else {
+            return redirect()->back()->with('error', 'Akses ditolak');
         }
+
+        if ($search !== '') {
+            $mahasiswaQuery->where(function ($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%")
+                    ->orWhere('kompi', 'like', "%{$search}%")
+                    ->orWhere('prodi', 'like', "%{$search}%");
+            });
+        }
+
+        $allMahasiswaIds = $mahasiswaQuery->pluck('id');
 
         DB::beginTransaction();
         try {
             $now = Carbon::now();
-            
-            // Get date from sesi
             $date = $sesi->tanggal ? $sesi->tanggal->format('Y-m-d') : Carbon::today()->format('Y-m-d');
             
-            // Get all eligible mahasiswa for this user
-            if ($user->role === 'garda') {
-                $allMahasiswaIds = Mahasiswa::where('is_active', 1)
-                    ->where('kompi', $user->assigned_kompi)
-                    ->pluck('id')
-                    ->toArray();
-            } else {
-                $allMahasiswaIds = Mahasiswa::where('is_active', 1)
-                    ->pluck('id')
-                    ->toArray();
-            }
-
-            $search = trim((string) ($validated['search'] ?? ''));
-            $targetMahasiswaIds = $allMahasiswaIds;
-            if ($search !== '') {
-                $targetMahasiswaIds = Mahasiswa::where('is_active', 1)
-                    ->when($user->role === 'garda', function ($query) use ($user) {
-                        $query->where('kompi', $user->assigned_kompi);
-                    })
-                    ->where(function ($query) use ($search) {
-                        $query->where('name', 'like', "%{$search}%")
-                            ->orWhere('id', 'like', "%{$search}%")
-                            ->orWhere('kompi', 'like', "%{$search}%")
-                            ->orWhere('prodi', 'like', "%{$search}%");
-                    })
-                    ->pluck('id')
-                    ->toArray();
-            }
-
-            $eligibleDailyAttendances = Attendance::daily()
+            $dailyAttendances = Attendance::daily()
                 ->where('date', $date)
                 ->whereNotNull('check_in')
-                ->whereIn('mahasiswa_id', $targetMahasiswaIds)
+                ->whereIn('mahasiswa_id', $allMahasiswaIds)
                 ->get()
                 ->keyBy('mahasiswa_id');
 
-            if ($request->boolean('select_all_eligible')) {
-                $eligibleMahasiswaQuery = Mahasiswa::where('is_active', 1)
-                    ->whereIn('id', $eligibleDailyAttendances->keys()->all());
+            $existingSesiRecords = AttendanceSesi::where('sesi_id', $sesiId)
+                ->whereIn('mahasiswa_id', $allMahasiswaIds)
+                ->get()
+                ->keyBy('mahasiswa_id');
 
-                if ($user->role === 'garda') {
-                    $eligibleMahasiswaQuery->where('kompi', $user->assigned_kompi);
+            $countHadir = 0;
+            $countAlpha = 0;
+            $countIzin = 0;
+            $countSakit = 0;
+
+            foreach ($allMahasiswaIds as $mahasiswaId) {
+                $isEligible = isset($dailyAttendances[$mahasiswaId]);
+
+                if (array_key_exists($mahasiswaId, $statuses)) {
+                    // Explicitly submitted in form for this student
+                    $statusVal = $statuses[$mahasiswaId];
+                } elseif ($bulkAction && in_array($bulkAction, ['present', 'alpha', 'izin', 'sakit'])) {
+                    // Bulk action applied for unsubmitted students
+                    $statusVal = $bulkAction;
+                } elseif (isset($existingSesiRecords[$mahasiswaId])) {
+                    // Preserve existing record
+                    $statusVal = $existingSesiRecords[$mahasiswaId]->status;
+                } else {
+                    // Default for new records
+                    $statusVal = $isEligible ? 'present' : 'alpha';
                 }
 
-                if ($search !== '') {
-                    $eligibleMahasiswaQuery->where(function ($query) use ($search) {
-                        $query->where('name', 'like', "%{$search}%")
-                            ->orWhere('id', 'like', "%{$search}%")
-                            ->orWhere('kompi', 'like', "%{$search}%")
-                            ->orWhere('prodi', 'like', "%{$search}%");
-                    });
+                // Rule: If student has no daily check-in, MUST be alpha
+                if (!$isEligible) {
+                    $statusVal = 'alpha';
                 }
 
-                $excludedIds = collect($validated['excluded_ids'] ?? []);
-                $hadirIds = $eligibleMahasiswaQuery->pluck('id')
-                    ->reject(fn ($id) => $excludedIds->contains($id))
-                    ->values()
-                    ->all();
-            }
+                if (!in_array($statusVal, ['present', 'alpha', 'izin', 'sakit'])) {
+                    $statusVal = 'alpha';
+                }
 
-            $invalidMahasiswaIds = collect($hadirIds)
-                ->reject(fn ($mahasiswaId) => $eligibleDailyAttendances->has($mahasiswaId))
-                ->values();
+                if ($isEligible) {
+                    $parentAttendanceId = $dailyAttendances[$mahasiswaId]->id;
+                } else {
+                    $parentAttendance = Attendance::firstOrCreate(
+                        [
+                            'mahasiswa_id' => $mahasiswaId,
+                            'date'         => $date,
+                        ],
+                        [
+                            'status' => 'alpha',
+                        ]
+                    );
+                    $parentAttendanceId = $parentAttendance->id;
+                }
 
-            if ($invalidMahasiswaIds->isNotEmpty()) {
-                throw new \RuntimeException('Terdapat mahasiswa yang belum absen masuk harian sehingga tidak dapat diabsen per sesi.');
-            }
-            
-            // Delete existing attendance for this sesi (for eligible mahasiswa only)
-            AttendanceSesi::where('sesi_id', $sesiId)
-                ->whereIn('mahasiswa_id', $targetMahasiswaIds)
-                ->delete();
-            
-            // Create attendance records for hadir mahasiswa
-            $attendanceData = [];
-            foreach ($hadirIds as $mahasiswaId) {
-                $attendanceData[] = [
-                    'attendance_id' => $eligibleDailyAttendances[$mahasiswaId]->id,
-                    'mahasiswa_id' => $mahasiswaId,
-                    'status' => 'present',
-                    'sesi_id' => $sesiId,
-                    'absen_by' => $user->username,
-                    'absen_at' => $now,
-                    'created_at' => $now,
-                ];
-            }
-            
-            if (!empty($attendanceData)) {
-                AttendanceSesi::insert($attendanceData);
+                AttendanceSesi::updateOrCreate(
+                    [
+                        'sesi_id'      => $sesiId,
+                        'mahasiswa_id' => $mahasiswaId,
+                    ],
+                    [
+                        'attendance_id' => $parentAttendanceId,
+                        'status'        => $statusVal,
+                        'absen_by'      => $user->username,
+                        'absen_at'      => $now,
+                    ]
+                );
+
+                if ($statusVal === 'present') $countHadir++;
+                elseif ($statusVal === 'alpha') $countAlpha++;
+                elseif ($statusVal === 'izin') $countIzin++;
+                elseif ($statusVal === 'sakit') $countSakit++;
             }
             
             DB::commit();
             
-            $totalHadir = count($hadirIds);
-            return redirect()->route('admin.absensi-manual.index', $sesiId)
-                ->with('success', "Absensi berhasil disimpan. Total hadir: {$totalHadir} mahasiswa");
+            $msg = "Absensi berhasil disimpan untuk total " . count($allMahasiswaIds) . " mahasiswa. (Hadir: {$countHadir}, Alpha: {$countAlpha}, Izin: {$countIzin}, Sakit: {$countSakit})";
+            return redirect()->back()->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->route('admin.absensi-manual.index', $sesiId)
+            return redirect()->back()
                 ->with('error', 'Gagal menyimpan absensi: ' . $e->getMessage());
         }
     }

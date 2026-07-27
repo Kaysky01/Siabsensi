@@ -20,7 +20,7 @@
       Swal.fire({
         icon: 'success',
         title: 'Berhasil!',
-        text: '{{ session('success') }}',
+        text: @json(session('success')),
         confirmButtonColor: '#28a745',
         timer: 3000,
         timerProgressBar: true
@@ -35,7 +35,7 @@
       Swal.fire({
         icon: 'error',
         title: 'Gagal!',
-        text: '{{ session('error') }}',
+        text: @json(session('error')),
         confirmButtonColor: '#dc3545'
       });
     });
