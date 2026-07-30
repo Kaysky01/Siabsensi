@@ -239,9 +239,10 @@
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const annId = "kompi_ann_{{ $activeAnn->id }}_{{ strtotime($activeAnn->updated_at) }}";
-      if (sessionStorage.getItem(annId) === 'suppress') {
+      if (sessionStorage.getItem(annId)) {
         return;
       }
+      sessionStorage.setItem(annId, 'shown');
 
       Swal.fire({
         padding: '24px',

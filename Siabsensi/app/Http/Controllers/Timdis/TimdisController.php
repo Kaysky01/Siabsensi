@@ -16,17 +16,29 @@ class TimdisController extends Controller
 {
     /**
      * Tampilkan Dashboard Tim Disiplin.
-     * Menggunakan data yang sama dengan admin (absensi hari ini).
+     * Filter data sesuai dengan kompi yang diampu (assigned_kompi).
      */
     public function dashboard()
     {
         $today = Carbon::today()->toDateString();
-        $totalMahasiswa = Mahasiswa::where('is_active', 1)->count();
+        $assignedKompi = Auth::user()->assigned_kompi;
+
+        $mhsQuery = Mahasiswa::where('is_active', 1);
+        if ($assignedKompi) {
+            $mhsQuery->where('kompi', $assignedKompi);
+        }
+        $totalMahasiswa = $mhsQuery->count();
         
-        $attendancesToday = Attendance::where('date', $today)->get();
+        $attQuery = Attendance::join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('attendance.date', $today);
+        if ($assignedKompi) {
+            $attQuery->where('mahasiswa.kompi', $assignedKompi);
+        }
+        $attendancesToday = $attQuery->select('attendance.*', 'mahasiswa.kompi')->get();
+
         $presentToday = $attendancesToday->whereIn('status', ['hadir', 'present'])->count();
         $izinSakit = $attendancesToday->whereIn('status', ['izin', 'sakit'])->count();
-        $absent = $totalMahasiswa - $presentToday - $izinSakit;
+        $absent = max(0, $totalMahasiswa - $presentToday - $izinSakit);
         
         $stillIn = $attendancesToday->whereIn('status', ['hadir', 'present'])
             ->whereNotNull('check_in')
@@ -35,23 +47,29 @@ class TimdisController extends Controller
             
         $pct = $totalMahasiswa > 0 ? round(($presentToday / $totalMahasiswa) * 100, 1) : 0;
         
-        // Data untuk tabel recent (8 terakhir check-in hari ini, disamakan dengan Garda)
-        $recent = Attendance::with('sesi')
+        // Data untuk tabel recent (8 terakhir check-in hari ini)
+        $recentQuery = Attendance::with('sesi')
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
-            ->whereDate('attendance.date', $today)
-            ->orderBy('attendance.check_in', 'desc')
+            ->whereDate('attendance.date', $today);
+        if ($assignedKompi) {
+            $recentQuery->where('mahasiswa.kompi', $assignedKompi);
+        }
+        $recent = $recentQuery->orderBy('attendance.check_in', 'desc')
             ->select('attendance.*', 'mahasiswa.name', 'mahasiswa.kompi')
             ->take(8)
             ->get();
             
-        // Dummy trend data untuk chart
         // Tren 7 Hari terakhir
         $trend = [];
         for ($i = 6; $i >= 0; $i--) {
             $d = Carbon::today()->subDays($i);
-            $count = Attendance::where('date', $d->toDateString())
-                ->whereIn('status', ['hadir', 'present'])
-                ->count();
+            $tQuery = Attendance::join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+                ->where('attendance.date', $d->toDateString())
+                ->whereIn('attendance.status', ['hadir', 'present']);
+            if ($assignedKompi) {
+                $tQuery->where('mahasiswa.kompi', $assignedKompi);
+            }
+            $count = $tQuery->count();
             $trend[] = [
                 'date' => $d->format('d/m'),
                 'count' => $count
@@ -59,14 +77,16 @@ class TimdisController extends Controller
         }
 
         // Kehadiran by Kompi
-        $byKompi = Mahasiswa::select('kompi', DB::raw('count(*) as count'))
-            ->groupBy('kompi')
-            ->get();
+        $byKompiQuery = Mahasiswa::select('kompi', DB::raw('count(*) as count'));
+        if ($assignedKompi) {
+            $byKompiQuery->where('kompi', $assignedKompi);
+        }
+        $byKompi = $byKompiQuery->groupBy('kompi')->get();
         $maxKompi = $byKompi->max('count') ?: 1;
 
         return view('timdis.dashboard', compact(
             'totalMahasiswa', 'presentToday', 'absent', 'stillIn', 'pct',
-            'recent', 'trend', 'byKompi', 'maxKompi'
+            'recent', 'trend', 'byKompi', 'maxKompi', 'assignedKompi'
         ));
     }
 
@@ -77,12 +97,17 @@ class TimdisController extends Controller
     {
         $izinTable = (new IzinSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
+        $assignedKompi = Auth::user()->assigned_kompi;
         $filterStatus = $request->get('status', '');
         $searchQuery = $request->get('search', '');
 
         $query = IzinSubmission::join($mhsTable, "$izinTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kompi")
             ->orderBy("$izinTable.created_at", 'desc');
+
+        if ($assignedKompi) {
+            $query->where("$mhsTable.kompi", $assignedKompi);
+        }
 
         if ($filterStatus) {
             $query->where("$izinTable.status", $filterStatus);
@@ -94,10 +119,15 @@ class TimdisController extends Controller
 
         $submissions = $query->paginate(20)->withQueryString();
 
+        $statsQuery = IzinSubmission::join($mhsTable, "$izinTable.mahasiswa_id", '=', "$mhsTable.id");
+        if ($assignedKompi) {
+            $statsQuery->where("$mhsTable.kompi", $assignedKompi);
+        }
+
         $stats = [
-            'pending' => IzinSubmission::where('status', 'pending')->count(),
-            'approved' => IzinSubmission::where('status', 'approved')->count(),
-            'rejected' => IzinSubmission::where('status', 'rejected')->count(),
+            'pending' => (clone $statsQuery)->where("$izinTable.status", 'pending')->count(),
+            'approved' => (clone $statsQuery)->where("$izinTable.status", 'approved')->count(),
+            'rejected' => (clone $statsQuery)->where("$izinTable.status", 'rejected')->count(),
         ];
 
         return view('timdis.izin-timdis', compact('submissions', 'stats', 'filterStatus'));
@@ -115,6 +145,12 @@ class TimdisController extends Controller
         ]);
 
         $submission = IzinSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
+
+        // Check if timdis is restricted to assigned_kompi
+        $assignedKompi = Auth::user()->assigned_kompi;
+        if ($assignedKompi && $submission->mahasiswa && $submission->mahasiswa->kompi !== $assignedKompi) {
+            return redirect()->route('timdis.izin-timdis')->with('error', 'Anda tidak memiliki hak akses verifikasi untuk mahasiswa luar kompi.');
+        }
 
         if ($validated['action'] === 'cancel') {
             $submission->status = 'pending';
@@ -160,12 +196,17 @@ class TimdisController extends Controller
     {
         $khdTable = (new KehadiranSubmission)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
+        $assignedKompi = Auth::user()->assigned_kompi;
         $filterStatus = $request->get('status', '');
         $searchQuery = $request->get('search', '');
 
         $query = KehadiranSubmission::join($mhsTable, "$khdTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kompi")
             ->orderBy("$khdTable.created_at", 'desc');
+
+        if ($assignedKompi) {
+            $query->where("$mhsTable.kompi", $assignedKompi);
+        }
 
         if ($filterStatus) {
             $query->where("$khdTable.status", $filterStatus);
@@ -177,10 +218,15 @@ class TimdisController extends Controller
 
         $submissions = $query->paginate(20)->withQueryString();
 
+        $statsQuery = KehadiranSubmission::join($mhsTable, "$khdTable.mahasiswa_id", '=', "$mhsTable.id");
+        if ($assignedKompi) {
+            $statsQuery->where("$mhsTable.kompi", $assignedKompi);
+        }
+
         $stats = [
-            'pending' => KehadiranSubmission::where('status', 'pending')->count(),
-            'approved' => KehadiranSubmission::where('status', 'approved')->count(),
-            'rejected' => KehadiranSubmission::where('status', 'rejected')->count(),
+            'pending' => (clone $statsQuery)->where("$khdTable.status", 'pending')->count(),
+            'approved' => (clone $statsQuery)->where("$khdTable.status", 'approved')->count(),
+            'rejected' => (clone $statsQuery)->where("$khdTable.status", 'rejected')->count(),
         ];
 
         return view('timdis.kehadiran-timdis', compact('submissions', 'stats', 'filterStatus'));
@@ -198,6 +244,12 @@ class TimdisController extends Controller
         ]);
 
         $submission = KehadiranSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
+
+        // Check if timdis is restricted to assigned_kompi
+        $assignedKompi = Auth::user()->assigned_kompi;
+        if ($assignedKompi && $submission->mahasiswa && $submission->mahasiswa->kompi !== $assignedKompi) {
+            return redirect()->route('timdis.kehadiran-timdis')->with('error', 'Anda tidak memiliki hak akses verifikasi untuk mahasiswa luar kompi.');
+        }
 
         if ($validated['action'] === 'cancel') {
             $submission->status = 'pending';

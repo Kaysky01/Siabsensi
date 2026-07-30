@@ -37,7 +37,11 @@ class AbsensiSesiController extends Controller
         $search = trim((string) request('search', ''));
         $status = trim((string) request('status', ''));
         $kompi = trim((string) request('kompi', ''));
+        $assignedKompi = auth()->user()->assigned_kompi;
         $mahasiswaQuery = Mahasiswa::where('is_active', 1);
+        if ($assignedKompi) {
+            $mahasiswaQuery->where('kompi', $assignedKompi);
+        }
         $kompiOptions = (clone $mahasiswaQuery)
             ->select('kompi')
             ->distinct()

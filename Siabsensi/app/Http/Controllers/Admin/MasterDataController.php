@@ -82,12 +82,14 @@ class MasterDataController extends Controller
     {
         $kompiList = Kompi::orderBy('nama')->get();
         $gardaUsers = User::where('role', 'garda')->orderBy('full_name')->get();
+        $timdisUsers = User::where('role', 'timdis')->orderBy('full_name')->get();
 
         foreach ($kompiList as $k) {
             $k->gardas = User::where('role', 'garda')->where('assigned_kompi', $k->nama)->get();
+            $k->timdisList = User::where('role', 'timdis')->where('assigned_kompi', $k->nama)->get();
         }
 
-        return view('admin.master-kompi', compact('kompiList', 'gardaUsers'));
+        return view('admin.master-kompi', compact('kompiList', 'gardaUsers', 'timdisUsers'));
     }
 
     public function storeKompi(Request $request)
@@ -95,15 +97,21 @@ class MasterDataController extends Controller
         $request->validate([
             'nama' => 'required|string|max:255|unique:kompi,nama',
             'garda_ids' => 'nullable|array|max:5',
-            'garda_ids.*' => 'exists:users,username'
+            'garda_ids.*' => 'exists:users,username',
+            'timdis_ids' => 'nullable|array|max:5',
+            'timdis_ids.*' => 'exists:users,username',
         ], [
-            'garda_ids.max' => 'Maksimal penanggung jawab adalah 5 garda.'
+            'garda_ids.max' => 'Maksimal penanggung jawab Garda adalah 5 orang.',
+            'timdis_ids.max' => 'Maksimal penanggung jawab Timdis adalah 5 orang.',
         ]);
         
         $kompi = Kompi::create($request->only('nama'));
 
         if (!empty($request->garda_ids)) {
-            User::whereIn('username', $request->garda_ids)->update(['assigned_kompi' => $kompi->nama]);
+            User::where('role', 'garda')->whereIn('username', $request->garda_ids)->update(['assigned_kompi' => $kompi->nama]);
+        }
+        if (!empty($request->timdis_ids)) {
+            User::where('role', 'timdis')->whereIn('username', $request->timdis_ids)->update(['assigned_kompi' => $kompi->nama]);
         }
 
         \Illuminate\Support\Facades\Cache::forget('master_kompi');
@@ -115,21 +123,28 @@ class MasterDataController extends Controller
         $request->validate([
             'nama' => 'required|string|max:255|unique:kompi,nama,' . $id,
             'garda_ids' => 'nullable|array|max:5',
-            'garda_ids.*' => 'exists:users,username'
+            'garda_ids.*' => 'exists:users,username',
+            'timdis_ids' => 'nullable|array|max:5',
+            'timdis_ids.*' => 'exists:users,username',
         ], [
-            'garda_ids.max' => 'Maksimal penanggung jawab adalah 5 garda.'
+            'garda_ids.max' => 'Maksimal penanggung jawab Garda adalah 5 orang.',
+            'timdis_ids.max' => 'Maksimal penanggung jawab Timdis adalah 5 orang.',
         ]);
         $kompi = Kompi::findOrFail($id);
         $oldNama = $kompi->nama;
 
-        // Clear previous assignment
-        User::where('assigned_kompi', $oldNama)->update(['assigned_kompi' => null]);
+        // Clear previous assignments for this kompi
+        User::whereIn('role', ['garda', 'timdis'])->where('assigned_kompi', $oldNama)->update(['assigned_kompi' => null]);
 
         $kompi->update($request->only('nama'));
 
-        // Assign to new gardas if provided
+        // Assign selected gardas
         if (!empty($request->garda_ids)) {
-            User::whereIn('username', $request->garda_ids)->update(['assigned_kompi' => $kompi->nama]);
+            User::where('role', 'garda')->whereIn('username', $request->garda_ids)->update(['assigned_kompi' => $kompi->nama]);
+        }
+        // Assign selected timdis
+        if (!empty($request->timdis_ids)) {
+            User::where('role', 'timdis')->whereIn('username', $request->timdis_ids)->update(['assigned_kompi' => $kompi->nama]);
         }
 
         \Illuminate\Support\Facades\Cache::forget('master_kompi');

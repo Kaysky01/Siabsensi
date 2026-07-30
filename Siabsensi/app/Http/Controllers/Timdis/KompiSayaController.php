@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Garda;
+namespace App\Http\Controllers\Timdis;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
@@ -11,34 +11,14 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 
 class KompiSayaController extends Controller
 {
-    private function ensureTableExists()
-    {
-        if (!Schema::hasTable('kompi_announcements')) {
-            Schema::create('kompi_announcements', function (Blueprint $table) {
-                $table->id();
-                $table->string('kompi')->index();
-                $table->string('judul')->default('Pengumuman Garda Kompi');
-                $table->text('pesan')->nullable();
-                $table->string('link_wa')->nullable();
-                $table->boolean('is_active')->default(true);
-                $table->string('updated_by')->nullable();
-                $table->timestamps();
-            });
-        }
-    }
-
     public function index(Request $request)
     {
-        $this->ensureTableExists();
-
         $user = Auth::user();
         if (!$user->assigned_kompi) {
-            return redirect()->route('garda.dashboard')->with('error', 'Anda belum memiliki kompi yang ditugaskan.');
+            return redirect()->route('timdis.dashboard')->with('error', 'Anda belum memiliki kompi yang ditugaskan.');
         }
 
         $kompi = $user->assigned_kompi;
@@ -131,9 +111,8 @@ class KompiSayaController extends Controller
         $mahasiswaPaginated = $mahasiswaQuery->paginate($perPage)->withQueryString();
 
         $announcement = KompiAnnouncement::where('kompi', $kompi)->first();
-        $isReadOnly = false;
 
-        return view('garda.kompi-saya', compact(
+        return view('timdis.kompi-saya', compact(
             'kompi',
             'totalMahasiswa',
             'sudahAbsenMasukTodayCount',
@@ -150,35 +129,7 @@ class KompiSayaController extends Controller
             'search',
             'statusFilter',
             'perPageReq',
-            'announcement',
-            'isReadOnly'
+            'announcement'
         ));
-    }
-
-    public function saveAnnouncement(Request $request)
-    {
-        $this->ensureTableExists();
-
-        $user = Auth::user();
-        if (!$user->assigned_kompi || $user->role !== 'garda') {
-            return redirect()->back()->with('error', 'Hanya role Garda yang dapat mengubah pengumuman Kompi.');
-        }
-
-        $validated = $request->validate([
-            'judul' => 'required|string|max:255',
-            'pesan' => 'nullable|string',
-            'link_wa' => 'nullable|url|max:500',
-            'is_active' => 'nullable|boolean',
-        ]);
-
-        $announcement = KompiAnnouncement::firstOrNew(['kompi' => $user->assigned_kompi]);
-        $announcement->judul = $validated['judul'];
-        $announcement->pesan = $validated['pesan'] ?? null;
-        $announcement->link_wa = $validated['link_wa'] ?? null;
-        $announcement->is_active = $request->has('is_active') ? 1 : 0;
-        $announcement->updated_by = $user->username;
-        $announcement->save();
-
-        return redirect()->back()->with('success', 'Pesan Pop-up & Link Group WA Kompi berhasil disimpan.');
     }
 }

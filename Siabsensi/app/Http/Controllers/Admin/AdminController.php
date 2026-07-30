@@ -180,6 +180,11 @@ class AdminController extends Controller
 
         $query = Mahasiswa::query();
 
+        $user = Auth::user();
+        if ($user && $user->role === 'timdis' && $user->assigned_kompi) {
+            $query->where('kompi', $user->assigned_kompi);
+        }
+
         if ($request->filled('search')) {
             $query->where('name', 'like', '%' . $request->search . '%');
         }
@@ -282,6 +287,11 @@ class AdminController extends Controller
     public function storeMahasiswa(Request $request)
     {
         $this->ensureMahasiswaManagementAccess();
+
+        $user = Auth::user();
+        if ($user && $user->role === 'timdis' && $user->assigned_kompi) {
+            $request->merge(['kompi' => $user->assigned_kompi]);
+        }
 
         if ($request->has('tanggal_lahir') && $request->filled('tanggal_lahir')) {
             $parsedDate = $this->parseFormattedDate($request->tanggal_lahir);
