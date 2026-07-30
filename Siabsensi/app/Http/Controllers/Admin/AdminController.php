@@ -875,8 +875,11 @@ class AdminController extends Controller
 
         $updated = 0;
         foreach ($validated['assignments'] as $assignment) {
-            Mahasiswa::where('id', $assignment['id'])->update(['kompi' => $assignment['kompi']]);
-            $updated++;
+            $m = Mahasiswa::find($assignment['id']);
+            if ($m && $m->kompi !== $assignment['kompi']) {
+                $m->update(['kompi' => $assignment['kompi']]);
+                $updated++;
+            }
         }
 
         return redirect()->route('admin.kompi-management')->with('success', "Kompi berhasil diperbarui untuk {$updated} mahasiswa.");
@@ -1726,6 +1729,7 @@ class AdminController extends Controller
         // Get filter options
         $kompiOptions = Mahasiswa::distinct()->pluck('kompi')->filter()->sort()->values();
         $jurusanOptions = Mahasiswa::distinct()->pluck('jurusan')->filter()->sort()->values();
+        $schedules = \App\Models\PkkmbSchedule::where('is_active', 1)->orderBy('tanggal', 'asc')->get();
 
         return view('admin.late-attendance-report', compact(
             'lateReports',
@@ -1737,7 +1741,8 @@ class AdminController extends Controller
             'totalOverrides',
             'avgLateDuration',
             'kompiOptions',
-            'jurusanOptions'
+            'jurusanOptions',
+            'schedules'
         ));
     }
 

@@ -84,6 +84,9 @@
           <td>
             @php $sc = match($s->status) { 'pending' => 'badge-warning', 'approved' => 'badge-green', 'rejected' => 'badge-red', default => 'badge-gray' }; @endphp
             <span class="badge {{ $sc }}">{{ strtoupper($s->status) }}</span>
+            @if($s->status === 'rejected' && $s->rejection_reason)
+              <div style="font-size: 11px; color: var(--danger); margin-top: 4px; max-width: 150px;">{{ $s->rejection_reason }}</div>
+            @endif
           </td>
           <td>
             @if($s->status === 'pending')
@@ -120,7 +123,12 @@
           </div>
         </div>
         @php $sc = match($s->status) { 'pending' => 'badge-warning', 'approved' => 'badge-green', 'rejected' => 'badge-red', default => 'badge-gray' }; @endphp
-        <span class="badge {{ $sc }}">{{ strtoupper($s->status) }}</span>
+        <div style="text-align: right">
+          <span class="badge {{ $sc }}">{{ strtoupper($s->status) }}</span>
+          @if($s->status === 'rejected' && $s->rejection_reason)
+            <div style="font-size: 11px; color: var(--danger); margin-top: 4px;">{{ $s->rejection_reason }}</div>
+          @endif
+        </div>
       </div>
       
       <div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px">

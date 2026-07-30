@@ -53,7 +53,12 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <div style="display:flex;gap:12px;align-items:center">
           <label class="form-label" style="margin-bottom:0">Set kompi terpilih ke:</label>
-          <input type="text" id="bulk-kompi-value" class="form-input" style="width:150px;padding:5px 10px" placeholder="Misal: B">
+          <select id="bulk-kompi-value" class="form-input" style="width:150px;padding:5px 10px">
+            <option value="">Pilih Kompi...</option>
+            @foreach($kompiOptions as $k)
+              <option value="{{ $k }}">{{ $k }}</option>
+            @endforeach
+          </select>
           <button type="button" class="btn btn-secondary btn-sm" onclick="applyBulkKompi()">Terapkan ke baris</button>
         </div>
         <button type="submit" class="btn btn-primary btn-sm">Simpan Perubahan</button>
@@ -78,7 +83,11 @@
             <td><span class="badge badge-blue">{{ $m->kompi }}</span></td>
             <td>
               <input type="hidden" name="assignments[{{ $i }}][id]" value="{{ $m->id }}">
-              <input type="text" name="assignments[{{ $i }}][kompi]" id="kompi-input-{{ $i }}" class="form-input" style="padding:4px 8px;width:120px" value="{{ $m->kompi }}" required>
+              <select name="assignments[{{ $i }}][kompi]" id="kompi-input-{{ $i }}" class="form-input" style="padding:4px 8px;width:120px" required>
+                @foreach($kompiOptions as $k)
+                  <option value="{{ $k }}" {{ $m->kompi == $k ? 'selected' : '' }}>{{ $k }}</option>
+                @endforeach
+              </select>
             </td>
           </tr>
           @endforeach

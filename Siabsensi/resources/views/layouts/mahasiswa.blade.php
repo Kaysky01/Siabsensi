@@ -180,6 +180,38 @@
     }
   </script>
 
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      @if(session('success'))
+        Swal.fire({
+          icon: 'success',
+          title: 'Berhasil!',
+          text: '{!! session('success') !!}',
+          confirmButtonColor: 'var(--primary)'
+        });
+      @endif
+
+      @if(session('error'))
+        Swal.fire({
+          icon: 'error',
+          title: 'Gagal!',
+          text: '{!! session('error') !!}',
+          confirmButtonColor: 'var(--danger)'
+        });
+      @endif
+
+      @if($errors->any())
+        Swal.fire({
+          icon: 'error',
+          title: 'Terjadi Kesalahan!',
+          html: '<ul style="text-align:left;margin-bottom:0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>',
+          confirmButtonColor: 'var(--danger)'
+        });
+      @endif
+    });
+  </script>
+
   <!-- Modal Bukti Global -->
   <div class="modal-backdrop" id="modal-bukti-global">
     <div class="modal modal-bukti" style="max-width:700px;padding:20px">
@@ -204,7 +236,6 @@
   @endphp
 
   @if($activeAnn)
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const annId = "kompi_ann_{{ $activeAnn->id }}_{{ strtotime($activeAnn->updated_at) }}";

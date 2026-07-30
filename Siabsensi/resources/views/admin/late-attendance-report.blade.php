@@ -64,12 +64,26 @@
       <div class="form-row-grid">
         <div class="form-group">
           <label class="form-label">Tanggal Mulai</label>
-          <input type="date" name="start" class="form-input" value="{{ $start }}" required>
+          <select name="start" class="form-input" required>
+            <option value="">Pilih Tanggal...</option>
+            @foreach($schedules as $sched)
+              <option value="{{ $sched->tanggal }}" {{ $start == $sched->tanggal ? 'selected' : '' }}>
+                Hari {{ $sched->hari_ke }} - {{ \Carbon\Carbon::parse($sched->tanggal)->format('d M Y') }}
+              </option>
+            @endforeach
+          </select>
         </div>
 
         <div class="form-group">
           <label class="form-label">Tanggal Akhir</label>
-          <input type="date" name="end" class="form-input" value="{{ $end }}" required>
+          <select name="end" class="form-input" required>
+            <option value="">Pilih Tanggal...</option>
+            @foreach($schedules as $sched)
+              <option value="{{ $sched->tanggal }}" {{ $end == $sched->tanggal ? 'selected' : '' }}>
+                Hari {{ $sched->hari_ke }} - {{ \Carbon\Carbon::parse($sched->tanggal)->format('d M Y') }}
+              </option>
+            @endforeach
+          </select>
         </div>
 
         <div class="form-group">

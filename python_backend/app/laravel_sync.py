@@ -386,56 +386,52 @@ class LaravelSyncService:
                     
                 mhs_name = mhs.get('name', 'Tanpa Nama')
                 is_active = 1 if mhs.get('is_active', True) else 0
+                qr_code = mhs.get('qr_code_id') or mhs_id
                 
                 try:
-                    # Check if mahasiswa exists
+                    # Check if mahasiswa exists for stats
                     cursor.execute("SELECT id FROM mahasiswa WHERE id = %s", (mhs_id,))
                     existing = cursor.fetchone()
                     
+                    tgl_lahir = mhs.get('tanggal_lahir')
+                    if tgl_lahir and 'T' in str(tgl_lahir):
+                        tgl_lahir = str(tgl_lahir).split('T')[0]
+                    elif not tgl_lahir:
+                        tgl_lahir = None
+
+                    cursor.execute("""
+                        INSERT INTO mahasiswa (
+                            id, name, kompi, jurusan, prodi, tanggal_lahir, email,
+                            no_telp_mahasiswa, no_telp_ortu, qr_code_id, is_active
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                            name = VALUES(name),
+                            kompi = VALUES(kompi),
+                            jurusan = VALUES(jurusan),
+                            prodi = VALUES(prodi),
+                            tanggal_lahir = VALUES(tanggal_lahir),
+                            email = VALUES(email),
+                            no_telp_mahasiswa = VALUES(no_telp_mahasiswa),
+                            no_telp_ortu = VALUES(no_telp_ortu),
+                            qr_code_id = VALUES(qr_code_id),
+                            is_active = VALUES(is_active)
+                    """, (
+                        mhs_id,
+                        mhs_name,
+                        mhs.get('kompi'),
+                        mhs.get('jurusan'),
+                        mhs.get('prodi'),
+                        tgl_lahir,
+                        mhs.get('email'),
+                        mhs.get('no_telp_mahasiswa'),
+                        mhs.get('no_telp_ortu'),
+                        qr_code,
+                        is_active
+                    ))
+
                     if existing:
-                        cursor.execute("""
-                            UPDATE mahasiswa SET
-                                name = %s,
-                                kompi = %s,
-                                jurusan = %s,
-                                prodi = %s,
-                                email = %s,
-                                no_telp_mahasiswa = %s,
-                                no_telp_ortu = %s,
-                                qr_code_id = %s,
-                                is_active = %s
-                            WHERE id = %s
-                        """, (
-                            mhs_name,
-                            mhs.get('kompi'),
-                            mhs.get('jurusan'),
-                            mhs.get('prodi'),
-                            mhs.get('email'),
-                            mhs.get('no_telp_mahasiswa'),
-                            mhs.get('no_telp_ortu'),
-                            mhs.get('qr_code_id'),
-                            is_active,
-                            mhs_id
-                        ))
                         updated += 1
                     else:
-                        cursor.execute("""
-                            INSERT INTO mahasiswa (
-                                id, name, kompi, jurusan, prodi, email,
-                                no_telp_mahasiswa, no_telp_ortu, qr_code_id, is_active
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            mhs_id,
-                            mhs_name,
-                            mhs.get('kompi'),
-                            mhs.get('jurusan'),
-                            mhs.get('prodi'),
-                            mhs.get('email'),
-                            mhs.get('no_telp_mahasiswa'),
-                            mhs.get('no_telp_ortu'),
-                            mhs.get('qr_code_id'),
-                            is_active
-                        ))
                         inserted += 1
                     
                     # OTOMATIS BUAT/UPDATE USER ACCOUNT
@@ -492,29 +488,31 @@ class LaravelSyncService:
             full_name = mahasiswa.get('name', '')
             is_active = 1 if mahasiswa.get('is_active', True) else 0
             
+            kompi = mahasiswa.get('kompi')
+            
             if not username:
                 return {'created': False, 'updated': False, 'error': 'ID / Username kosong'}
                 
             cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
             existing_user = cursor.fetchone()
             
+            import hashlib
+            default_password = hashlib.md5(username.encode()).hexdigest()
+            
+            cursor.execute("""
+                INSERT INTO users (username, password, full_name, role, is_active, assigned_kompi, mahasiswa_id)
+                VALUES (%s, %s, %s, 'mahasiswa', %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    full_name = VALUES(full_name),
+                    is_active = VALUES(is_active),
+                    assigned_kompi = VALUES(assigned_kompi),
+                    mahasiswa_id = VALUES(mahasiswa_id),
+                    role = 'mahasiswa'
+            """, (username, default_password, full_name, is_active, kompi, username))
+
             if existing_user:
-                cursor.execute("""
-                    UPDATE users SET
-                        full_name = %s,
-                        is_active = %s,
-                        role = 'mahasiswa'
-                    WHERE username = %s
-                """, (full_name, is_active, username))
                 return {'created': False, 'updated': True}
             else:
-                import hashlib
-                default_password = hashlib.md5(username.encode()).hexdigest()
-                
-                cursor.execute("""
-                    INSERT INTO users (username, password, full_name, role, is_active)
-                    VALUES (%s, %s, %s, 'mahasiswa', %s)
-                """, (username, default_password, full_name, is_active))
                 return {'created': True, 'updated': False}
                 
         except Exception as e:

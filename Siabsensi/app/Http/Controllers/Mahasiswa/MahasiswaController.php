@@ -390,25 +390,30 @@ class MahasiswaController extends Controller
         $request->validate([
             'date' => 'required|date',
             'reason' => 'required|string',
-            'bukti' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
+            'bukti' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
+        ], [
+            'bukti.required' => 'Bukti lampiran wajib diunggah.',
+            'bukti.mimes' => 'Format bukti harus JPG, JPEG, PNG, atau PDF.',
+            'bukti.max' => 'Ukuran file bukti maksimal 2MB.',
         ]);
 
-        $path = null;
-        if ($request->hasFile('bukti')) {
+        try {
             $path = $request->file('bukti')->store('kehadiran_bukti', 'public');
+
+            \App\Models\KehadiranSubmission::create([
+                'mahasiswa_id' => Auth::user()->mahasiswa_id,
+                'date' => $request->date,
+                'check_in_time' => '08:00:00',
+                'check_out_time' => '16:00:00',
+                'keterangan' => $request->reason,
+                'bukti_path' => $path,
+                'status' => 'pending',
+            ]);
+
+            return back()->with('success', 'Pengajuan kehadiran manual berhasil dikirim.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Gagal mengirim pengajuan: ' . $e->getMessage());
         }
-
-        \App\Models\KehadiranSubmission::create([
-            'mahasiswa_id' => Auth::user()->mahasiswa_id,
-            'date' => $request->date,
-            'check_in_time' => '08:00:00',
-            'check_out_time' => '16:00:00',
-            'keterangan' => $request->reason,
-            'bukti_path' => $path,
-            'status' => 'pending',
-        ]);
-
-        return back()->with('success', 'Pengajuan kehadiran manual berhasil dikirim.');
     }
 
     public function kegiatan()
