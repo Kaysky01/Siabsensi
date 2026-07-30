@@ -1437,10 +1437,11 @@ class AdminController extends Controller
         $statsAdmin = User::where('role', 'admin')->count();
         $statsTimdis = User::where('role', 'timdis')->count();
         $statsGarda = User::where('role', 'garda')->count();
+        $statsAcara = User::where('role', 'acara')->count();
         $statsMahasiswa = User::where('role', 'mahasiswa')->count();
         $statsTotal = User::count();
 
-        return view('admin.users', compact('usersList', 'kompiOptions', 'statsAdmin', 'statsTimdis', 'statsGarda', 'statsMahasiswa', 'statsTotal'));
+        return view('admin.users', compact('usersList', 'kompiOptions', 'statsAdmin', 'statsTimdis', 'statsGarda', 'statsAcara', 'statsMahasiswa', 'statsTotal'));
     }
 
     public function storeUser(Request $request)
@@ -1449,7 +1450,7 @@ class AdminController extends Controller
             'username' => 'required|string|unique:users,username',
             'full_name' => 'required|string',
             'email' => 'nullable|email',
-            'role' => 'required|in:admin,timdis,garda',
+            'role' => 'required|in:admin,timdis,garda,acara',
             'password' => 'required|string|min:6',
             'assigned_kompi' => 'nullable|string|max:100',
         ]);
@@ -1517,8 +1518,8 @@ class AdminController extends Controller
         $username = $user->username;
         $role = $user->role;
 
-        // Validasi agar hanya admin, garda, dan timdis yang bisa dihapus lewat sini
-        if (!in_array($role, ['admin', 'garda', 'timdis'])) {
+        // Validasi agar hanya admin, garda, timdis, dan acara yang bisa dihapus lewat sini
+        if (!in_array($role, ['admin', 'garda', 'timdis', 'acara'])) {
             return redirect()->route('admin.users')->with('error', 'Role user ini tidak valid untuk dihapus.');
         }
 

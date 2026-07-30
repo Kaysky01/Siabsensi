@@ -17,6 +17,7 @@
     <div class="stat-card"><div class="stat-label">Admin</div><div class="stat-value">{{ $statsAdmin }}</div></div>
     <div class="stat-card"><div class="stat-label">Tim Disiplin</div><div class="stat-value">{{ $statsTimdis }}</div></div>
     <div class="stat-card"><div class="stat-label">Garda</div><div class="stat-value">{{ $statsGarda }}</div></div>
+    <div class="stat-card"><div class="stat-label">Acara</div><div class="stat-value">{{ $statsAcara ?? 0 }}</div></div>
     <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value">{{ $statsTotal }}</div></div>
   </div>
 
