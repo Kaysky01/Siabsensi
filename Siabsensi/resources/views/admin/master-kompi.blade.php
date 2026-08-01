@@ -76,18 +76,6 @@
   </button>
 </div>
 
-@if(session('success'))
-<div class="alert alert-success" style="margin-bottom:16px;padding:10px 14px;background:#dcfce7;color:#15803d;border-radius:6px;font-size:13px">
-  ✓ {{ session('success') }}
-</div>
-@endif
-
-@if($errors->any())
-<div class="alert alert-danger" style="margin-bottom:16px;padding:10px 14px;background:#fee2e2;color:#b91c1c;border-radius:6px;font-size:13px">
-  ✕ {{ $errors->first() }}
-</div>
-@endif
-
 <div class="panel">
   <table class="att-table">
     <thead>

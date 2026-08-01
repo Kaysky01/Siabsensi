@@ -80,7 +80,7 @@ class MasterDataController extends Controller
     // --- KOMPI ---
     public function indexKompi()
     {
-        $kompiList = Kompi::orderBy('nama')->get();
+        $kompiList = Kompi::get()->sortBy('nama', SORT_NATURAL | SORT_FLAG_CASE)->values();
         $gardaUsers = User::where('role', 'garda')->orderBy('full_name')->get();
         $timdisUsers = User::where('role', 'timdis')->orderBy('full_name')->get();
 
@@ -101,6 +101,7 @@ class MasterDataController extends Controller
             'timdis_ids' => 'nullable|array|max:5',
             'timdis_ids.*' => 'exists:users,username',
         ], [
+            'nama.unique' => 'Nama kompi tersebut sudah terdaftar, silakan gunakan nama lain.',
             'garda_ids.max' => 'Maksimal penanggung jawab Garda adalah 5 orang.',
             'timdis_ids.max' => 'Maksimal penanggung jawab Timdis adalah 5 orang.',
         ]);
@@ -127,6 +128,7 @@ class MasterDataController extends Controller
             'timdis_ids' => 'nullable|array|max:5',
             'timdis_ids.*' => 'exists:users,username',
         ], [
+            'nama.unique' => 'Nama kompi tersebut sudah terdaftar, silakan gunakan nama lain.',
             'garda_ids.max' => 'Maksimal penanggung jawab Garda adalah 5 orang.',
             'timdis_ids.max' => 'Maksimal penanggung jawab Timdis adalah 5 orang.',
         ]);

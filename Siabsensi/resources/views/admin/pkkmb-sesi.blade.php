@@ -142,9 +142,8 @@
     <div class="empty-sesi-state">
       <span class="material-symbols-outlined">inbox</span>
       <p>Belum ada kegiatan/sesi untuk hari ini</p>
-      <button class="btn btn-sm btn-primary" onclick="openModalAdd({{ $schedule->id }})">
-        <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">add</span>
-        Tambah Sesi
+      <button class="btn btn-primary" style="border-radius: 8px; padding: 8px 20px; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 0 auto;" onclick="openModalAdd({{ $schedule->id }})">
+        <span class="material-symbols-outlined" style="font-size:18px;">add</span>Tambah Sesi
       </button>
     </div>
     @else
@@ -412,8 +411,8 @@ function openEditSesi(sesiId, scheduleId, nama, jamMulai, jamSelesai, isActive) 
   document.getElementById('edit-sesi-form').action = '/admin/kegiatan/' + sesiId;
   document.getElementById('edit-pkkmb-display').value = displayName;
   document.getElementById('edit-nama-sesi').value = nama;
-  document.getElementById('edit-jam-mulai').value = jamMulai || '';
-  document.getElementById('edit-jam-selesai').value = jamSelesai || '';
+  document.getElementById('edit-jam-mulai').value = jamMulai ? jamMulai.substring(0, 5) : '';
+  document.getElementById('edit-jam-selesai').value = jamSelesai ? jamSelesai.substring(0, 5) : '';
   document.getElementById('edit-is-active').checked = isActive == 1;
   document.getElementById('modal-edit-sesi').classList.add('show');
 }

@@ -399,8 +399,8 @@ function openEditSesi(sesiId, scheduleId, nama, jamMulai, jamSelesai, isActive) 
   document.getElementById('edit-sesi-form').action = '/acara/kegiatan/' + sesiId;
   document.getElementById('edit-pkkmb-display').value = displayName;
   document.getElementById('edit-nama-sesi').value = nama;
-  document.getElementById('edit-jam-mulai').value = jamMulai || '';
-  document.getElementById('edit-jam-selesai').value = jamSelesai || '';
+  document.getElementById('edit-jam-mulai').value = jamMulai ? jamMulai.substring(0, 5) : '';
+  document.getElementById('edit-jam-selesai').value = jamSelesai ? jamSelesai.substring(0, 5) : '';
   document.getElementById('edit-is-active').checked = isActive == 1;
   document.getElementById('modal-edit-sesi').classList.add('show');
 }

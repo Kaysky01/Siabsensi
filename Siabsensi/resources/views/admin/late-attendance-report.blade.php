@@ -10,7 +10,7 @@
     </div>
     <div>
       <a href="{{ route('admin.late-report.export', request()->all()) }}" class="btn btn-success">
-        <i class="fas fa-file-excel"></i> Export CSV
+        <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Export CSV
       </a>
     </div>
   </div>
@@ -19,7 +19,7 @@
   <div class="stats-grid" style="margin-bottom:24px">
     <div class="stat-card">
       <div class="stat-icon" style="background:#dc3545">
-        <i class="fas fa-clock"></i>
+        <span class="material-symbols-outlined">warning</span>
       </div>
       <div class="stat-content">
         <div class="stat-value">{{ $totalLateOccurrences }}</div>
@@ -29,7 +29,7 @@
 
     <div class="stat-card">
       <div class="stat-icon" style="background:#28a745">
-        <i class="fas fa-check-circle"></i>
+        <span class="material-symbols-outlined">undo</span>
       </div>
       <div class="stat-content">
         <div class="stat-value">{{ $totalOverrides }}</div>
@@ -39,7 +39,7 @@
 
     <div class="stat-card">
       <div class="stat-icon" style="background:#ffc107">
-        <i class="fas fa-hourglass-half"></i>
+        <span class="material-symbols-outlined">timer</span>
       </div>
       <div class="stat-content">
         <div class="stat-value">{{ $avgLateDuration ? round($avgLateDuration, 1) : 0 }} min</div>
@@ -49,7 +49,7 @@
 
     <div class="stat-card">
       <div class="stat-icon" style="background:#17a2b8">
-        <i class="fas fa-percentage"></i>
+        <span class="material-symbols-outlined">person_off</span>
       </div>
       <div class="stat-content">
         <div class="stat-value">{{ $lateReports->total() }}</div>
@@ -63,24 +63,24 @@
     <form method="GET" action="{{ route('admin.late-report') }}" class="filter-form">
       <div class="form-row-grid">
         <div class="form-group">
-          <label class="form-label">Tanggal Mulai</label>
+          <label class="form-label">Jadwal Awal</label>
           <select name="start" class="form-input" required>
-            <option value="">Pilih Tanggal...</option>
+            <option value="">Pilih Jadwal Awal...</option>
             @foreach($schedules as $sched)
-              <option value="{{ $sched->tanggal }}" {{ $start == $sched->tanggal ? 'selected' : '' }}>
-                Hari {{ $sched->hari_ke }} - {{ \Carbon\Carbon::parse($sched->tanggal)->format('d M Y') }}
+              <option value="{{ $sched->tanggal->format('Y-m-d') }}" {{ $start == $sched->tanggal->format('Y-m-d') ? 'selected' : '' }}>
+                Hari {{ $sched->hari_ke }} - {{ $sched->tanggal->format('d M Y') }}
               </option>
             @endforeach
           </select>
         </div>
 
         <div class="form-group">
-          <label class="form-label">Tanggal Akhir</label>
+          <label class="form-label">Jadwal Akhir</label>
           <select name="end" class="form-input" required>
-            <option value="">Pilih Tanggal...</option>
+            <option value="">Pilih Jadwal Akhir...</option>
             @foreach($schedules as $sched)
-              <option value="{{ $sched->tanggal }}" {{ $end == $sched->tanggal ? 'selected' : '' }}>
-                Hari {{ $sched->hari_ke }} - {{ \Carbon\Carbon::parse($sched->tanggal)->format('d M Y') }}
+              <option value="{{ $sched->tanggal->format('Y-m-d') }}" {{ $end == $sched->tanggal->format('Y-m-d') ? 'selected' : '' }}>
+                Hari {{ $sched->hari_ke }} - {{ $sched->tanggal->format('d M Y') }}
               </option>
             @endforeach
           </select>
@@ -105,14 +105,19 @@
             @endforeach
           </select>
         </div>
+
+        <div class="form-group">
+          <label class="form-label">Cari Nama</label>
+          <input type="text" name="search" class="form-input" placeholder="Cari nama mahasiswa..." value="{{ $search ?? '' }}">
+        </div>
       </div>
 
       <div style="margin-top:16px;display:flex;gap:12px">
         <button type="submit" class="btn btn-primary">
-          <i class="fas fa-search"></i> Filter
+          <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">search</span> Filter
         </button>
         <a href="{{ route('admin.late-report') }}" class="btn btn-secondary">
-          <i class="fas fa-redo"></i> Reset
+          <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">refresh</span> Reset
         </a>
       </div>
     </form>
@@ -127,7 +132,7 @@
 
     @if($lateReports->isEmpty())
     <div style="text-align:center;padding:40px;color:var(--text-muted)">
-      <i class="fas fa-inbox" style="font-size:48px;margin-bottom:16px;opacity:0.3"></i>
+      <span class="material-symbols-outlined" style="font-size:48px;margin-bottom:16px;opacity:0.3">inbox</span>
       <p>Tidak ada data keterlambatan untuk periode dan filter yang dipilih.</p>
     </div>
     @else

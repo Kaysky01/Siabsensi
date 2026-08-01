@@ -321,7 +321,7 @@
           <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Download Template CSV
         </a>
 
-        <input type="file" name="csv_file" class="form-input" accept=".csv,.xls,.xlsx" required style="padding:10px">
+        <input type="file" name="csv_file" id="file-import" class="form-input" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" required style="padding:10px">
         <span class="form-hint" style="margin-top:8px;display:block">
           <strong>Format Header:</strong><br>
           Nomor Registrasi, Nama, Kompi (Opsional), Jurusan, Prodi, Tanggal Lahir (YYYY-MM-DD), Email (Opsional), Telp Mhs (Opsional), Telp Ortu (Opsional)<br><br>
@@ -401,6 +401,18 @@
             </button>
         </div>
     </div>
+  </div>
+</div>
+
+<!-- Modal File Error -->
+<div class="modal-backdrop" id="modal-file-error" style="z-index: 9999;">
+  <div class="modal" style="max-width: 400px; text-align: center;">
+    <div style="color: var(--danger); font-size: 48px; margin-bottom: 16px;">
+      <span class="material-symbols-outlined" style="font-size: 48px;">error</span>
+    </div>
+    <h3 style="margin-top: 0; color: var(--text-main);">Format Tidak Didukung</h3>
+    <p style="color: var(--text-muted); margin-bottom: 24px;">Format file tidak didukung. Harap upload file berekstensi .csv, .xls, atau .xlsx</p>
+    <button type="button" class="btn btn-primary" style="width: 100%;" onclick="document.getElementById('modal-file-error').classList.remove('show')">Mengerti</button>
   </div>
 </div>
 
@@ -663,6 +675,25 @@ function updateFilterProdi() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  const fileImport = document.getElementById('file-import');
+  if (fileImport) {
+    fileImport.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const validExts = ['.csv', '.xls', '.xlsx'];
+            const fileName = file.name.toLowerCase();
+            const isValid = validExts.some(ext => fileName.endsWith(ext));
+            
+            if (!isValid) {
+                document.getElementById('modal-file-error').classList.add('show');
+                e.target.value = ''; // clear the input
+                const fileNameDisplay = document.getElementById('file-name-display');
+                if (fileNameDisplay) fileNameDisplay.textContent = 'Belum ada file dipilih';
+            }
+        }
+    });
+  }
+
   updateFilterProdi();
 
   @if(session('success'))

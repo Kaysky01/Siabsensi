@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             JurusanSeeder::class,        // Seeder jurusan (harus dijalankan pertama)
             ProdiSeeder::class,          // Seeder prodi (harus setelah jurusan)
-            MahasiswaDataSeeder::class,
+            // MahasiswaDataSeeder::class,
         ]);
     }
 }
