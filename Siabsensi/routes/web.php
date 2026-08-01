@@ -33,6 +33,7 @@ Route::get('/', function () {
             'admin' => redirect()->route('admin.dashboard'),
             'timdis' => redirect()->route('timdis.dashboard'),
             'garda' => redirect()->route('garda.dashboard'),
+            'acara' => redirect()->route('acara.dashboard'),
             'mahasiswa' => redirect()->route('mahasiswa.dashboard'),
             default => redirect()->route('login'),
         };
@@ -68,21 +69,28 @@ Route::middleware(['auth', 'role:garda'])->prefix('garda')->group(function () {
     Route::post('/kehadiran/verify', [VerificationController::class, 'verifyKehadiran'])->name('garda.kehadiran.verify');
 });
 
-// ?????? TIMDIS PAGES ??????
+// ─── ACARA PAGES ────────────────────────────────────────────────────────────
+Route::middleware(['auth', 'role:acara'])->prefix('acara')->group(function () {
+    Route::get('/dashboard', [\App\Http\Controllers\Acara\AcaraController::class, 'dashboard'])->name('acara.dashboard');
+    Route::get('/pkkmb-schedule', [\App\Http\Controllers\Acara\PkkmbScheduleController::class, 'index'])->name('acara.pkkmb-schedule.index');
+    Route::post('/pkkmb-schedule', [\App\Http\Controllers\Acara\PkkmbScheduleController::class, 'store'])->name('acara.pkkmb-schedule.store');
+    Route::put('/pkkmb-schedule/{id}', [\App\Http\Controllers\Acara\PkkmbScheduleController::class, 'update'])->name('acara.pkkmb-schedule.update');
+    Route::post('/pkkmb-schedule/{id}/toggle', [\App\Http\Controllers\Acara\PkkmbScheduleController::class, 'toggleActive'])->name('acara.pkkmb-schedule.toggle');
+    Route::delete('/pkkmb-schedule/{id}', [\App\Http\Controllers\Acara\PkkmbScheduleController::class, 'destroy'])->name('acara.pkkmb-schedule.destroy');
+    Route::post('/pkkmb-schedule/grace-period', [\App\Http\Controllers\Acara\PkkmbScheduleController::class, 'updateGracePeriod'])->name('acara.pkkmb-schedule.gracePeriod');
+
+    Route::get('/kegiatan', [\App\Http\Controllers\Acara\PkkmbSesiController::class, 'index'])->name('acara.kegiatan');
+    Route::post('/kegiatan', [\App\Http\Controllers\Acara\PkkmbSesiController::class, 'store'])->name('acara.kegiatan.store');
+    Route::put('/kegiatan/{sesi}', [\App\Http\Controllers\Acara\PkkmbSesiController::class, 'update'])->name('acara.kegiatan.update');
+    Route::post('/kegiatan/{sesi}/toggle', [\App\Http\Controllers\Acara\PkkmbSesiController::class, 'toggleActive'])->name('acara.kegiatan.toggle');
+    Route::delete('/kegiatan/{sesi}', [\App\Http\Controllers\Acara\PkkmbSesiController::class, 'destroy'])->name('acara.kegiatan.destroy');
+});
+
+// ─── TIMDIS PAGES ───────────────────────────────────────────────────────────
 Route::middleware(['auth', 'role:timdis'])->prefix('timdis')->group(function () {
     Route::get('/dashboard', [TimdisController::class, 'dashboard'])->name('timdis.dashboard');
+    Route::get('/kompi-saya', [\App\Http\Controllers\Timdis\KompiSayaController::class, 'index'])->name('timdis.kompi-saya');
     Route::get('/attendance', [\App\Http\Controllers\Timdis\AttendanceController::class, 'attendance'])->name('timdis.attendance');
-    Route::get('/pkkmb-schedule', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'index'])->name('timdis.pkkmb-schedule.index');
-    Route::post('/pkkmb-schedule', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'store'])->name('timdis.pkkmb-schedule.store');
-    Route::put('/pkkmb-schedule/{id}', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'update'])->name('timdis.pkkmb-schedule.update');
-    Route::post('/pkkmb-schedule/{id}/toggle', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'toggleActive'])->name('timdis.pkkmb-schedule.toggle');
-    Route::delete('/pkkmb-schedule/{id}', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'destroy'])->name('timdis.pkkmb-schedule.destroy');
-    Route::post('/pkkmb-schedule/grace-period', [\App\Http\Controllers\Timdis\PkkmbScheduleController::class, 'updateGracePeriod'])->name('timdis.pkkmb-schedule.gracePeriod');
-    Route::get('/kegiatan', [\App\Http\Controllers\Timdis\KegiatanController::class, 'index'])->name('timdis.kegiatan');
-    Route::post('/kegiatan', [\App\Http\Controllers\Timdis\KegiatanController::class, 'store'])->name('timdis.kegiatan.store');
-    Route::put('/kegiatan/{sesi}', [\App\Http\Controllers\Timdis\KegiatanController::class, 'update'])->name('timdis.kegiatan.update');
-    Route::post('/kegiatan/{sesi}/toggle', [\App\Http\Controllers\Timdis\KegiatanController::class, 'toggleActive'])->name('timdis.kegiatan.toggle');
-    Route::delete('/kegiatan/{sesi}', [\App\Http\Controllers\Timdis\KegiatanController::class, 'destroy'])->name('timdis.kegiatan.destroy');
     Route::get('/absensi-persesi', [\App\Http\Controllers\Timdis\AbsensiSesiController::class, 'listSesi'])->name('timdis.absensi-persesi');
     Route::get('/monitoring-kegiatan', [\App\Http\Controllers\Timdis\AttendanceController::class, 'monitoringKegiatan'])->name('timdis.monitoring-kegiatan');
     Route::get('/monitoring-kegiatan/{id}', [\App\Http\Controllers\Timdis\AttendanceController::class, 'monitoringKegiatanDetail'])->name('timdis.monitoring-kegiatan.detail');
@@ -104,7 +112,7 @@ Route::middleware(['auth', 'role:timdis'])->prefix('timdis')->group(function () 
 });
 
 // ?????? ADMIN PAGES (Server-Side Rendered) ??????
-Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(function () {
+Route::middleware(['auth', 'role:admin,timdis,garda,acara'])->prefix('admin')->group(function () {
     // View Pages
     Route::get('/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
     Route::get('/attendance', [AdminController::class, 'attendance'])->name('admin.attendance');
@@ -175,7 +183,7 @@ Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(f
 });
 
 // ?????? ADMIN FORM ACTIONS (POST) ??????
-Route::middleware(['auth', 'role:admin,timdis,garda'])->prefix('admin')->group(function () {
+Route::middleware(['auth', 'role:admin,timdis,garda,acara'])->prefix('admin')->group(function () {
 
     
     // PKKMB Schedule CRUD

@@ -53,6 +53,18 @@ class UserSeeder extends Seeder
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
+            // 4. Akun Acara
+            [
+                'username' => 'acara',
+                'password' => Hash::make('acara123'),
+                'full_name' => 'Panitia Acara',
+                'email' => 'acara@siabsen.test',
+                'role' => 'acara',
+                'mahasiswa_id' => null,
+                'is_active' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
         ]);
     }
 }

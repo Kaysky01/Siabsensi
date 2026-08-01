@@ -19,6 +19,14 @@ class StudentController extends Controller
             $query->where('kompi', $user->assigned_kompi);
         }
 
+        if (request()->has('search') && request()->search != '') {
+            $search = request()->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('id', 'like', "%{$search}%");
+            });
+        }
+
         // Ambil jadwal PKKMB aktif (per hari) sebagai acuan titik status
         $allSchedules = PkkmbSchedule::where('is_active', 1)
             ->orderBy('tanggal', 'asc')

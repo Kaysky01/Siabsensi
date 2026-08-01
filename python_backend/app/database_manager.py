@@ -76,7 +76,7 @@ class DatabaseManager:
                 username VARCHAR(255) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
                 full_name VARCHAR(255),
-                role ENUM('admin', 'timdis', 'garda', 'mahasiswa') DEFAULT 'mahasiswa',
+                role ENUM('admin', 'timdis', 'garda', 'acara', 'mahasiswa') DEFAULT 'mahasiswa',
                 is_active TINYINT(1) DEFAULT 1,
                 last_login DATETIME,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

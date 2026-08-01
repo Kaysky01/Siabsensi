@@ -21,6 +21,7 @@ function showSyncMasterDataDialog() {
                     <li>Data Mahasiswa & User Accounts</li>
                     <li>Jadwal PKKMB</li>
                     <li>Data Kegiatan</li>
+                    <li>Toleransi Keterlambatan & Konfigurasi Sistem</li>
                 </ul>
                 <div style="margin-top: 20px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
@@ -87,9 +88,13 @@ function showProgressSyncDialog(laravelUrl) {
                         <span class="step-icon" style="font-size: 15px;">⚪</span>
                         <span>Sync Jadwal PKKMB</span>
                     </div>
-                    <div id="step-keg" style="display: flex; align-items: center; gap: 10px; opacity: 0.5; transition: all 0.2s;">
+                    <div id="step-keg" style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; opacity: 0.5; transition: all 0.2s;">
                         <span class="step-icon" style="font-size: 15px;">⚪</span>
                         <span>Sync Data Kegiatan</span>
+                    </div>
+                    <div id="step-cfg" style="display: flex; align-items: center; gap: 10px; opacity: 0.5; transition: all 0.2s;">
+                        <span class="step-icon" style="font-size: 15px;">⚪</span>
+                        <span>Sync Toleransi Keterlambatan (Konfigurasi Sistem)</span>
                     </div>
                 </div>
             </div>
@@ -111,7 +116,8 @@ async function executeStepByStepSync(laravelUrl) {
         success: true,
         mahasiswa: null,
         schedules: null,
-        kegiatan: null
+        kegiatan: null,
+        system_config: null
     };
 
     function updateProgress(percent, titleText) {
@@ -174,7 +180,7 @@ async function executeStepByStepSync(laravelUrl) {
     }
 
     try {
-        // Step 1: Tes Koneksi (0% -> 15%)
+        // Step 1: Tes Koneksi (0% -> 10%)
         setStepStatus('step-conn', 'active');
         updateProgress(5, 'Menguji koneksi ke server...');
         
@@ -191,12 +197,12 @@ async function executeStepByStepSync(laravelUrl) {
         const mhsCount = serverStats.mahasiswa_count ? Number(serverStats.mahasiswa_count).toLocaleString('id-ID') : '';
         
         setStepStatus('step-conn', 'done', 'Koneksi Server Laravel Berhasil');
-        updateProgress(15, `Koneksi OK! Terdeteksi ${mhsCount || ''} data mahasiswa...`);
+        updateProgress(10, `Koneksi OK! Terdeteksi ${mhsCount || ''} data mahasiswa...`);
 
-        // Step 2: Sync Mahasiswa (15% -> 75%)
+        // Step 2: Sync Mahasiswa (10% -> 55%)
         const mhsLabel = mhsCount ? `Sync ${mhsCount} Data Mahasiswa & User Accounts...` : 'Sync Data Mahasiswa & User Accounts...';
         setStepStatus('step-mhs', 'active', mhsLabel);
-        startSmoothProgress(15, 72, 18000); // Smooth percentage ticks while fetching
+        startSmoothProgress(10, 52, 18000); // Smooth percentage ticks while fetching
         
         const mhsRes = await fetch(`/api/python/sync/mahasiswa?laravel_url=${encodeURIComponent(laravelUrl)}`);
         const mhsData = await mhsRes.json();
@@ -211,11 +217,11 @@ async function executeStepByStepSync(laravelUrl) {
             setStepStatus('step-mhs', 'done', `Data Mahasiswa & User Selesai (${totalFetched} akun)`);
             results.mahasiswa = stats;
         }
-        updateProgress(75, 'Data Mahasiswa selesai. Menarik Jadwal PKKMB...');
+        updateProgress(55, 'Data Mahasiswa selesai. Menarik Jadwal PKKMB...');
 
-        // Step 3: Sync Schedules (75% -> 90%)
+        // Step 3: Sync Schedules (55% -> 70%)
         setStepStatus('step-sch', 'active');
-        updateProgress(80, 'Menyimpan Jadwal PKKMB...');
+        updateProgress(60, 'Menyimpan Jadwal PKKMB...');
         
         const schRes = await fetch(`/api/python/sync/schedules?laravel_url=${encodeURIComponent(laravelUrl)}`);
         const schData = await schRes.json();
@@ -227,11 +233,11 @@ async function executeStepByStepSync(laravelUrl) {
             setStepStatus('step-sch', 'done', `Jadwal PKKMB Selesai Disimpan`);
             results.schedules = schData.stats;
         }
-        updateProgress(90, 'Jadwal selesai. Menarik Data Kegiatan...');
+        updateProgress(70, 'Jadwal selesai. Menarik Data Kegiatan...');
 
-        // Step 4: Sync Kegiatan (90% -> 100%)
+        // Step 4: Sync Kegiatan (70% -> 85%)
         setStepStatus('step-keg', 'active');
-        updateProgress(95, 'Menyimpan Data Kegiatan...');
+        updateProgress(75, 'Menyimpan Data Kegiatan...');
         
         const kegRes = await fetch(`/api/python/sync/kegiatan?laravel_url=${encodeURIComponent(laravelUrl)}`);
         const kegData = await kegRes.json();
@@ -242,6 +248,22 @@ async function executeStepByStepSync(laravelUrl) {
         } else {
             setStepStatus('step-keg', 'done', `Data Kegiatan Selesai Disimpan`);
             results.kegiatan = kegData.stats;
+        }
+        updateProgress(85, 'Kegiatan selesai. Menarik Toleransi Keterlambatan...');
+
+        // Step 5: Sync System Config / Toleransi (85% -> 100%)
+        setStepStatus('step-cfg', 'active');
+        updateProgress(90, 'Menyimpan Toleransi Keterlambatan & Konfigurasi...');
+
+        const cfgRes = await fetch(`/api/python/sync/system-config?laravel_url=${encodeURIComponent(laravelUrl)}`);
+        const cfgData = await cfgRes.json();
+
+        if (!cfgRes.ok || !cfgData.success) {
+            setStepStatus('step-cfg', 'error', `Sync Toleransi Keterlambatan Gagal`);
+            results.system_config = { inserted: 0, updated: 0, errors: 1 };
+        } else {
+            setStepStatus('step-cfg', 'done', `Toleransi Keterlambatan Selesai Disimpan`);
+            results.system_config = cfgData.stats;
         }
 
         updateProgress(100, 'Sinkronisasi 100% Selesai!');
@@ -345,6 +367,23 @@ function showSyncResults(data) {
                     ${keg.inserted || 0} ditambahkan, 
                     ${keg.updated || 0} diupdate
                     ${keg.errors > 0 ? `<span style="color: #dc2626;">(${keg.errors} error)</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // System Config / Toleransi Keterlambatan
+    if (results.system_config) {
+        const cfg = results.system_config;
+        resultHtml += `
+            <div style="margin-bottom: 15px; padding: 12px; background: #faf5ff; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                <div style="font-weight: 600; color: #6b21a8; margin-bottom: 8px;">
+                    ⚙️ Toleransi Keterlambatan & Konfigurasi Sistem
+                </div>
+                <div style="font-size: 13px; color: #6b21a8;">
+                    ${cfg.inserted || 0} ditambahkan, 
+                    ${cfg.updated || 0} diupdate
+                    ${cfg.errors > 0 ? `<span style="color: #dc2626;">(${cfg.errors} error)</span>` : ''}
                 </div>
             </div>
         `;

@@ -464,10 +464,18 @@ def record_attendance():
                         'alert_text': f'Tidak ada jadwal absensi untuk hari ini.\n\n{mahasiswa.get("name")} tidak dapat melakukan absensi.'
                     })
                 elif reason == 'too_early':
-                    alert_config.update({
-                        'alert_title': 'Terlalu Cepat',
-                        'alert_text': f'{message}\n\n{mahasiswa.get("name")} belum bisa absen saat ini.'
-                    })
+                    if action == 'check_out':
+                        alert_config.update({
+                            'alert_type': 'info',
+                            'alert_title': 'Sudah Absen Masuk',
+                            'alert_text': f'{mahasiswa.get("name")} sudah absen masuk hari ini.\n\n{message}'
+                        })
+                    else:
+                        alert_config.update({
+                            'alert_type': 'warning',
+                            'alert_title': 'Absen Masuk Belum Dibuka',
+                            'alert_text': f'{message}\n\n{mahasiswa.get("name")} belum bisa absen saat ini.'
+                        })
                 elif reason == 'too_late':
                     alert_config.update({
                         'alert_title': 'Absensi Ditutup',
@@ -640,10 +648,18 @@ def record_attendance():
                         'alert_text': f'Tidak ada jadwal absensi untuk hari ini.\n\n{mahasiswa.get("name")} tidak dapat melakukan absensi.'
                     })
                 elif reason == 'too_early':
-                    alert_config.update({
-                        'alert_title': 'Terlalu Cepat',
-                        'alert_text': f'{message}\n\n{mahasiswa.get("name")} belum bisa absen saat ini.'
-                    })
+                    if action == 'check_out':
+                        alert_config.update({
+                            'alert_type': 'info',
+                            'alert_title': 'Sudah Absen Masuk',
+                            'alert_text': f'{mahasiswa.get("name")} sudah absen masuk hari ini.\n\n{message}'
+                        })
+                    else:
+                        alert_config.update({
+                            'alert_type': 'warning',
+                            'alert_title': 'Absen Masuk Belum Dibuka',
+                            'alert_text': f'{message}\n\n{mahasiswa.get("name")} belum bisa absen saat ini.'
+                        })
                 elif reason == 'too_late':
                     alert_config.update({
                         'alert_title': 'Absensi Ditutup',
@@ -780,6 +796,72 @@ def record_attendance():
             'alert_title': 'Error',
             'alert_text': f'Terjadi kesalahan: {str(e)}'
         }), 500
+
+@app.route('/api/python/attendance/today', methods=['GET'])
+def get_today_attendance():
+    """Ambil data attendance hari ini dari local DB untuk ditampilkan di monitor"""
+    try:
+        if db is None:
+            return jsonify({'success': True, 'data': [], 'source': 'no_db'})
+
+        today = datetime.now().strftime('%Y-%m-%d')
+        kegiatan_id = request.args.get('kegiatan_id', None)
+
+        if kegiatan_id:
+            rows = db._execute("""
+                SELECT a.id, a.mahasiswa_id, a.check_in, a.check_out,
+                       a.date, a.is_late, a.late_duration, a.kegiatan_id,
+                       m.name, m.kompi, m.jurusan
+                FROM attendance a
+                JOIN mahasiswa m ON a.mahasiswa_id = m.id
+                WHERE a.kegiatan_id = %s
+                ORDER BY a.check_in DESC
+            """, (kegiatan_id,), fetch_all=True)
+        else:
+            rows = db._execute("""
+                SELECT a.id, a.mahasiswa_id, a.check_in, a.check_out,
+                       a.date, a.is_late, a.late_duration, a.kegiatan_id,
+                       m.name, m.kompi, m.jurusan
+                FROM attendance a
+                JOIN mahasiswa m ON a.mahasiswa_id = m.id
+                WHERE a.date = %s AND a.kegiatan_id IS NULL
+                ORDER BY a.check_in DESC
+            """, (today,), fetch_all=True)
+
+        def fmt_time(val):
+            if val is None:
+                return None
+            from datetime import timedelta
+            if isinstance(val, timedelta):
+                total = int(val.total_seconds())
+                return f"{total//3600:02d}:{(total%3600)//60:02d}:{total%60:02d}"
+            if hasattr(val, 'strftime'):
+                return val.strftime('%H:%M:%S')
+            return str(val)
+
+        result = []
+        for r in (rows or []):
+            result.append({
+                'id': 'db_' + str(r['id']),
+                'mahasiswa_id': r['mahasiswa_id'],
+                'name': r['name'],
+                'kompi': r['kompi'],
+                'jurusan': r.get('jurusan', ''),
+                'kegiatan_id': r.get('kegiatan_id'),
+                'check_in': fmt_time(r['check_in']),
+                'check_out': fmt_time(r['check_out']),
+                'date': str(r['date']) if r['date'] else today,
+                'is_late': bool(r.get('is_late', False)),
+                'late_duration': r.get('late_duration', 0),
+                'synced': False  # status sync ke server
+            })
+
+        return jsonify({'success': True, 'data': result, 'source': 'local_db', 'count': len(result)})
+
+    except Exception as e:
+        logger.error(f"Get today attendance error: {e}")
+        return jsonify({'success': False, 'message': str(e), 'data': []}), 500
+
 
 @app.route('/api/python/reset-state', methods=['POST'])
 def reset_attendance_state():
@@ -1136,6 +1218,37 @@ def sync_kegiatan_from_laravel():
         
     except Exception as e:
         logger.error(f"Sync kegiatan error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/python/sync/system-config', methods=['GET'])
+def sync_system_config_from_laravel():
+    """Sinkronisasi system config (termasuk toleransi keterlambatan) dari Laravel API ke database lokal"""
+    try:
+        from app.laravel_sync import LaravelSyncService
+        
+        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
+        
+        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
+        
+        # Fetch data from Laravel
+        fetch_result = sync_service.fetch_system_config()
+        if not fetch_result['success']:
+            return jsonify(fetch_result), 500
+        
+        # Sync to local database
+        sync_result = sync_service.sync_system_config_to_local(fetch_result['data'])
+        
+        return jsonify({
+            'success': True,
+            'message': 'Sinkronisasi toleransi keterlambatan & konfigurasi sistem berhasil',
+            'stats': sync_result
+        })
+        
+    except Exception as e:
+        logger.error(f"Sync system config error: {e}")
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'

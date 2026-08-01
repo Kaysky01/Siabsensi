@@ -148,7 +148,7 @@ class VerificationController extends Controller
         $validated = $request->validate([
             'submission_id' => 'required|integer',
             'action' => 'required|in:approve,reject,cancel',
-            'reject_reason' => 'nullable|string',
+            'rejection_reason' => 'nullable|string',
         ]);
 
         $submission = KehadiranSubmission::with('mahasiswa')->findOrFail($validated['submission_id']);
@@ -178,7 +178,7 @@ class VerificationController extends Controller
         $submission->verified_by = $user->username;
         $submission->verified_at = Carbon::now();
         if ($validated['action'] === 'reject') {
-            $submission->rejection_reason = $validated['reject_reason'];
+            $submission->rejection_reason = $validated['rejection_reason'];
         }
         $submission->save();
 

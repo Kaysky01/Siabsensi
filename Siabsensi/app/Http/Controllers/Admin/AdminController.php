@@ -167,7 +167,7 @@ class AdminController extends Controller
         }
 
         // Get filter options
-        $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
+        $kompiOptions = \App\Models\Kompi::pluck('nama')->sortBy(null, SORT_NATURAL | SORT_FLAG_CASE)->values();
         $jurusanOptions = \App\Models\Jurusan::pluck('nama')->sort()->values();
 
         return view('admin.attendance', compact('attendances', 'start', 'end', 'filter', 'search', 'kompi', 'jurusan', 'kompiOptions', 'jurusanOptions'));
@@ -179,6 +179,11 @@ class AdminController extends Controller
         $this->ensureMahasiswaManagementAccess();
 
         $query = Mahasiswa::query();
+
+        $user = Auth::user();
+        if ($user && $user->role === 'timdis' && $user->assigned_kompi) {
+            $query->where('kompi', $user->assigned_kompi);
+        }
 
         if ($request->filled('search')) {
             $query->where('name', 'like', '%' . $request->search . '%');
@@ -221,7 +226,7 @@ class AdminController extends Controller
         $mahasiswaList = $query->with('attendances')->orderBy('name')->paginate(20)->withQueryString();
 
         $kompiOptions = \Illuminate\Support\Facades\Cache::remember('master_kompi', 3600, function() {
-            return \App\Models\Kompi::pluck('nama')->sort()->values();
+            return \App\Models\Kompi::pluck('nama')->sortBy(null, SORT_NATURAL | SORT_FLAG_CASE)->values();
         });
 
         $jurusanOptions = \Illuminate\Support\Facades\Cache::remember('master_jurusan', 3600, function() {
@@ -282,6 +287,11 @@ class AdminController extends Controller
     public function storeMahasiswa(Request $request)
     {
         $this->ensureMahasiswaManagementAccess();
+
+        $user = Auth::user();
+        if ($user && $user->role === 'timdis' && $user->assigned_kompi) {
+            $request->merge(['kompi' => $user->assigned_kompi]);
+        }
 
         if ($request->has('tanggal_lahir') && $request->filled('tanggal_lahir')) {
             $parsedDate = $this->parseFormattedDate($request->tanggal_lahir);
@@ -376,12 +386,14 @@ class AdminController extends Controller
 
     public function importMahasiswaCSV(Request $request)
     {
+        set_time_limit(0);
         $this->ensureMahasiswaManagementAccess();
-        @set_time_limit(300);
         @ini_set('memory_limit', '512M');
 
         $request->validate([
-            'csv_file' => 'required|mimes:csv,txt,xls,xlsx|max:5120'
+            'csv_file' => 'required|file|mimes:csv,txt,xls,xlsx|max:5120'
+        ], [
+            'csv_file.mimes' => 'Format file tidak didukung. Harap upload file berekstensi .csv, .xls, atau .xlsx'
         ]);
 
         $file = $request->file('csv_file');
@@ -833,14 +845,14 @@ class AdminController extends Controller
         }
 
         $mahasiswaList = $query->paginate(20)->withQueryString();
-        $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
+        $kompiOptions = \App\Models\Kompi::pluck('nama')->sortBy(null, SORT_NATURAL | SORT_FLAG_CASE)->values();
 
         return view('admin.kompi-management', compact('mahasiswaList', 'kompiOptions', 'filterKompi'));
     }
 
     public function shuffleKompi(Request $request)
     {
-        $kompis = \App\Models\Kompi::all();
+        $kompis = \App\Models\Kompi::get()->sortBy('nama', SORT_NATURAL | SORT_FLAG_CASE)->values();
         if ($kompis->isEmpty()) {
             return back()->with('error', 'Gagal mengacak: Belum ada data Master Kompi yang dibuat.');
         }
@@ -875,8 +887,11 @@ class AdminController extends Controller
 
         $updated = 0;
         foreach ($validated['assignments'] as $assignment) {
-            Mahasiswa::where('id', $assignment['id'])->update(['kompi' => $assignment['kompi']]);
-            $updated++;
+            $m = Mahasiswa::find($assignment['id']);
+            if ($m && $m->kompi !== $assignment['kompi']) {
+                $m->update(['kompi' => $assignment['kompi']]);
+                $updated++;
+            }
         }
 
         return redirect()->route('admin.kompi-management')->with('success', "Kompi berhasil diperbarui untuk {$updated} mahasiswa.");
@@ -1085,7 +1100,7 @@ class AdminController extends Controller
         }
 
         // Get filter options
-        $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
+        $kompiOptions = \App\Models\Kompi::pluck('nama')->sortBy(null, SORT_NATURAL | SORT_FLAG_CASE)->values();
         $jurusanOptions = \App\Models\Jurusan::pluck('nama')->sort()->values();
 
         return view('admin.history', compact('attendances', 'start', 'end', 'filter', 'search', 'kompi', 'jurusan', 'kompiOptions', 'jurusanOptions'));
@@ -1135,30 +1150,19 @@ class AdminController extends Controller
     {
         $filterProdi = $request->get('prodi');
         $filterJurusan = $request->get('jurusan');
+        $search = $request->get('search');
 
         $query = Mahasiswa::where('is_active', 1);
-        if ($filterProdi) $query->where('prodi', $filterProdi);
         if ($filterJurusan) $query->where('jurusan', $filterJurusan);
-
-        $mahasiswaPaginator = $query->paginate(20)->withQueryString();
-        // Menghitung seluruh jumlah kegiatan tanpa filter tanggal
-        $totalDays = \App\Models\PkkmbSchedule::count();
-        if ($totalDays == 0) {
-            $totalDays = 1; // Prevent division by zero
+        if ($filterProdi) $query->where('prodi', $filterProdi);
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('id', 'like', "%{$search}%");
+            });
         }
 
-        $allAttendances = Attendance::whereIn('mahasiswa_id', $mahasiswaPaginator->pluck('id'))
-            ->where(function ($query) {
-                $query->whereIn('status', ['izin', 'sakit'])
-                      ->orWhere(function ($q) {
-                          $q->whereIn('status', ['present', 'hadir'])
-                            ->whereNotNull('check_in')
-                            ->whereNotNull('check_out');
-                      });
-            })
-            ->selectRaw('mahasiswa_id, COUNT(DISTINCT date) as total_hadir')
-            ->groupBy('mahasiswa_id')
-            ->pluck('total_hadir', 'mahasiswa_id');
+        $mahasiswaPaginator = $query->paginate(20)->withQueryString();
 
         $mahasiswaPaginator->getCollection()->transform(function ($m) {
             $stats = $m->getCertificateStats();
@@ -1171,10 +1175,19 @@ class AdminController extends Controller
         
         $kelulusanData = $mahasiswaPaginator;
 
-        $prodiOptions = Mahasiswa::distinct()->pluck('prodi')->filter()->sort()->values();
         $jurusanOptions = Mahasiswa::distinct()->pluck('jurusan')->filter()->sort()->values();
 
-        return view('admin.kelulusan', compact('kelulusanData', 'prodiOptions', 'jurusanOptions', 'filterProdi', 'filterJurusan'));
+        $jurusanProdiMap = [];
+        $jurusanList = \App\Models\Jurusan::with('prodi')->get();
+        foreach ($jurusanList as $jur) {
+            $jurusanProdiMap[$jur->nama] = $jur->prodi->pluck('nama')->sort()->values()->toArray();
+        }
+
+        $prodiOptions = $filterJurusan && isset($jurusanProdiMap[$filterJurusan])
+            ? collect($jurusanProdiMap[$filterJurusan])
+            : Mahasiswa::distinct()->pluck('prodi')->filter()->sort()->values();
+
+        return view('admin.kelulusan', compact('kelulusanData', 'prodiOptions', 'jurusanOptions', 'filterProdi', 'filterJurusan', 'search', 'jurusanProdiMap'));
     }
 
     public function toggleSertifikatLock(Request $request, $id)
@@ -1419,15 +1432,16 @@ class AdminController extends Controller
         }
 
         $usersList = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
-        $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
+        $kompiOptions = \App\Models\Kompi::pluck('nama')->sortBy(null, SORT_NATURAL | SORT_FLAG_CASE)->values();
 
         $statsAdmin = User::where('role', 'admin')->count();
         $statsTimdis = User::where('role', 'timdis')->count();
         $statsGarda = User::where('role', 'garda')->count();
+        $statsAcara = User::where('role', 'acara')->count();
         $statsMahasiswa = User::where('role', 'mahasiswa')->count();
         $statsTotal = User::count();
 
-        return view('admin.users', compact('usersList', 'kompiOptions', 'statsAdmin', 'statsTimdis', 'statsGarda', 'statsMahasiswa', 'statsTotal'));
+        return view('admin.users', compact('usersList', 'kompiOptions', 'statsAdmin', 'statsTimdis', 'statsGarda', 'statsAcara', 'statsMahasiswa', 'statsTotal'));
     }
 
     public function storeUser(Request $request)
@@ -1436,7 +1450,7 @@ class AdminController extends Controller
             'username' => 'required|string|unique:users,username',
             'full_name' => 'required|string',
             'email' => 'nullable|email',
-            'role' => 'required|in:admin,timdis,garda',
+            'role' => 'required|in:admin,timdis,garda,acara',
             'password' => 'required|string|min:6',
             'assigned_kompi' => 'nullable|string|max:100',
         ]);
@@ -1504,8 +1518,8 @@ class AdminController extends Controller
         $username = $user->username;
         $role = $user->role;
 
-        // Validasi agar hanya admin, garda, dan timdis yang bisa dihapus lewat sini
-        if (!in_array($role, ['admin', 'garda', 'timdis'])) {
+        // Validasi agar hanya admin, garda, timdis, dan acara yang bisa dihapus lewat sini
+        if (!in_array($role, ['admin', 'garda', 'timdis', 'acara'])) {
             return redirect()->route('admin.users')->with('error', 'Role user ini tidak valid untuk dihapus.');
         }
 
@@ -1667,17 +1681,29 @@ class AdminController extends Controller
     // ─── LATE ATTENDANCE REPORT ──────────────────────────────────────────────
     public function lateAttendanceReport(Request $request)
     {
-        $start = $request->get('start', Carbon::now()->startOfMonth()->toDateString());
-        $end = $request->get('end', Carbon::today()->toDateString());
+        $schedules = \App\Models\PkkmbSchedule::where('is_active', 1)->orderBy('tanggal', 'asc')->get();
+
+        $firstSchedule = $schedules->first();
+        $lastSchedule = $schedules->last();
+
+        $start = $request->get('start', $firstSchedule ? $firstSchedule->tanggal->format('Y-m-d') : Carbon::today()->toDateString());
+        $end = $request->get('end', $lastSchedule ? $lastSchedule->tanggal->format('Y-m-d') : Carbon::today()->toDateString());
         $filterKompi = $request->get('kompi');
         $filterJurusan = $request->get('jurusan');
+        $search = $request->get('search');
+
+        $scheduleDates = $schedules->filter(function ($sched) use ($start, $end) {
+            $tanggal = $sched->tanggal->format('Y-m-d');
+            return $tanggal >= $start && $tanggal <= $end;
+        })->pluck('tanggal')->map(function ($d) {
+            return $d->format('Y-m-d');
+        })->values()->toArray();
 
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
 
-        // Build query for late attendance
         $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
-            ->whereBetween("$table.date", [$start, $end])
+            ->whereIn("$table.date", $scheduleDates)
             ->where("$table.is_late", true)
             ->where(function ($q) use ($table) {
                 $q->where("$table.late_overridden", false)
@@ -1695,36 +1721,39 @@ class AdminController extends Controller
             )
             ->groupBy("$mhsTable.id", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
 
-        // Apply filters
         if ($filterKompi) {
             $query->where("$mhsTable.kompi", $filterKompi);
         }
         if ($filterJurusan) {
             $query->where("$mhsTable.jurusan", $filterJurusan);
         }
+        if ($search) {
+            $query->where(function ($q) use ($mhsTable, $search) {
+                $q->where("$mhsTable.name", 'like', "%{$search}%")
+                  ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+            });
+        }
 
         $lateReports = $query->orderBy('total_late', 'desc')->paginate(20)->withQueryString();
 
-        // Calculate summary statistics
-        $summaryQuery = Attendance::whereBetween('date', [$start, $end]);
-        
-        $totalLateOccurrences = $summaryQuery->where('is_late', true)
+        $totalLateOccurrences = Attendance::whereIn('date', $scheduleDates)
+            ->where('is_late', true)
             ->where(function ($q) {
                 $q->where('late_overridden', false)->orWhereNull('late_overridden');
             })->count();
-        
-        $totalOverrides = Attendance::whereBetween('date', [$start, $end])
+
+        $totalOverrides = Attendance::whereIn('date', $scheduleDates)
             ->where('is_late', true)
             ->where('late_overridden', true)
             ->count();
-        
-        $avgLateDuration = $summaryQuery->where('is_late', true)
+
+        $avgLateDuration = Attendance::whereIn('date', $scheduleDates)
+            ->where('is_late', true)
             ->where(function ($q) {
                 $q->where('late_overridden', false)->orWhereNull('late_overridden');
             })->avg('late_duration');
 
-        // Get filter options
-        $kompiOptions = Mahasiswa::distinct()->pluck('kompi')->filter()->sort()->values();
+        $kompiOptions = Mahasiswa::distinct()->pluck('kompi')->filter()->sortBy(null, SORT_NATURAL | SORT_FLAG_CASE)->values();
         $jurusanOptions = Mahasiswa::distinct()->pluck('jurusan')->filter()->sort()->values();
 
         return view('admin.late-attendance-report', compact(
@@ -1733,27 +1762,40 @@ class AdminController extends Controller
             'end',
             'filterKompi',
             'filterJurusan',
+            'search',
             'totalLateOccurrences',
             'totalOverrides',
             'avgLateDuration',
             'kompiOptions',
-            'jurusanOptions'
+            'jurusanOptions',
+            'schedules'
         ));
     }
 
     public function exportLateAttendanceReport(Request $request)
     {
-        $start = $request->get('start', Carbon::now()->startOfMonth()->toDateString());
-        $end = $request->get('end', Carbon::today()->toDateString());
+        $schedules = \App\Models\PkkmbSchedule::where('is_active', 1)->orderBy('tanggal', 'asc')->get();
+
+        $firstSchedule = $schedules->first();
+        $lastSchedule = $schedules->last();
+
+        $start = $request->get('start', $firstSchedule ? $firstSchedule->tanggal->format('Y-m-d') : Carbon::today()->toDateString());
+        $end = $request->get('end', $lastSchedule ? $lastSchedule->tanggal->format('Y-m-d') : Carbon::today()->toDateString());
         $filterKompi = $request->get('kompi');
         $filterJurusan = $request->get('jurusan');
+
+        $scheduleDates = $schedules->filter(function ($sched) use ($start, $end) {
+            $tanggal = $sched->tanggal->format('Y-m-d');
+            return $tanggal >= $start && $tanggal <= $end;
+        })->pluck('tanggal')->map(function ($d) {
+            return $d->format('Y-m-d');
+        })->values()->toArray();
 
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
 
-        // Build query for late attendance
         $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
-            ->whereBetween("$table.date", [$start, $end])
+            ->whereIn("$table.date", $scheduleDates)
             ->where("$table.is_late", true)
             ->where(function ($q) use ($table) {
                 $q->where("$table.late_overridden", false)
@@ -1771,7 +1813,6 @@ class AdminController extends Controller
             )
             ->groupBy("$mhsTable.id", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
 
-        // Apply filters
         if ($filterKompi) {
             $query->where("$mhsTable.kompi", $filterKompi);
         }

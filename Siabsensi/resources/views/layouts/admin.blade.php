@@ -181,6 +181,9 @@
         <a href="{{ route('timdis.dashboard') }}" class="nav-item {{ request()->routeIs('timdis.dashboard') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">analytics</span> Dashboard
         </a>
+        <a href="{{ route('timdis.kompi-saya') }}" class="nav-item {{ request()->routeIs('timdis.kompi-saya') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">diversity_3</span> Kompi Saya
+        </a>
         <a href="{{ route('timdis.attendance') }}" class="nav-item {{ request()->routeIs('timdis.attendance') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">sensors</span> Monitor Absensi
         </a>
@@ -195,14 +198,8 @@
 
         <div class="nav-section">
           <span class="material-symbols-outlined section-icon">event</span>
-          Kegiatan
+          Kegiatan & Monitoring
         </div>
-        <a href="{{ route('timdis.pkkmb-schedule.index') }}" class="nav-item {{ request()->routeIs('timdis.pkkmb-schedule.*') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">calendar_month</span> Jadwal Absensi
-        </a>
-        <a href="{{ route('timdis.kegiatan') }}" class="nav-item {{ request()->routeIs('timdis.kegiatan') ? 'active' : '' }}">
-          <span class="material-symbols-outlined icon">edit_calendar</span> Kelola Kegiatan
-        </a>
         <a href="{{ route('timdis.absensi-persesi') }}" class="nav-item {{ request()->routeIs('timdis.absensi-persesi') ? 'active' : '' }}">
           <span class="material-symbols-outlined icon">checklist</span> Absensi Persesi
         </a>
@@ -227,6 +224,28 @@
           @if(($pendingKehadiran ?? 0) > 0)
           <span class="badge badge-warning">{{ $pendingKehadiran }}</span>
           @endif
+        </a>
+
+        {{-- ACARA MENU --}}
+        @elseif($user->role === 'acara')
+
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">dashboard</span>
+          Dashboard
+        </div>
+        <a href="{{ route('acara.dashboard') }}" class="nav-item {{ request()->routeIs('acara.dashboard') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">analytics</span> Dashboard
+        </a>
+
+        <div class="nav-section">
+          <span class="material-symbols-outlined section-icon">event</span>
+          Jadwal & Acara
+        </div>
+        <a href="{{ route('acara.pkkmb-schedule.index') }}" class="nav-item {{ request()->routeIs('acara.pkkmb-schedule.*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">calendar_month</span> Jadwal Absensi PKKMB
+        </a>
+        <a href="{{ route('acara.kegiatan') }}" class="nav-item {{ request()->routeIs('acara.kegiatan*') ? 'active' : '' }}">
+          <span class="material-symbols-outlined icon">edit_calendar</span> Kelola Sesi Kegiatan
         </a>
 
         {{-- GARDA MENU --}}

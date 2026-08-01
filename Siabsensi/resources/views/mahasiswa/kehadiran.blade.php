@@ -108,9 +108,15 @@
       </div>
 
       <div class="form-row">
+<<<<<<< HEAD
         <label class="form-label">Bukti Kehadiran <span style="color:var(--danger)">*</span></label>
         <input type="file" name="bukti" id="input-bukti-kehadiran" class="form-input" accept=".jpg,.jpeg,.png,.pdf" required onchange="previewFileStandalone(this, 'preview-bukti-kehadiran')">
         <span class="form-hint">Foto lokasi, foto kegiatan lapangan (Maks 10MB).</span>
+=======
+        <label class="form-label">Bukti Kehadiran *</label>
+        <input type="file" name="bukti" id="input-bukti-kehadiran" class="form-input" accept=".jpg,.jpeg,.png,.pdf" required onchange="previewFileStandalone(this, 'preview-bukti-kehadiran')">
+        <span class="form-hint">Misal: Foto lokasi, foto kegiatan lapangan (Maks 10MB).</span>
+>>>>>>> 586899021a2f271c4149d39189d4e4ee8c82d027
         <div id="preview-bukti-kehadiran" style="display:none;margin-top:12px;padding:12px;background:var(--bg,#f8fafc);border:1px dashed var(--border,#cbd5e1);border-radius:8px;text-align:center"></div>
       </div>
       

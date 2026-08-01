@@ -1,5 +1,5 @@
 @extends('layouts.admin')
-@section('title', 'Kelola Kegiatan PKKMB — SIABSEN')
+@section('title', 'Kelola Kegiatan PKKMB — Tim Acara')
 
 @section('content')
 <meta name="google" content="notranslate">
@@ -10,7 +10,10 @@
 <section>
   <div class="page-header">
     <div>
-      <div class="page-title">Kelola Kegiatan PKKMB</div>
+      <div class="page-title" style="display:flex;align-items:center;gap:10px">
+        <span class="material-symbols-outlined" style="font-size:32px;color:var(--primary)">edit_calendar</span>
+        Kelola Kegiatan PKKMB (Tim Acara)
+      </div>
       <div class="page-sub">Tambah dan kelola sesi untuk setiap hari PKKMB</div>
     </div>
     <button class="btn btn-primary" onclick="openModalAdd()">
@@ -103,7 +106,7 @@
     <span class="material-symbols-outlined empty-icon">event_busy</span>
     <h3 style="color:var(--text);margin:0 0 8px 0">Belum Ada Jadwal PKKMB</h3>
     <p style="color:var(--text-secondary);margin:0 0 24px 0">Silakan buat jadwal PKKMB terlebih dahulu sebelum menambahkan kegiatan/sesi.</p>
-    <a href="{{ route('timdis.pkkmb-schedule.index') }}" class="btn btn-primary">
+    <a href="{{ route('acara.pkkmb-schedule.index') }}" class="btn btn-primary">
       <span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle">calendar_add_on</span>
       Buat Jadwal PKKMB
     </a>
@@ -174,17 +177,7 @@
         </div>
         
         <div class="sesi-actions-compact">
-          @if(auth()->user()->role === 'garda' || auth()->user()->role === 'admin' || auth()->user()->role === 'timdis')
-          <a href="{{ route('timdis.absensi-persesi', $sesi->id) }}" class="action-btn-compact btn-checklist" title="Absensi Manual">
-            <span class="material-symbols-outlined">checklist</span>
-            <span class="action-label-compact">Absensi</span>
-          </a>
-          <a href="{{ route('timdis.monitoring-sesi', $sesi->id) }}" class="action-btn-compact btn-monitoring" title="Monitoring">
-            <span class="material-symbols-outlined">monitoring</span>
-            <span class="action-label-compact">Monitor</span>
-          </a>
-          @endif
-          <form method="POST" action="{{ route('timdis.kegiatan.toggle', $sesi->id) }}" style="margin:0">
+          <form method="POST" action="{{ route('acara.kegiatan.toggle', $sesi->id) }}" style="margin:0">
             @csrf
             <button type="submit" class="action-btn-compact btn-toggle-compact" title="{{ $sesi->is_active ? 'Nonaktifkan' : 'Aktifkan' }}">
               <span class="material-symbols-outlined">{{ $sesi->is_active ? 'pause_circle' : 'play_circle' }}</span>
@@ -193,7 +186,7 @@
           <button class="action-btn-compact btn-edit-compact" title="Edit" onclick="openEditSesi({{ $sesi->id }}, {{ $schedule->id }}, '{{ addslashes($sesi->nama_sesi) }}', '{{ $sesi->jam_mulai }}', '{{ $sesi->jam_selesai }}', {{ $sesi->is_active ? 1 : 0 }})">
             <span class="material-symbols-outlined">edit</span>
           </button>
-          <form method="POST" action="{{ route('timdis.kegiatan.destroy', $sesi->id) }}" onsubmit="return confirm('Hapus sesi ini dan semua data absensinya?')">
+          <form method="POST" action="{{ route('acara.kegiatan.destroy', $sesi->id) }}" onsubmit="return confirm('Hapus sesi ini?')">
             @csrf @method('DELETE')
             <button type="submit" class="action-btn-compact btn-delete-compact" title="Hapus">
               <span class="material-symbols-outlined">delete</span>
@@ -214,13 +207,10 @@
     <div style="display:flex;gap:12px">
       <span class="material-symbols-outlined" style="font-size:32px;color:var(--primary)">info</span>
       <div style="flex:1">
-        <strong style="color:var(--primary-dark);font-size:15px;display:block;margin-bottom:8px">💡 Tips Penggunaan</strong>
+        <strong style="color:var(--primary-dark);font-size:15px;display:block;margin-bottom:8px">💡 Informasi Tim Acara</strong>
         <ul style="margin:0;padding-left:20px;color:var(--primary-dark);line-height:1.8;font-size:14px">
-          <li>Setiap "Kegiatan" di sini sebenarnya adalah <strong>Sesi</strong> dalam 1 hari PKKMB</li>
-          <li>Contoh: PKKMB Hari ke-1 → Sesi 1: Upacara, Sesi 2: Pengenalan, Sesi 3: Materi</li>
-          <li>Garda bisa mengabsen manual per sesi dengan klik tombol <strong>"Absensi"</strong></li>
-          <li>Gunakan tombol <strong>"Monitor"</strong> untuk melihat detail kehadiran mahasiswa per sesi</li>
-          <li>Jadwal PKKMB bisa dikelola di menu <a href="{{ route('timdis.pkkmb-schedule.index') }}" style="color:var(--primary-dark);text-decoration:underline;font-weight:600">Jadwal Absensi</a></li>
+          <li>Tim Acara berwenang membuat, memperbarui, dan mengatur status keaktifan sesi kegiatan PKKMB.</li>
+          <li>Pelaksanaan absensi di lapangan akan ditangani oleh Tim Disiplin dan Garda pada kompi masing-masing.</li>
         </ul>
       </div>
     </div>
@@ -239,7 +229,7 @@
         <span class="material-symbols-outlined">close</span>
       </button>
     </div>
-    <form method="POST" action="{{ route('timdis.kegiatan.store') }}" id="form-add-sesi">
+    <form method="POST" action="{{ route('acara.kegiatan.store') }}" id="form-add-sesi">
       @csrf
       <div class="modal-body">
         <div class="form-row">
@@ -331,7 +321,6 @@
             PKKMB Hari Ke-
           </label>
           <input type="text" id="edit-pkkmb-display" class="form-input" disabled>
-          <small style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block">Hari PKKMB tidak bisa diubah setelah dibuat</small>
         </div>
         <div class="form-row">
           <label class="form-label">
@@ -389,13 +378,12 @@ function openModalAdd(scheduleId = null) {
       cancelButtonText: 'Batal'
     }).then((result) => {
       if (result.isConfirmed) {
-        window.location.href = '{{ route("admin.pkkmb-schedule.index") }}';
+        window.location.href = '{{ route("acara.pkkmb-schedule.index") }}';
       }
     });
     return;
   }
   
-  // If scheduleId is provided, pre-select it
   if (scheduleId) {
     document.getElementById('add-pkkmb-schedule').value = scheduleId;
   }
@@ -404,12 +392,11 @@ function openModalAdd(scheduleId = null) {
 }
 
 function openEditSesi(sesiId, scheduleId, nama, jamMulai, jamSelesai, isActive) {
-  // Find schedule name
   const schedules = @json($schedules);
   const schedule = schedules.find(s => s.id === scheduleId);
   const displayName = schedule ? `Hari ke-${schedule.hari_ke} (${new Date(schedule.tanggal).toLocaleDateString('id-ID')})` : 'Unknown';
   
-  document.getElementById('edit-sesi-form').action = '/timdis/kegiatan/' + sesiId;
+  document.getElementById('edit-sesi-form').action = '/acara/kegiatan/' + sesiId;
   document.getElementById('edit-pkkmb-display').value = displayName;
   document.getElementById('edit-nama-sesi').value = nama;
   document.getElementById('edit-jam-mulai').value = jamMulai ? jamMulai.substring(0, 5) : '';
@@ -417,539 +404,39 @@ function openEditSesi(sesiId, scheduleId, nama, jamMulai, jamSelesai, isActive) 
   document.getElementById('edit-is-active').checked = isActive == 1;
   document.getElementById('modal-edit-sesi').classList.add('show');
 }
-
-// Reopen modal if there are validation errors
-@if($errors->any())
-document.addEventListener('DOMContentLoaded', function() {
-  // Check if error is for add or edit form
-  @if(old('pkkmb_schedule_id') !== null)
-  // Reopen add modal
-  document.getElementById('modal-add-sesi').classList.add('show');
-  
-  // Restore old values
-  document.getElementById('add-pkkmb-schedule').value = '{{ old('pkkmb_schedule_id') }}';
-  document.getElementById('add-nama-sesi').value = '{{ old('nama_sesi') }}';
-  document.getElementById('add-jam-mulai').value = '{{ old('jam_mulai') }}';
-  document.getElementById('add-jam-selesai').value = '{{ old('jam_selesai') }}';
-  @endif
-});
-@endif
 </script>
 
 <style>
-/* Info Cards - Clean Design */
-.info-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-md);
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  transition: all 0.3s ease;
-}
-
-.info-card:hover {
-  border-color: var(--primary);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
-
-.info-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.info-icon .material-symbols-outlined {
-  font-size: 24px;
-}
-
-.info-content {
-  flex: 1;
-}
-
-.info-value {
-  font-size: 28px;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  color: var(--text);
-  line-height: 1;
-  margin-bottom: 4px;
-}
-
-.info-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-}
-
-/* Empty State */
-.empty-state-box {
-  text-align: center;
-  padding: 60px 20px;
-  background: var(--bg);
-  border-radius: var(--radius-lg);
-  border: 2px dashed var(--border);
-}
-
-.empty-icon {
-  font-size: 80px;
-  color: var(--text-muted);
-  opacity: 0.3;
-  display: block;
-  margin-bottom: 16px;
-}
-
-/* Day Schedule Cards */
-.day-schedule-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  margin-bottom: var(--space-lg);
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.day-schedule-card:hover {
-  box-shadow: var(--shadow-md);
-}
-
-.day-schedule-card.active {
-  border-color: var(--success);
-}
-
-.day-schedule-card.inactive {
-  opacity: 0.8;
-}
-
-.day-schedule-header {
-  padding: var(--space-md);
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-}
-
-.day-schedule-info {
-  flex: 1;
-  min-width: 300px;
-}
-
-.day-schedule-title {
-  font-size: 18px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  color: var(--text);
-}
-
-.day-schedule-title .material-symbols-outlined {
-  font-size: 22px;
-  color: var(--primary);
-}
-
-.day-schedule-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-md);
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.meta-item .material-symbols-outlined {
-  font-size: 16px;
-  color: var(--text-muted);
-}
-
-/* Empty Sesi State */
-.empty-sesi-state {
-  text-align: center;
-  padding: 48px 20px;
-  color: var(--text-muted);
-  background: var(--bg);
-  border-radius: var(--radius-md);
-  margin: var(--space-md);
-}
-
-.empty-sesi-state .material-symbols-outlined {
-  font-size: 64px;
-  opacity: 0.3;
-  display: block;
-  margin-bottom: 16px;
-}
-
-.empty-sesi-state p {
-  margin: 0 0 16px 0;
-  font-size: 15px;
-  color: var(--text-secondary);
-}
-
-/* Sesi List */
-.sesi-list {
-  padding: var(--space-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.sesi-item {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-md);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-md);
-  transition: all 0.2s ease;
-}
-
-.sesi-item:hover {
-  border-color: var(--primary);
-  box-shadow: var(--shadow-sm);
-}
-
-.sesi-item.sesi-active {
-  border-color: var(--success);
-  background: var(--success-light);
-}
-
-.sesi-item.sesi-inactive {
-  opacity: 0.7;
-}
-
-.sesi-main {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  flex: 1;
-  min-width: 0;
-}
-
-.sesi-number-badge {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--primary);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.sesi-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.sesi-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sesi-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.meta-time,
-.meta-attendance {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--font-mono);
-  font-weight: 500;
-}
-
-.meta-time .material-symbols-outlined,
-.meta-attendance .material-symbols-outlined {
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
-.badge-sm {
-  padding: 3px 10px;
-  font-size: 11px;
-}
-
-/* Sesi Actions Compact */
-.sesi-actions-compact {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.action-btn-compact {
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  color: var(--text-secondary);
-}
-
-.action-btn-compact .material-symbols-outlined {
-  font-size: 18px;
-}
-
-.action-btn-compact:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-checklist {
-  color: var(--success);
-  border-color: var(--success);
-}
-
-.btn-checklist:hover {
-  background: var(--success-light);
-}
-
-.btn-monitoring {
-  color: var(--primary);
-  border-color: var(--primary);
-}
-
-.btn-monitoring:hover {
-  background: var(--primary-light);
-}
-
-.btn-toggle-compact {
-  color: var(--warning);
-  border-color: var(--warning);
-}
-
-.btn-toggle-compact:hover {
-  background: var(--warning-light);
-}
-
-.btn-edit-compact {
-  color: var(--primary);
-  border-color: var(--primary);
-}
-
-.btn-edit-compact:hover {
-  background: var(--primary-light);
-}
-
-.btn-delete-compact {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-
-.btn-delete-compact:hover {
-  background: var(--danger-light);
-}
-
-.action-label-compact {
-  display: inline;
-}
-
-/* Modal Enhancements */
-.modal-large {
-  max-width: 600px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-lg);
-}
-
-.modal-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 24px;
-  font-weight: 700;
-  margin: 0;
-}
-
-.modal-close {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: var(--bg);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  color: var(--text-secondary);
-}
-
-.modal-close:hover {
-  background: var(--border);
-  color: var(--text);
-}
-
-.modal-body {
-  margin-bottom: var(--space-lg);
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-sm);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--border);
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-md);
-}
-
-.form-section {
-  margin-bottom: var(--space-md);
-  padding: var(--space-md);
-  background: var(--bg);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-}
-
-.form-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  margin-bottom: var(--space-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.label-icon {
-  font-size: 18px;
-  color: var(--text-muted);
-  vertical-align: middle;
-  margin-right: 4px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.form-checkbox {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.form-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 4px;
-  display: block;
-}
-
-/* Responsive Design */
-@media (max-width: 992px) {
-  .sesi-item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .sesi-actions-compact {
-    width: 100%;
-    justify-content: flex-end;
-  }
-}
-
-@media (max-width: 768px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .day-schedule-meta {
-    flex-direction: column;
-    gap: 8px;
-    align-items: flex-start;
-  }
-  
-  .action-label-compact {
-    display: none;
-  }
-  
-  .action-btn-compact {
-    padding: 8px;
-  }
-  
-  .sesi-name {
-    white-space: normal;
-  }
-}
-
-@media (max-width: 480px) {
-  .info-card {
-    padding: var(--space-sm);
-  }
-  
-  .info-value {
-    font-size: 24px;
-  }
-  
-  .day-schedule-header {
-    padding: var(--space-sm);
-  }
-  
-  .sesi-list {
-    padding: var(--space-sm);
-  }
-  
-  .sesi-item {
-    padding: var(--space-sm);
-  }
-}
+.info-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-md); display: flex; align-items: center; gap: var(--space-md); transition: all 0.3s ease; }
+.info-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.info-icon { width: 48px; height: 48px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 24px; }
+.info-content { flex: 1; }
+.info-value { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 4px; }
+.info-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.empty-state-box { text-align: center; padding: 60px 20px; background: var(--bg); border-radius: var(--radius-lg); border: 2px dashed var(--border); }
+.empty-icon { font-size: 80px; color: var(--text-muted); opacity: 0.3; display: block; margin-bottom: 16px; }
+.day-schedule-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: var(--space-lg); overflow: hidden; transition: all 0.3s ease; }
+.day-schedule-card.active { border-color: var(--success); }
+.day-schedule-card.inactive { opacity: 0.8; }
+.day-schedule-header { padding: var(--space-md); background: var(--bg); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
+.day-schedule-info { flex: 1; min-width: 300px; }
+.day-schedule-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--text); }
+.day-schedule-meta { display: flex; flex-wrap: wrap; gap: var(--space-md); font-size: 13px; color: var(--text-secondary); }
+.meta-item { display: flex; align-items: center; gap: 4px; }
+.empty-sesi-state { text-align: center; padding: 48px 20px; color: var(--text-muted); background: var(--bg); border-radius: var(--radius-md); margin: var(--space-md); }
+.sesi-list { padding: var(--space-md); display: flex; flex-direction: column; gap: var(--space-sm); }
+.sesi-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-md); display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); transition: all 0.2s ease; }
+.sesi-item.sesi-active { border-color: var(--success); background: var(--success-light); }
+.sesi-main { display: flex; align-items: center; gap: var(--space-md); flex: 1; min-width: 0; }
+.sesi-number-badge { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+.sesi-info { flex: 1; min-width: 0; }
+.sesi-name { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.sesi-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); font-size: 12px; color: var(--text-secondary); }
+.sesi-actions-compact { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.action-btn-compact { padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; color: var(--text-secondary); }
+.btn-toggle-compact { color: var(--warning); border-color: var(--warning); }
+.btn-edit-compact { color: var(--primary); border-color: var(--primary); }
+.btn-delete-compact { color: var(--danger); border-color: var(--danger); }
+.modal-large { max-width: 600px; }
 </style>
 @endsection
-
-

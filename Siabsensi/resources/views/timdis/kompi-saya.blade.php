@@ -100,18 +100,9 @@
   padding-right: 4px;
 }
 
-/* Custom Scrollbar */
-.ks-breakdown-container::-webkit-scrollbar {
-  width: 5px;
-}
-.ks-breakdown-container::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
-}
-.ks-breakdown-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
+.ks-breakdown-container::-webkit-scrollbar { width: 5px; }
+.ks-breakdown-container::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+.ks-breakdown-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
 .ks-breakdown-item {
   background: #f8fafc;
@@ -132,13 +123,13 @@
 }
 
 .ks-announcement-panel {
-  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
-  border: 1px solid #c7d2fe;
-  border-left: 5px solid #4f46e5;
+  background: linear-gradient(135deg, #f8fafc 0%, #f0f7ff 100%);
+  border: 1px solid #bfdbfe;
+  border-left: 5px solid #2563eb;
   border-radius: 14px;
-  padding: 22px;
+  padding: 20px 22px;
   margin-bottom: 24px;
-  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.05);
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.05);
 }
 
 .ks-filter-bar {
@@ -166,13 +157,8 @@
   white-space: nowrap;
 }
 
-.ks-mhs-table tbody tr {
-  transition: background 0.15s ease;
-}
-
-.ks-mhs-table tbody tr:hover {
-  background: #f8fafc;
-}
+.ks-mhs-table tbody tr { transition: background 0.15s ease; }
+.ks-mhs-table tbody tr:hover { background: #f8fafc; }
 
 .ks-mhs-table tbody td {
   padding: 14px 16px;
@@ -197,20 +183,6 @@
       </div>
     </div>
   </div>
-
-  @if(session('success'))
-  <div style="margin-bottom:20px;padding:12px 18px;background:#dcfce7;color:#15803d;border-radius:10px;font-size:13px;font-weight:600;border:1px solid #bbf7d0;display:flex;align-items:center;gap:10px">
-    <span class="material-symbols-outlined" style="font-size:20px">check_circle</span>
-    {{ session('success') }}
-  </div>
-  @endif
-
-  @if(session('error'))
-  <div style="margin-bottom:20px;padding:12px 18px;background:#fee2e2;color:#b91c1c;border-radius:10px;font-size:13px;font-weight:600;border:1px solid #fca5a5;display:flex;align-items:center;gap:10px">
-    <span class="material-symbols-outlined" style="font-size:20px">error</span>
-    {{ session('error') }}
-  </div>
-  @endif
 
   {{-- TOP STAT CARDS --}}
   <div class="ks-stat-grid">
@@ -292,7 +264,7 @@
         @forelse($jurusanSummary as $j)
         <div class="ks-breakdown-item">
           <span style="font-size:12px;font-weight:600;color:#334155;line-height:1.3">{{ $j->jurusan }}</span>
-          <span style="font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:6px;white-space:nowrap flex-shrink:0">
+          <span style="font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0">
             {{ $j->count }} Mhs
           </span>
         </div>
@@ -329,66 +301,8 @@
     </div>
   </div>
 
-  {{-- FORM PENGUMUMAN POP-UP & LINK GROUP WA (GARDA ONLY vs TIMDIS READ-ONLY) --}}
-  @if(!$isReadOnly)
-  <div class="ks-announcement-panel">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
-      <div>
-        <div style="font-size:16px;font-weight:800;color:#1e1b4b;display:flex;align-items:center;gap:8px">
-          <span class="material-symbols-outlined" style="color:#4f46e5;font-size:24px">campaign</span>
-          Kelola Pesan Pop-up & Link Group WA {{ $kompi }}
-        </div>
-        <div style="font-size:12px;color:#6366f1;margin-top:2px">Pesan dan link ini akan <strong>muncul sebagai Pop-up otomatis</strong> saat Mahasiswa kompi {{ $kompi }} login.</div>
-      </div>
-      <div>
-        @if($announcement && $announcement->is_active)
-          <span style="background:#dcfce7;color:#15803d;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
-            <span style="width:8px;height:8px;border-radius:50%;background:#16a34a"></span> Pop-up AKTIF
-          </span>
-        @else
-          <span style="background:#f1f5f9;color:#64748b;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
-            <span style="width:8px;height:8px;border-radius:50%;background:#94a3b8"></span> Nonaktif
-          </span>
-        @endif
-      </div>
-    </div>
-
-    <form method="POST" action="{{ route('garda.kompi-saya.announcement') }}">
-      @csrf
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-        <div>
-          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;color:#334155">Judul Pop-up / Pengumuman *</label>
-          <input type="text" name="judul" class="form-input" placeholder="Contoh: Link Group WhatsApp Resmi Kompi 1" value="{{ old('judul', $announcement->judul ?? ('Pengumuman Garda ' . $kompi)) }}" required style="width:100%;border-radius:8px">
-        </div>
-        <div>
-          <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;color:#334155">Link Group WhatsApp (URL)</label>
-          <div style="position:relative">
-            <input type="url" name="link_wa" class="form-input" placeholder="https://chat.whatsapp.com/..." value="{{ old('link_wa', $announcement->link_wa ?? '') }}" style="width:100%;padding-left:36px;border-radius:8px">
-            <span class="material-symbols-outlined" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:18px;color:#25D366">link</span>
-          </div>
-        </div>
-      </div>
-
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;color:#334155">Isi Pesan Pop-up</label>
-        <textarea name="pesan" class="form-input" rows="3" placeholder="Tuliskan instruksi atau pesan untuk mahasiswa kompi Anda di sini..." style="width:100%;border-radius:8px">{{ old('pesan', $announcement->pesan ?? '') }}</textarea>
-      </div>
-
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-          <input type="checkbox" name="is_active" value="1" {{ old('is_active', $announcement->is_active ?? true) ? 'checked' : '' }} style="width:18px;height:18px;accent-color:#4f46e5;cursor:pointer">
-          <span style="font-size:13px;font-weight:600;color:#1e293b">Aktifkan Pop-Up ini untuk Mahasiswa {{ $kompi }}</span>
-        </label>
-        <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);border:none;padding:10px 20px;border-radius:10px;font-weight:700;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(79,70,229,0.3)">
-          <span class="material-symbols-outlined" style="font-size:18px">save</span>
-          Simpan Pengumuman & Link WA
-        </button>
-      </div>
-    </form>
-  </div>
-  @else
   {{-- READ-ONLY ANNOUNCEMENT BANNER FOR TIMDIS --}}
-  <div class="ks-announcement-panel" style="background:linear-gradient(135deg, #f8fafc 0%, #f0f7ff 100%);border-left-color:#2563eb">
+  <div class="ks-announcement-panel">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
       <div style="display:flex;align-items:flex-start;gap:14px">
         <div style="width:42px;height:42px;border-radius:12px;background:#dbeafe;display:flex;align-items:center;justify-content:center;color:#2563eb;flex-shrink:0">
@@ -401,7 +315,7 @@
               <strong>Judul:</strong> {{ $announcement->judul }}
             </div>
             @if($announcement->pesan)
-              <div style="font-size:12px;color:#64748b;margin-top:2px">{{ Str::limit($announcement->pesan, 100) }}</div>
+              <div style="font-size:12px;color:#64748b;margin-top:2px">{{ \Illuminate\Support\Str::limit($announcement->pesan, 100) }}</div>
             @endif
           @else
             <div style="font-size:12px;color:#94a3b8;margin-top:4px">Belum ada pengumuman aktif dari Garda kompi ini.</div>
@@ -416,12 +330,11 @@
           </a>
         @endif
         <span style="font-size:11px;color:#64748b;background:#ffffff;padding:6px 12px;border-radius:8px;border:1px solid #e2e8f0">
-          ℹ Hanya Garda yang dapat mengubah pengumuman
+          ℹ Pengisian pengumuman WA dikelola khusus oleh Garda
         </span>
       </div>
     </div>
   </div>
-  @endif
 
   {{-- TABEL MAHASISWA PANEL --}}
   <div class="panel" style="border-radius:14px;box-shadow:0 4px 15px rgba(0,0,0,0.02)">
@@ -462,7 +375,7 @@
         </button>
 
         @if($search !== '' || ($perPageReq ?? '20') !== '20' || ($statusFilter ?? '') !== '')
-        <a href="{{ $isReadOnly ? route('timdis.kompi-saya') : route('garda.kompi-saya') }}" class="btn btn-ghost btn-sm" style="height:38px;padding:0 12px;border-radius:8px;font-size:12px;color:#64748b">
+        <a href="{{ route('timdis.kompi-saya') }}" class="btn btn-ghost btn-sm" style="height:38px;padding:0 12px;border-radius:8px;font-size:12px;color:#64748b">
           Reset Filter
         </a>
         @endif
@@ -563,8 +476,7 @@ function applySearch() {
   const statusFilter = document.getElementById('status-filter').value || '';
   const perPageSelect = document.getElementById('per-page-select');
   const perPage = perPageSelect ? perPageSelect.value : '20';
-  const baseUrl = '{{ $isReadOnly ? route('timdis.kompi-saya') : route('garda.kompi-saya') }}';
-  const url = new URL(baseUrl, window.location.origin);
+  const url = new URL('{{ route('timdis.kompi-saya') }}', window.location.origin);
   if (search.trim() !== '') {
     url.searchParams.set('search', search.trim());
   }

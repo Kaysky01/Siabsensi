@@ -98,6 +98,7 @@ class AuthController extends Controller
                 'admin'     => redirect()->route('admin.dashboard'),
                 'timdis'    => redirect()->route('timdis.dashboard'),
                 'garda'     => redirect()->route('garda.dashboard'),
+                'acara'     => redirect()->route('acara.dashboard'),
                 'mahasiswa' => redirect()->route('mahasiswa.dashboard'),
                 default     => redirect('/login'),
             };

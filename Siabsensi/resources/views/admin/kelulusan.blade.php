@@ -13,16 +13,19 @@
   <div class="panel" style="margin-bottom:16px;padding:14px 20px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; align-items:center;">
     <form method="GET" action="{{ route('admin.kelulusan') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
       <div><label class="form-label">Jurusan</label>
-        <select name="jurusan" class="form-input" style="width:150px;padding:7px 10px">
+        <select name="jurusan" id="filterJurusan" class="form-input" style="width:200px;padding:7px 10px">
           <option value="">Semua</option>
           @foreach($jurusanOptions as $j)<option value="{{ $j }}" {{ $filterJurusan == $j ? 'selected' : '' }}>{{ $j }}</option>@endforeach
         </select>
       </div>
       <div><label class="form-label">Prodi</label>
-        <select name="prodi" class="form-input" style="width:150px;padding:7px 10px">
+        <select name="prodi" id="filterProdi" class="form-input" style="width:200px;padding:7px 10px">
           <option value="">Semua</option>
           @foreach($prodiOptions as $p)<option value="{{ $p }}" {{ $filterProdi == $p ? 'selected' : '' }}>{{ $p }}</option>@endforeach
         </select>
+      </div>
+      <div><label class="form-label">Cari Nama</label>
+        <input type="text" name="search" class="form-input" style="width:200px;padding:7px 10px" placeholder="Cari nama mahasiswa..." value="{{ $search ?? '' }}">
       </div>
       <button type="submit" class="btn btn-primary btn-sm">Proses Laporan</button>
       <a href="{{ route('admin.kelulusan') }}" class="btn btn-ghost btn-sm">Reset</a>
@@ -92,4 +95,36 @@
     {{ $kelulusanData->links('pagination::bootstrap-4') }}
   </div>
 </section>
+
+<script>
+var jurusanProdiMap = @json($jurusanProdiMap);
+var selectedProdi = @json($filterProdi ?? '');
+
+document.getElementById('filterJurusan').addEventListener('change', function() {
+  var prodiSelect = document.getElementById('filterProdi');
+  var jurusan = this.value;
+  prodiSelect.innerHTML = '<option value="">Semua</option>';
+  if (jurusan && jurusanProdiMap[jurusan]) {
+    jurusanProdiMap[jurusan].forEach(function(p) {
+      var opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      prodiSelect.appendChild(opt);
+    });
+  } else {
+    var allProdi = [];
+    Object.keys(jurusanProdiMap).forEach(function(k) {
+      jurusanProdiMap[k].forEach(function(p) {
+        if (allProdi.indexOf(p) === -1) allProdi.push(p);
+      });
+    });
+    allProdi.sort().forEach(function(p) {
+      var opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      prodiSelect.appendChild(opt);
+    });
+  }
+});
+</script>
 @endsection

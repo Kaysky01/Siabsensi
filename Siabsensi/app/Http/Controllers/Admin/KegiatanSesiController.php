@@ -30,12 +30,22 @@ class KegiatanSesiController extends Controller
         $kegiatan = Kegiatan::findOrFail($kegiatanId);
         
         $validated = $request->validate([
-            'nama_sesi' => 'required|string|max:255',
+            'nama_sesi' => [
+                'required',
+                'string',
+                'max:255',
+                \Illuminate\Validation\Rule::unique('kegiatan_sesi')->where(function ($query) use ($kegiatanId) {
+                    return $query->where('kegiatan_id', $kegiatanId);
+                })
+            ],
             'jam_mulai' => 'nullable|date_format:H:i',
             'jam_selesai' => 'nullable|date_format:H:i|after:jam_mulai',
             'is_active' => 'nullable|boolean',
         ], [
             'nama_sesi.required' => 'Nama sesi wajib diisi',
+            'nama_sesi.unique' => 'Nama sesi tersebut sudah ada pada kegiatan ini. Silakan gunakan nama lain.',
+            'jam_mulai.date_format' => 'Format jam mulai tidak valid (gunakan format HH:MM)',
+            'jam_selesai.date_format' => 'Format jam selesai tidak valid (gunakan format HH:MM)',
             'jam_selesai.after' => 'Jam selesai harus setelah jam mulai',
         ]);
 
@@ -64,12 +74,22 @@ class KegiatanSesiController extends Controller
         $sesi = KegiatanSesi::where('kegiatan_id', $kegiatanId)->findOrFail($sesiId);
         
         $validated = $request->validate([
-            'nama_sesi' => 'required|string|max:255',
+            'nama_sesi' => [
+                'required',
+                'string',
+                'max:255',
+                \Illuminate\Validation\Rule::unique('kegiatan_sesi')->where(function ($query) use ($kegiatanId) {
+                    return $query->where('kegiatan_id', $kegiatanId);
+                })->ignore($sesiId)
+            ],
             'jam_mulai' => 'nullable|date_format:H:i',
             'jam_selesai' => 'nullable|date_format:H:i|after:jam_mulai',
             'is_active' => 'nullable|boolean',
         ], [
             'nama_sesi.required' => 'Nama sesi wajib diisi',
+            'nama_sesi.unique' => 'Nama sesi tersebut sudah ada pada kegiatan ini. Silakan gunakan nama lain.',
+            'jam_mulai.date_format' => 'Format jam mulai tidak valid (gunakan format HH:MM)',
+            'jam_selesai.date_format' => 'Format jam selesai tidak valid (gunakan format HH:MM)',
             'jam_selesai.after' => 'Jam selesai harus setelah jam mulai',
         ]);
 

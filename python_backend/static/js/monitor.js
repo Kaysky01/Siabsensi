@@ -301,6 +301,81 @@ function startQRDetection(videoElement) {
     detectFrame();
 }
 
+// ===== POPUP ABSENSI BERHASIL =====
+let _attendancePopupTimeout = null;
+
+function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
+    const isMasuk = type === 'masuk';
+    const gradientColor = isMasuk
+        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+        : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+    const iconHtml = isMasuk
+        ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" style="width:52px;height:52px;"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" style="width:52px;height:52px;"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>`;
+    const labelText = isMasuk ? 'BERHASIL MASUK' : 'BERHASIL KELUAR';
+    const labelColor = isMasuk ? '#10b981' : '#3b82f6';
+    const bgBadge   = isMasuk ? '#d1fae5' : '#dbeafe';
+    const displayName = mahasiswaName || 'Mahasiswa';
+    const displayTime = timeStr || new Date().toLocaleTimeString('id-ID');
+    const displayKompi = (kompi && kompi !== 'Local') ? kompi : '';
+
+    // Hapus popup sebelumnya + batalkan timeout lama
+    const existing = document.getElementById('att-popup-overlay');
+    if (existing) existing.remove();
+    if (_attendancePopupTimeout) { clearTimeout(_attendancePopupTimeout); _attendancePopupTimeout = null; }
+
+    // Inject CSS animasi jika belum ada
+    if (!document.getElementById('att-popup-style')) {
+        const s = document.createElement('style');
+        s.id = 'att-popup-style';
+        s.textContent = `
+            @keyframes attFadeIn  { from { opacity:0 } to { opacity:1 } }
+            @keyframes attFadeOut { from { opacity:1 } to { opacity:0 } }
+            @keyframes attPopIn   { 0%{transform:scale(0.7);opacity:0} 70%{transform:scale(1.05);opacity:1} 100%{transform:scale(1);opacity:1} }
+            @keyframes attShrink  { from { width:100% } to { width:0% } }
+        `;
+        document.head.appendChild(s);
+    }
+
+    // Buat overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'att-popup-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;animation:attFadeIn 0.2s ease forwards;';
+    overlay.innerHTML = `
+        <div style="background:#fff;border-radius:20px;padding:32px 28px;width:340px;max-width:90vw;
+                    text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.25);
+                    animation:attPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+                    position:relative;overflow:hidden;">
+            <div style="position:absolute;bottom:0;left:0;height:4px;background:${labelColor};width:100%;animation:attShrink 2s linear forwards;"></div>
+            <div style="display:inline-flex;align-items:center;justify-content:center;
+                        width:76px;height:76px;border-radius:50%;background:${gradientColor};
+                        margin-bottom:16px;box-shadow:0 8px 24px rgba(0,0,0,0.15);">
+                ${iconHtml}
+            </div>
+            <div style="font-size:12px;font-weight:700;letter-spacing:2.5px;color:${labelColor};margin-bottom:10px;text-transform:uppercase;">${labelText}</div>
+            <div style="font-size:22px;font-weight:800;color:#111827;margin-bottom:6px;line-height:1.3;word-break:break-word;">${displayName}</div>
+            ${displayKompi ? `<div style="font-size:13px;color:#6b7280;margin-bottom:12px;">${displayKompi}</div>` : '<div style="margin-bottom:12px;"></div>'}
+            <div style="display:inline-block;background:${bgBadge};color:${labelColor};font-size:14px;font-weight:600;padding:6px 20px;border-radius:999px;">${displayTime}</div>
+        </div>`;
+
+    document.body.appendChild(overlay);
+
+    function closePopup() {
+        const el = document.getElementById('att-popup-overlay');
+        if (!el) return;
+        el.style.animation = 'attFadeOut 0.2s ease forwards';
+        setTimeout(() => { if (el.parentNode) el.remove(); }, 200);
+    }
+
+    // Auto-close setelah 2 detik
+    _attendancePopupTimeout = setTimeout(closePopup, 2000);
+
+    // Klik backdrop untuk tutup
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) { clearTimeout(_attendancePopupTimeout); closePopup(); }
+    });
+}
+
 // ===== RECORD ATTENDANCE =====
 async function recordAttendance(mahasiswaId, confidence = 0.0) {
     try {
@@ -320,57 +395,80 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
 
         const data = await res.json();
 
-        // Handle SweetAlert if server sends show_alert flag
-        if (data.show_alert && typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: data.alert_title || 'Perhatian',
-                text: data.alert_text || data.message,
-                icon: data.alert_type || 'info',
-                confirmButtonColor: data.alert_type === 'error' ? '#ef4444' : (data.alert_type === 'warning' ? '#f59e0b' : '#3b82f6')
-            });
-        }
+        if (res.ok && data.success) {
+            // === SIMPAN KE LOCAL UNTUK SYNC NANTI ===
+            saveToLocalSync(data);
 
-        if (res.ok) {
-            if (data.success) {
-                // === SIMPAN KE LOCAL UNTUK SYNC NANTI ===
-                saveToLocalSync(data);
+            const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
+            const kompi = data.mahasiswa ? data.mahasiswa.kompi : '';
+            const timeStr = data.result ? data.result.time : null;
 
-                // Play beep only for new check-in or check-out
-                if (data.result && (data.result.status === 'checked_in' || data.result.status === 'checked_out')) {
-                    playBeep();
-                    const actionText = data.result.status === 'checked_in' ? 'absen masuk' : 'absen pulang';
-                    const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
+            if (data.result && data.result.status === 'checked_in') {
+                // ✅ BERHASIL MASUK - Popup besar
+                playBeep();
+                showAttendancePopup('masuk', mahasiswaName, kompi, timeStr);
 
-                    // Show toast if no alert
-                    if (!data.show_alert) {
-                        showToast(`${mahasiswaName} berhasil ${actionText}`);
-                    }
-                } else if (data.result) {
-                    // Show warning toast for ignored attendances (only if no alert)
-                    if (!data.show_alert) {
-                        const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
-                        if (data.result.status === 'already_checked_in') {
-                            showToast(`${mahasiswaName} sudah absen masuk hari ini.`, '#f59e0b');
-                        } else if (data.result.status === 'cooldown') {
-                            showToast(`${mahasiswaName} masih dalam waktu jeda (cooldown).`, '#f59e0b');
-                        } else if (data.result.status === 'already_checked_out') {
-                            showToast(`${mahasiswaName} sudah absen pulang hari ini.`, '#f59e0b');
-                        } else if (data.result.status === 'none') {
-                            showToast(`${mahasiswaName} - Absensi diabaikan.`, '#f59e0b');
-                        } else if (data.result.status === 'not_checked_in') {
-                            showToast(`${mahasiswaName} belum absen masuk!`, '#ef4444');
+                // Jika terlambat, tampilkan alert tambahan setelah popup utama
+                if (data.result.is_late && data.result.late_duration > 0) {
+                    setTimeout(() => {
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                title: '⚠️ Terlambat!',
+                                text: `${mahasiswaName} terlambat ${data.result.late_duration} menit. Absensi masuk tetap dicatat.`,
+                                icon: 'warning',
+                                confirmButtonColor: '#f59e0b',
+                                timer: 4000,
+                                timerProgressBar: true
+                            });
                         }
+                    }, 3200);
+                }
+
+            } else if (data.result && data.result.status === 'checked_out') {
+                // ✅ BERHASIL KELUAR - Popup besar
+                playBeep();
+                showAttendancePopup('keluar', mahasiswaName, kompi, timeStr);
+
+            } else if (data.result) {
+                // Status lain: cooldown, already_checked_in, dll → hanya toast (jika tidak ada alert)
+                if (!data.show_alert) {
+                    if (data.result.status === 'already_checked_in') {
+                        showToast(`${mahasiswaName} sudah absen masuk hari ini.`, '#f59e0b');
+                    } else if (data.result.status === 'cooldown') {
+                        showToast(`${mahasiswaName} masih dalam waktu jeda (cooldown).`, '#f59e0b');
+                    } else if (data.result.status === 'already_checked_out') {
+                        showToast(`${mahasiswaName} sudah absen pulang hari ini.`, '#f59e0b');
+                    } else if (data.result.status === 'not_checked_in') {
+                        showToast(`${mahasiswaName} belum absen masuk!`, '#ef4444');
                     }
+                } else {
+                    // Tampilkan alert dari server
+                    Swal.fire({
+                        title: data.alert_title || 'Perhatian',
+                        text: data.alert_text || data.message,
+                        icon: data.alert_type || 'info',
+                        confirmButtonColor: data.alert_type === 'error' ? '#ef4444' : (data.alert_type === 'warning' ? '#f59e0b' : '#3b82f6'),
+                        timer: 4000,
+                        timerProgressBar: true
+                    });
                 }
             }
+
         } else {
             // Error responses (404, 403, 500, etc.)
-            // Alert already shown by show_alert flag above
             const msg = data.message || `Error ${res.status}`;
             console.warn('[Attendance]', msg);
 
-            // Only show toast if no alert was displayed
-            if (!data.show_alert) {
+            if (data.show_alert && typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: data.alert_title || 'Perhatian',
+                    text: data.alert_text || data.message,
+                    icon: data.alert_type || 'info',
+                    confirmButtonColor: data.alert_type === 'error' ? '#ef4444' : (data.alert_type === 'warning' ? '#f59e0b' : '#3b82f6'),
+                    timer: 4000,
+                    timerProgressBar: true
+                });
+            } else if (!data.show_alert) {
                 showToast(msg, res.status >= 500 ? '#ef4444' : '#f97316');
             }
         }
@@ -440,80 +538,65 @@ function saveToLocalSync(responseData) {
 
 // ===== SYNC KE SERVER LARAVEL =====
 async function syncDataToServer() {
-    const data = getLocalSyncData();
-    const unsynced = data.filter(d => !d.synced);
+    const btn = document.getElementById('sync-button');
+
+    // Ambil data dari Local DB via Python API
+    let unsynced = [];
+    try {
+        const kegiatanSelect = document.getElementById('kegiatan-select');
+        const kegiatanId = kegiatanSelect ? kegiatanSelect.value : '';
+        const url = `${PYTHON_API_URL}/attendance/today${kegiatanId ? '?kegiatan_id=' + kegiatanId : ''}`;
+        const res = await fetch(url);
+        if (res.ok) {
+            const json = await res.json();
+            if (json.success && json.data && json.data.length > 0) {
+                unsynced = json.data;
+            }
+        }
+    } catch (e) {
+        // Fallback ke localStorage jika DB tidak tersedia
+        unsynced = getLocalSyncData().filter(d => !d.synced);
+    }
 
     if (unsynced.length === 0) {
         if (typeof Swal !== 'undefined') {
             Swal.fire({
                 title: 'Tidak Ada Data',
-                text: 'Semua data absensi sudah tersinkronisasi dengan server.',
+                text: 'Belum ada data absensi di local database hari ini.',
                 icon: 'info',
                 confirmButtonColor: '#3b82f6'
             });
         } else {
-            showToast("Semua data sudah tersinkronisasi!", "#3b82f6");
+            showToast('Tidak ada data untuk disinkronkan.', '#3b82f6');
         }
         return;
     }
 
-    const btn = document.getElementById('sync-button');
-    if (btn) btn.textContent = 'Menyinkronkan...';
+    if (btn) { btn.textContent = 'Menyinkronkan...'; btn.disabled = true; }
 
     try {
-        // 1. Tembak API Lokal (Python) untuk Backup ke Excel dulu
-        showToast("Membuat backup Excel di komputer lokal...", "#f59e0b");
-        const backupRes = await fetch(`${PYTHON_API_URL}/backup`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: unsynced })
-        });
-
-        if (backupRes.ok) {
-            const backupData = await backupRes.json();
-        } else {
-            console.warn("Gagal membuat backup lokal Excel");
-        }
-
-        // 2. Tembak API Laravel untuk sinkronisasi Database Server
-        showToast(`Menyinkronkan ${unsynced.length} data ke server...`, "#3b82f6");
+        showToast(`Menyinkronkan ${unsynced.length} data ke server Laravel...`, '#3b82f6');
 
         const res = await fetch(`${API_URL}/sync`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ data: unsynced })
         });
 
         if (res.ok) {
             const resData = await res.json();
-
-            // Check for rejections
             const rejectedCount = resData.rejected_count || 0;
-            const syncedCount = resData.synced_count || 0;
+            const syncedCount   = resData.synced_count || 0;
             const rejectionReasons = resData.rejection_reasons || [];
 
             if (rejectedCount > 0) {
-                // Some data was rejected
-                console.warn("Beberapa data ditolak:", rejectionReasons);
-
-                // Mark only successfully synced data
-                // For now, mark all as synced since we don't know which ones were rejected
-                // In production, Laravel should return IDs of successfully synced records
-                data.forEach(d => {
-                    if (!d.synced) d.synced = true;
-                });
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         title: 'Sinkronisasi Selesai',
                         html: `
                             <div style="text-align:left;margin:16px 0;">
-                                <p><strong style="color:#10b981;">✓ Berhasil:</strong> ${syncedCount} data</p>
-                                <p><strong style="color:#ef4444;">✗ Ditolak:</strong> ${rejectedCount} data</p>
+                                <p><strong style="color:#10b981;">&#10003; Berhasil:</strong> ${syncedCount} data</p>
+                                <p><strong style="color:#ef4444;">&#10007; Ditolak:</strong> ${rejectedCount} data</p>
                                 ${rejectionReasons.length > 0 ? `
                                     <div style="margin-top:12px;padding:12px;background:#fef2f2;border-radius:8px;max-height:200px;overflow-y:auto;text-align:left;">
                                         <strong style="color:#991b1b;">Alasan Penolakan:</strong>
@@ -528,37 +611,26 @@ async function syncDataToServer() {
                         confirmButtonColor: '#3b82f6'
                     });
                 } else {
-                    showToast(`Sinkronisasi selesai: ${syncedCount} berhasil, ${rejectedCount} ditolak`, "#f59e0b");
+                    showToast(`Sync: ${syncedCount} berhasil, ${rejectedCount} ditolak`, '#f59e0b');
                 }
             } else {
-                // All data synced successfully
-                data.forEach(d => {
-                    if (!d.synced) d.synced = true;
-                });
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         title: 'Berhasil!',
-                        text: `Sinkronisasi ${syncedCount} data absensi ke server berhasil.`,
+                        text: `${syncedCount} data absensi berhasil disinkronkan ke server.`,
                         icon: 'success',
                         confirmButtonColor: '#10b981'
                     });
                 } else {
-                    showToast("Sinkronisasi berhasil!", "#10b981");
+                    showToast('Sinkronisasi berhasil!', '#10b981');
                 }
             }
-
-            if (btn) btn.textContent = 'Sync ke Server';
-
-            // Re-render
-            handleIncomingData(data);
         } else {
             throw new Error(`Server API error: ${res.status}`);
         }
 
     } catch (err) {
-        console.error("Gagal sinkronisasi", err);
+        console.error('Gagal sinkronisasi', err);
         if (typeof Swal !== 'undefined') {
             Swal.fire({
                 title: 'Gagal Sinkronisasi!',
@@ -574,13 +646,16 @@ async function syncDataToServer() {
                 confirmButtonColor: '#ef4444'
             });
         } else {
-            showToast(`Gagal menyinkronkan: ${err.message}`, "#ef4444");
+            showToast(`Gagal: ${err.message}`, '#ef4444');
         }
-        if (btn) btn.textContent = 'Sync ke Server';
+    } finally {
+        if (btn) { btn.textContent = 'Sync ke Server'; btn.disabled = false; }
     }
 }
 
+
 // ===== CLEAR LOCAL DATA =====
+
 function clearLocalData() {
     if (typeof Swal !== 'undefined') {
         Swal.fire({
@@ -904,15 +979,35 @@ function handleIncomingData(newData) {
 }
 
 async function fetchLatestAttendance() {
-    // Di mode Python Local, kita load data dari Local Storage saja
-    // Tidak fetch stream dari server Laravel lagi agar tidak memberatkan server
-    const data = getLocalSyncData();
-    const dataStr = JSON.stringify(data);
+    // Poll dari Local MySQL DB via Python API
+    try {
+        const kegiatanSelect = document.getElementById('kegiatan-select');
+        const kegiatanId = kegiatanSelect ? kegiatanSelect.value : '';
+        const url = `${PYTHON_API_URL}/attendance/today${kegiatanId ? '?kegiatan_id=' + kegiatanId : ''}`;
 
-    // Jangan re-render jika data belum berubah (mencegah kedip/geser)
-    if (data && data.length > 0 && dataStr !== lastLocalSyncHash) {
-        lastLocalSyncHash = dataStr;
-        handleIncomingData(data);
+        const res = await fetch(url);
+        if (res.ok) {
+            const json = await res.json();
+            if (json.success && json.data) {
+                const dataStr = JSON.stringify(json.data);
+                if (dataStr !== lastLocalSyncHash) {
+                    lastLocalSyncHash = dataStr;
+                    currentAttendanceList = json.data;
+                    syncCooldownMap(currentAttendanceList);
+                    renderRecentScans(currentAttendanceList);
+                    updateStats(currentAttendanceList);
+                    updateFooter();
+                }
+            }
+        }
+    } catch (err) {
+        // Jika DB tidak tersedia, fallback ke localStorage
+        const data = getLocalSyncData();
+        const dataStr = JSON.stringify(data);
+        if (data && data.length > 0 && dataStr !== lastLocalSyncHash) {
+            lastLocalSyncHash = dataStr;
+            handleIncomingData(data);
+        }
     }
 
     const dot = document.getElementById('polling-dot');
@@ -1050,8 +1145,8 @@ loadKegiatan();
 initCamera();
 fetchLatestAttendance();
 
-// Polling setiap 2 detik untuk delta updates
-setInterval(fetchLatestAttendance, 2000);
+// Polling setiap 3 detik dari Local DB
+setInterval(fetchLatestAttendance, 3000);
 
 // ===== PHYSICAL BARCODE SCANNER INTEGRATION =====
 let barcodeBuffer = "";

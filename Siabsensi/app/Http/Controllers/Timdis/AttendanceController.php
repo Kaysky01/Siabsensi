@@ -34,6 +34,7 @@ class AttendanceController extends Controller
         $search = $request->get('search', '');
         $kompi = $request->get('kompi', '');
         $jurusan = $request->get('jurusan', '');
+        $assignedKompi = auth()->user()->assigned_kompi;
 
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
@@ -50,7 +51,12 @@ class AttendanceController extends Controller
                     ->whereBetween("$table.date", [$start, $end]);
             });
             
-            // Apply filters
+            // Apply assigned_kompi filter
+            if ($assignedKompi) {
+                $query->where("$mhsTable.kompi", $assignedKompi);
+            }
+
+            // Apply user filters
             if ($search) {
                 $query->where("$mhsTable.name", 'like', "%{$search}%");
             }
@@ -69,6 +75,10 @@ class AttendanceController extends Controller
                 ->orderBy("$table.check_in", 'desc')
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
             
+            if ($assignedKompi) {
+                $query->where("$mhsTable.kompi", $assignedKompi);
+            }
+
             // Filter by status
             if (in_array($filter, ['hadir', 'present'])) {
                 $query->whereIn("$table.status", ['hadir', 'present']);
@@ -95,6 +105,10 @@ class AttendanceController extends Controller
                 ->orderBy("$table.check_in", 'desc')
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
             
+            if ($assignedKompi) {
+                $query->where("$mhsTable.kompi", $assignedKompi);
+            }
+
             // Apply filters
             if ($search) {
                 $query->where("$mhsTable.name", 'like', "%{$search}%");
