@@ -26,7 +26,7 @@
 
   <div class="panel">
     <table class="att-table">
-      <thead><tr><th>Foto</th><th>Mahasiswa</th><th>Kompi</th><th>Prodi</th><th>Email</th><th>No. Telp</th><th>Status Harian <small style="font-weight:400;color:var(--text-muted)">(per hari PKKMB)</small></th></tr></thead>
+      <thead><tr><th>Foto</th><th>Mahasiswa</th><th>Kompi</th><th>Prodi</th><th>Email</th><th>No. Telp</th><th>No. Telp Ortu</th><th>Status Harian <small style="font-weight:400;color:var(--text-muted)">(per hari PKKMB)</small></th></tr></thead>
       <tbody>
         @forelse($mahasiswaList as $m)
         <tr>
@@ -54,6 +54,7 @@
           <td style="font-size:13px">{{ $m->prodi ?? '-' }}</td>
           <td style="font-size:13px;color:var(--text-muted)">{{ $m->email ?? '-' }}</td>
           <td style="font-size:13px;color:var(--text-muted)">{{ $m->no_telp_mahasiswa ?? $m->no_telp ?? '-' }}</td>
+          <td style="font-size:13px;color:var(--text-muted)">{{ $m->no_telp_ortu ?? '-' }}</td>
           <td>
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
               @php

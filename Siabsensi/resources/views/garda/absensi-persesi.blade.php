@@ -22,19 +22,6 @@
       <div class="page-title">Absensi Persesi</div>
       <div class="page-sub">Kompi: <strong style="color:var(--primary)">{{ auth()->user()->assigned_kompi ?? '-' }}</strong> — Pilih sesi untuk melakukan absensi</div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button onclick="document.getElementById('modal-tambah-sesi').style.display='flex'" class="btn btn-primary">
-        <span class="material-symbols-outlined" style="font-size:18px">add_circle</span> Tambah Sesi
-      </button>
-      <form method="GET" action="{{ route('garda.absensi-persesi') }}" style="display:flex;gap:8px;align-items:center">
-        <select name="kompi" class="form-input" onchange="this.form.submit()" style="padding:6px 12px;border-radius:6px">
-          <option value="all" {{ $filterKompi == 'all' ? 'selected' : '' }}>Semua Kompi</option>
-          @foreach($kompiOptions as $k)
-            <option value="{{ $k }}" {{ $filterKompi == $k ? 'selected' : '' }}>{{ $k }}</option>
-          @endforeach
-        </select>
-      </form>
-    </div>
   </div>
 
 
@@ -325,58 +312,5 @@
   }
 }
 </style>
-
-{{-- ===== MODAL TAMBAH SESI ===== --}}
-<div id="modal-tambah-sesi"
-     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:16px"
-     onclick="if(event.target===this)this.style.display='none'">
-  <div style="background:var(--surface);border-radius:var(--radius-lg);padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <h3 style="margin:0;font-size:18px;font-weight:700">Tambah Sesi Baru</h3>
-      <button onclick="document.getElementById('modal-tambah-sesi').style.display='none'"
-              style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text-muted);line-height:1">&times;</button>
-    </div>
-
-    <form action="{{ route('garda.sesi.tambah') }}" method="POST">
-      @csrf
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px">Jadwal PKKMB (Hari ke-)</label>
-        <select name="pkkmb_schedule_id" required style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text)">
-          <option value="">-- Pilih Jadwal --</option>
-          @foreach($schedules as $sch)
-            <option value="{{ $sch->id }}">Hari ke-{{ $sch->hari_ke }} — {{ \Carbon\Carbon::parse($sch->tanggal)->format('d/m/Y') }}</option>
-          @endforeach
-        </select>
-      </div>
-
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px">Nama Sesi <span style="color:var(--danger)">*</span></label>
-        <input type="text" name="nama_sesi" required placeholder="contoh: Sesi Pagi, Pembukaan, dll"
-               style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text);box-sizing:border-box">
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
-        <div>
-          <label style="display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px">Jam Mulai</label>
-          <input type="time" name="jam_mulai"
-                 style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text);box-sizing:border-box">
-        </div>
-        <div>
-          <label style="display:block;font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:6px">Jam Selesai</label>
-          <input type="time" name="jam_selesai"
-                 style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);color:var(--text);box-sizing:border-box">
-        </div>
-      </div>
-
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button type="button" onclick="document.getElementById('modal-tambah-sesi').style.display='none'"
-                class="btn btn-ghost">Batal</button>
-        <button type="submit" class="btn btn-primary">
-          <span class="material-symbols-outlined" style="font-size:18px">add</span> Tambah Sesi
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
 
 @endsection
