@@ -390,24 +390,6 @@ public function submitKehadiran(Request $request)
         $request->validate([
             'date' => 'required|date',
             'reason' => 'required|string',
-<<<<<<< HEAD
-            'bukti' => 'required|file|mimes:jpg,jpeg,png|max:2048',
-        ]);
-
-        $path = $request->file('bukti')->store('kehadiran_bukti', 'public');
-
-        \App\Models\KehadiranSubmission::create([
-            'mahasiswa_id' => Auth::user()->mahasiswa_id,
-            'date' => $request->date,
-            'check_in_time' => '08:00:00',
-            'check_out_time' => '16:00:00',
-            'keterangan' => $request->reason,
-            'bukti_path' => $path,
-            'status' => 'pending',
-        ]);
-
-        return back()->with('success', 'Pengajuan kehadiran manual berhasil dikirim.');
-=======
             'bukti' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
         ], [
             'bukti.required' => 'Bukti lampiran wajib diunggah.',
@@ -432,7 +414,6 @@ public function submitKehadiran(Request $request)
         } catch (\Exception $e) {
             return back()->with('error', 'Gagal mengirim pengajuan: ' . $e->getMessage());
         }
->>>>>>> 586899021a2f271c4149d39189d4e4ee8c82d027
     }
 
     public function deleteKehadiran($id)
