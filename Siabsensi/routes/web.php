@@ -255,6 +255,7 @@ Route::middleware(['auth', 'role:mahasiswa'])->prefix('mahasiswa')->group(functi
     
     Route::get('/kehadiran', [MahasiswaController::class, 'kehadiran'])->name('mahasiswa.kehadiran');
     Route::post('/kehadiran', [MahasiswaController::class, 'submitKehadiran'])->name('mahasiswa.kehadiran.submit');
+    Route::delete('/kehadiran/{id}', [MahasiswaController::class, 'deleteKehadiran'])->name('mahasiswa.kehadiran.delete');
 
     Route::get('/kegiatan', [MahasiswaController::class, 'kegiatan'])->name('mahasiswa.kegiatan');
 
@@ -516,3 +517,4 @@ Route::prefix('api/sync')->group(function () {
     Route::get('/system-config', [\App\Http\Controllers\Api\SyncController::class, 'systemConfig']);
     Route::get('/status', [\App\Http\Controllers\Api\SyncController::class, 'status']);
 });
+

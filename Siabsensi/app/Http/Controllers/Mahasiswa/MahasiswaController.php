@@ -385,18 +385,15 @@ class MahasiswaController extends Controller
         return view('mahasiswa.kehadiran', compact('mahasiswa', 'riwayatKehadiran', 'schedules'));
     }
 
-    public function submitKehadiran(Request $request)
+public function submitKehadiran(Request $request)
     {
         $request->validate([
             'date' => 'required|date',
             'reason' => 'required|string',
-            'bukti' => 'nullable|file|mimes:jpg,jpeg,png|max:2048',
+            'bukti' => 'required|file|mimes:jpg,jpeg,png|max:2048',
         ]);
 
-        $path = null;
-        if ($request->hasFile('bukti')) {
-            $path = $request->file('bukti')->store('kehadiran_bukti', 'public');
-        }
+        $path = $request->file('bukti')->store('kehadiran_bukti', 'public');
 
         \App\Models\KehadiranSubmission::create([
             'mahasiswa_id' => Auth::user()->mahasiswa_id,
@@ -409,6 +406,27 @@ class MahasiswaController extends Controller
         ]);
 
         return back()->with('success', 'Pengajuan kehadiran manual berhasil dikirim.');
+    }
+
+    public function deleteKehadiran($id)
+    {
+        $kehadiran = \App\Models\KehadiranSubmission::where('id', $id)
+            ->where('mahasiswa_id', Auth::user()->mahasiswa_id)
+            ->firstOrFail();
+
+        if ($kehadiran->status !== 'pending') {
+            return back()->with('error', 'Hanya pengajuan dengan status Menunggu yang dapat dibatalkan/dihapus.');
+        }
+
+        try {
+            if ($kehadiran->bukti_path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($kehadiran->bukti_path);
+            }
+            $kehadiran->delete();
+            return back()->with('success', 'Pengajuan kehadiran berhasil dibatalkan.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Gagal membatalkan pengajuan kehadiran.');
+        }
     }
 
     public function kegiatan()
@@ -492,3 +510,4 @@ class MahasiswaController extends Controller
         return view('mahasiswa.sertifikat', compact('mahasiswa', 'certStats', 'isLulus'));
     }
 }
+

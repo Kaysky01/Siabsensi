@@ -8,7 +8,7 @@ MYSQL_CONFIG = {
     'port': 3306,
     'user': 'root',
     'password': '',
-    'database': 'siabsensi',
+    'database': 'siabsensi2',
     'charset': 'utf8mb4',
     'collation': 'utf8mb4_unicode_ci'
 }

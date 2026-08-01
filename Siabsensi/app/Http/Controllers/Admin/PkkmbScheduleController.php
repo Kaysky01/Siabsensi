@@ -163,7 +163,17 @@ class PkkmbScheduleController extends Controller
                 ->whereNull('kegiatan_id')
                 ->delete();
 
-            // 5. Hapus jadwal PKKMB itu sendiri
+            // 5. Hapus pengajuan kehadiran manual mahasiswa pada tanggal jadwal ini
+            $deletedKehadiran = DB::table('kehadiran_submissions')
+                ->whereDate('date', $tanggal)
+                ->delete();
+
+            // 6. Hapus pengajuan izin/sakit mahasiswa pada tanggal jadwal ini
+            $deletedIzin = DB::table('izin_submissions')
+                ->whereDate('date', $tanggal)
+                ->delete();
+
+            // 7. Hapus jadwal PKKMB itu sendiri
             $schedule->delete();
 
             DB::commit();
@@ -173,6 +183,8 @@ class PkkmbScheduleController extends Controller
             if ($deletedAttendance > 0) $detail[] = "{$deletedAttendance} data absensi harian";
             if ($deletedSesiAbsensi > 0) $detail[] = "{$deletedSesiAbsensi} data absensi sesi";
             if ($deletedSesi > 0)        $detail[] = "{$deletedSesi} sesi kegiatan";
+            if ($deletedKehadiran > 0)   $detail[] = "{$deletedKehadiran} pengajuan kehadiran manual";
+            if ($deletedIzin > 0)        $detail[] = "{$deletedIzin} pengajuan izin/sakit";
 
             $detailMsg = !empty($detail) ? ' (termasuk ' . implode(', ', $detail) . ')' : '';
 

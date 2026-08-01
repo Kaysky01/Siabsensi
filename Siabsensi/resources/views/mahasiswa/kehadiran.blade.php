@@ -21,6 +21,7 @@
         <th>Alasan</th>
         <th>Bukti</th>
         <th>Status</th>
+        <th>Aksi</th>
       </tr>
     </thead>
     <tbody>
@@ -59,10 +60,23 @@
             <span class="badge badge-warning">Menunggu</span>
           @endif
         </td>
+        <td>
+          @if($kehadiran->status === 'pending')
+          <form method="POST" action="{{ route('mahasiswa.kehadiran.delete', $kehadiran->id) }}" style="margin:0;display:inline-block" onsubmit="return confirm('Apakah Anda yakin ingin membatalkan/menghapus pengajuan kehadiran ini?')">
+            @csrf
+            @method('DELETE')
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger);padding:4px 8px" title="Batalkan Pengajuan">
+              <span class="material-symbols-outlined" style="font-size:16px">delete</span>
+            </button>
+          </form>
+          @else
+            <span style="color:var(--text-muted);font-size:12px">-</span>
+          @endif
+        </td>
       </tr>
       @empty
       <tr>
-        <td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada riwayat pengajuan kehadiran manual.</td>
+        <td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada riwayat pengajuan kehadiran manual.</td>
       </tr>
       @endforelse
     </tbody>
@@ -94,9 +108,9 @@
       </div>
 
       <div class="form-row">
-        <label class="form-label">Bukti Kehadiran (Opsional/Jika Ada)</label>
-        <input type="file" name="bukti" id="input-bukti-kehadiran" class="form-input" accept=".jpg,.jpeg,.png,.pdf" onchange="previewFileStandalone(this, 'preview-bukti-kehadiran')">
-        <span class="form-hint">Misal: Foto lokasi, foto kegiatan lapangan (Maks 10MB).</span>
+        <label class="form-label">Bukti Kehadiran <span style="color:var(--danger)">*</span></label>
+        <input type="file" name="bukti" id="input-bukti-kehadiran" class="form-input" accept=".jpg,.jpeg,.png,.pdf" required onchange="previewFileStandalone(this, 'preview-bukti-kehadiran')">
+        <span class="form-hint">Foto lokasi, foto kegiatan lapangan (Maks 10MB).</span>
         <div id="preview-bukti-kehadiran" style="display:none;margin-top:12px;padding:12px;background:var(--bg,#f8fafc);border:1px dashed var(--border,#cbd5e1);border-radius:8px;text-align:center"></div>
       </div>
       
