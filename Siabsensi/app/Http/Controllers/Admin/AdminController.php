@@ -420,6 +420,9 @@ class AdminController extends Controller
 
         $count = 0;
         $hashedPasswords = [];
+        $mahasiswaBatch = [];
+        $userBatch = [];
+        $now = now();
 
         // Optimasi: Pre-fetch existing data ke memori (Lookups)
         $existingMahasiswaIds = array_fill_keys(Mahasiswa::pluck('id')->filter()->toArray(), true);
@@ -474,7 +477,7 @@ class AdminController extends Controller
 
                 $kompi = $this->normalizeMahasiswaImportValue($record['kompi'] ?? null) ?? '-';
 
-                $mhs = Mahasiswa::create([
+                $mahasiswaBatch[] = [
                     'id'                => $mahasiswaId,
                     'qr_code_id'        => $mahasiswaId,
                     'name'              => $name,
@@ -485,18 +488,23 @@ class AdminController extends Controller
                     'email'             => $email,
                     'no_telp_mahasiswa' => $this->normalizeMahasiswaImportValue($record['no_telp_mahasiswa'] ?? null),
                     'no_telp_ortu'      => $this->normalizeMahasiswaImportValue($record['no_telp_ortu'] ?? null),
-                ]);
+                    'is_active'         => 1,
+                    'created_at'        => $now,
+                    'updated_at'        => $now,
+                ];
 
-                User::create([
-                    'username'       => $mhs->id,
+                $userBatch[] = [
+                    'username'       => $mahasiswaId,
                     'password'       => $hashedPasswords[$defaultPassword],
-                    'full_name'      => $mhs->name,
-                    'email'          => $mhs->email,
+                    'full_name'      => $name,
+                    'email'          => $email,
                     'role'           => 'mahasiswa',
-                    'mahasiswa_id'   => $mhs->id,
-                    'assigned_kompi' => $mhs->kompi,
+                    'mahasiswa_id'   => $mahasiswaId,
+                    'assigned_kompi' => $kompi,
                     'is_active'      => 1,
-                ]);
+                    'created_at'     => $now,
+                    'updated_at'     => $now,
+                ];
 
                 // Update memory lookups untuk mendeteksi duplikat internal file
                 $existingMahasiswaIds[$mahasiswaId] = true;
@@ -506,6 +514,20 @@ class AdminController extends Controller
                 }
 
                 $count++;
+
+                // Flush batch setiap 200 data untuk menjaga efisiensi memory & kecepatan SQL
+                if (count($mahasiswaBatch) >= 200) {
+                    Mahasiswa::insert($mahasiswaBatch);
+                    User::insert($userBatch);
+                    $mahasiswaBatch = [];
+                    $userBatch = [];
+                }
+            }
+
+            // Flush sisa data batch
+            if (!empty($mahasiswaBatch)) {
+                Mahasiswa::insert($mahasiswaBatch);
+                User::insert($userBatch);
             }
 
             DB::commit();
