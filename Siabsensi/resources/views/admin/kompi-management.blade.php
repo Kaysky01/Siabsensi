@@ -71,7 +71,7 @@
           <tr>
             <th style="width:40px"><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
             <th>Nama Mahasiswa</th>
-            <th>NPM/ID</th>
+            <th>No Pendaftaran/ID</th>
             <th>Kompi Saat Ini</th>
             <th>Kompi Baru</th>
           </tr>

@@ -817,6 +817,143 @@ class AdminController extends Controller
         return redirect()->route($this->getMahasiswaManagementRouteName('mahasiswa'))->with('success', "Mahasiswa {$name} berhasil dihapus.");
     }
 
+    // ─── MAHASISWA EXPORT ──────────────────────────────────────────────────────
+    public function loadExportStudents(Request $request)
+    {
+        $this->ensureMahasiswaManagementAccess();
+
+        $jurusan = $request->input('jurusan');
+        $prodi = $request->input('prodi', []);
+
+        $query = Mahasiswa::query();
+
+        if (!empty($jurusan)) {
+            $query->where('jurusan', 'like', '%' . $jurusan . '%');
+        }
+
+        if (!empty($prodi) && is_array($prodi)) {
+            $query->whereIn('prodi', $prodi);
+        }
+
+        $students = $query->select('id', 'name', 'kompi')->orderBy('name', 'asc')->get();
+
+        return response()->json([
+            'success' => true,
+            'students' => $students
+        ]);
+    }
+
+    public function processExportMahasiswa(Request $request)
+    {
+        $this->ensureMahasiswaManagementAccess();
+
+        // Handle prodi array - convert from JSON string if needed
+        $prodi = $request->input('prodi');
+        if (is_string($prodi)) {
+            $prodi = json_decode($prodi, true) ?? [];
+        }
+        if (!is_array($prodi)) {
+            $prodi = [];
+        }
+
+        $validated = $request->validate([
+            'export_mode' => 'required|string|in:filter,selected',
+            'jurusan' => 'nullable|string',
+            'selected_students' => 'nullable|array',
+            'selected_students.*' => 'nullable|string',
+            'export_fields' => 'required|array',
+            'export_fields.*' => 'required|string|in:id,name,kompi,jurusan,prodi,tanggal_lahir,email,no_telp_mahasiswa,no_telp_ortu',
+        ]);
+
+        $query = Mahasiswa::query();
+
+        if ($validated['export_mode'] === 'selected') {
+            // Export specific selected students
+            if (empty($validated['selected_students'])) {
+                return back()->with('error', 'Tidak ada mahasiswa yang dipilih.');
+            }
+            $query->whereIn('id', $validated['selected_students']);
+        } else {
+            // Export based on filter (all students matching filter)
+            if (!empty($validated['jurusan'])) {
+                $query->where('jurusan', 'like', '%' . $validated['jurusan'] . '%');
+            }
+
+            if (!empty($prodi)) {
+                $query->whereIn('prodi', $prodi);
+            }
+        }
+
+        $students = $query->orderBy('name', 'asc')->get();
+
+        if ($students->isEmpty()) {
+            return back()->with('error', 'Tidak ada mahasiswa yang ditemukan berdasarkan filter.');
+        }
+
+        // Generate Excel file with selected fields
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // Define field labels
+        $fieldLabels = [
+            'id' => 'Nomor Pendaftaran',
+            'name' => 'Nama',
+            'kompi' => 'Kompi',
+            'jurusan' => 'Jurusan',
+            'prodi' => 'Prodi',
+            'tanggal_lahir' => 'Tanggal Lahir',
+            'email' => 'Email',
+            'no_telp_mahasiswa' => 'No. Telp Mahasiswa',
+            'no_telp_ortu' => 'No. Telp Ortu',
+        ];
+
+        // Set headers
+        $col = 1;
+        foreach ($validated['export_fields'] as $field) {
+            $sheet->setCellValueByColumnAndRow($col++, 1, $fieldLabels[$field]);
+        }
+
+        // Set data
+        $row = 2;
+        foreach ($students as $student) {
+            $col = 1;
+            foreach ($validated['export_fields'] as $field) {
+                $value = $student->{$field} ?? '';
+                if ($field === 'tanggal_lahir' && $value) {
+                    $value = \Carbon\Carbon::parse($value)->format('d/m/Y');
+                }
+                $sheet->setCellValueByColumnAndRow($col++, $row, $value);
+            }
+            $row++;
+        }
+
+        // Style the header
+        $headerRange = 'A1:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($validated['export_fields'])) . '1';
+        $sheet->getStyle($headerRange)->getFont()->setBold(true);
+        $sheet->getStyle($headerRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF1E3A8A');
+        $sheet->getStyle($headerRange)->getFont()->getColor()->setARGB('FFFFFFFF');
+
+        // Auto-size columns
+        foreach (range('A', \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($validated['export_fields']))) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $excelWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $excelFileName = 'data_mahasiswa_' . date('Y-m-d_His') . '.xlsx';
+
+        return response()->stream(
+            function() use ($excelWriter) {
+                $excelWriter->save('php://output');
+            },
+            200,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment;filename="' . $excelFileName . '"',
+                'Cache-Control' => 'max-age=0',
+            ]
+        );
+    }
+
     // ─── MAHASISWA SAYA (GARDA) ──────────────────────────────────────────────
     public function mahasiswaSaya()
     {
@@ -969,7 +1106,7 @@ class AdminController extends Controller
         // 3. Row 3: Kosong
 
         // 4. Header Kolom (Row 4)
-        $headers = ['No', 'Kompi', 'ID / NPM', 'Nama Mahasiswa', 'Jurusan', 'Prodi', 'No. Telp'];
+        $headers = ['No', 'Kompi', 'ID / No Pendaftaran', 'Nama Mahasiswa', 'Jurusan', 'Prodi', 'No. Telp'];
         $cols    = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 
         foreach ($headers as $idx => $hText) {

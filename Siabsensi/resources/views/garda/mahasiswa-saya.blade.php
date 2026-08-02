@@ -13,7 +13,7 @@
   <div class="panel" style="margin-bottom:16px;padding:14px 20px">
     <form method="GET" action="{{ route('garda.mahasiswa-saya') }}" style="display:flex;gap:12px;align-items:center">
       <div class="form-input-wrapper" style="flex:1;max-width:300px;display:flex">
-        <input type="text" name="search" class="form-input" placeholder="Cari nama atau NPM..." value="{{ request('search') }}" style="border-radius:4px 0 0 4px">
+        <input type="text" name="search" class="form-input" placeholder="Cari nama atau No Pendaftaran..." value="{{ request('search') }}" style="border-radius:4px 0 0 4px">
         <button type="submit" class="btn btn-primary" style="border-radius:0 4px 4px 0;padding:0 12px">
           <span class="material-symbols-outlined" style="font-size:18px">search</span>
         </button>

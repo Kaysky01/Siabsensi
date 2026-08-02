@@ -102,6 +102,8 @@ Route::middleware(['auth', 'role:timdis'])->prefix('timdis')->group(function () 
 
     // Mahasiswa Management
     Route::get('/mahasiswa', [AdminController::class, 'mahasiswa'])->name('timdis.mahasiswa');
+    Route::post('/mahasiswa/export/load', [AdminController::class, 'loadExportStudents'])->name('timdis.mahasiswa.export.load');
+    Route::post('/mahasiswa/export/process', [AdminController::class, 'processExportMahasiswa'])->name('timdis.mahasiswa.export.process');
     Route::post('/mahasiswa', [AdminController::class, 'storeMahasiswa'])->name('timdis.mahasiswa.store');
     Route::put('/mahasiswa/{id}', [AdminController::class, 'updateMahasiswa'])->name('timdis.mahasiswa.update');
     Route::delete('/mahasiswa/{id}', [AdminController::class, 'deleteMahasiswa'])->name('timdis.mahasiswa.destroy');
@@ -134,6 +136,8 @@ Route::middleware(['auth', 'role:admin,timdis,garda,acara'])->prefix('admin')->g
 
     // Mahasiswa
     Route::get('/mahasiswa', [AdminController::class, 'mahasiswa'])->name('admin.mahasiswa');
+    Route::post('/mahasiswa/export/load', [AdminController::class, 'loadExportStudents'])->name('admin.mahasiswa.export.load');
+    Route::post('/mahasiswa/export/process', [AdminController::class, 'processExportMahasiswa'])->name('admin.mahasiswa.export.process');
     Route::get('/mahasiswa/import/template', [AdminController::class, 'downloadTemplateCSV'])->name('admin.mahasiswa.import.template');
     Route::post('/mahasiswa/import', [AdminController::class, 'importMahasiswaCSV'])->name('admin.mahasiswa.import');
     Route::get('/mahasiswa/{id}/qr', [AdminController::class, 'qrCode'])->name('admin.mahasiswa.qr');

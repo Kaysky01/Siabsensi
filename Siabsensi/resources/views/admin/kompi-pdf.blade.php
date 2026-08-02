@@ -86,7 +86,7 @@
         <thead>
             <tr>
                 <th class="col-no">No</th>
-                <th class="col-id">ID / NPM</th>
+                <th class="col-id">ID / No Pendaftaran</th>
                 <th class="col-name">Nama Mahasiswa</th>
                 <th class="col-jur">Jurusan</th>
                 <th class="col-prodi">Prodi</th>
