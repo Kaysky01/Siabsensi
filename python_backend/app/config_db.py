@@ -4,11 +4,11 @@ from pathlib import Path
 
 # Konfigurasi MySQL langsung
 MYSQL_CONFIG = {
-    'host': '127.0.0.1',
-    'port': 3306,
-    'user': 'root',
-    'password': '',
-    'database': 'siabsensi2',
+    'host': os.getenv('DB_HOST', '127.0.0.1'),
+    'port': int(os.getenv('DB_PORT', 3306)),
+    'user': os.getenv('DB_USERNAME', 'root'),
+    'password': os.getenv('DB_PASSWORD', ''),
+    'database': os.getenv('DB_DATABASE', 'siabsensi'),
     'charset': 'utf8mb4',
     'collation': 'utf8mb4_unicode_ci'
 }

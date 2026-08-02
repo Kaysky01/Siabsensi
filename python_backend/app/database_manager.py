@@ -77,6 +77,8 @@ class DatabaseManager:
                 password VARCHAR(255) NOT NULL,
                 full_name VARCHAR(255),
                 role ENUM('admin', 'timdis', 'garda', 'acara', 'mahasiswa') DEFAULT 'mahasiswa',
+                assigned_kompi VARCHAR(100) NULL,
+                mahasiswa_id VARCHAR(50) NULL,
                 is_active TINYINT(1) DEFAULT 1,
                 last_login DATETIME,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -91,8 +93,8 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS mahasiswa (
                 id VARCHAR(50) PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
-                kompi VARCHAR(100) NOT NULL,
-                jurusan VARCHAR(100) NOT NULL,
+                kompi VARCHAR(100) NULL,
+                jurusan VARCHAR(100) NULL,
                 prodi VARCHAR(100),
                 email VARCHAR(255),
                 no_telp_mahasiswa VARCHAR(20),
@@ -104,6 +106,27 @@ class DatabaseManager:
                 INDEX idx_active (is_active)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         """)
+
+        # Add missing columns / alter table migrations if tables already exist
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN assigned_kompi VARCHAR(100) NULL")
+        except mysql.connector.Error:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN mahasiswa_id VARCHAR(50) NULL")
+        except mysql.connector.Error:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE mahasiswa MODIFY COLUMN kompi VARCHAR(100) NULL")
+        except mysql.connector.Error:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE mahasiswa MODIFY COLUMN jurusan VARCHAR(100) NULL")
+        except mysql.connector.Error:
+            pass
         
         # Add missing columns to mahasiswa table if they don't exist
         try:

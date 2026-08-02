@@ -739,6 +739,10 @@ class LaravelSyncService:
         for config in config_list:
             try:
                 config_key = config.get('config_key')
+                if not config_key:
+                    logger.warning("Skipping system config item with empty config_key")
+                    continue
+                    
                 config_value = config.get('config_value')
                 description = config.get('description', '')
                 
