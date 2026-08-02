@@ -22,7 +22,7 @@ class ViewServiceProvider extends ServiceProvider
         View::composer('layouts.admin', function ($view) {
             $user = Auth::user();
 
-            if ($user && $user->role === 'garda' && $user->assigned_kompi) {
+            if ($user && ($user->role === 'garda' || $user->role === 'timdis') && $user->assigned_kompi) {
                 $kompi = $user->assigned_kompi;
                 $mhsTable = (new Mahasiswa)->getTable();
 
