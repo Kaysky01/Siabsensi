@@ -1008,41 +1008,171 @@ class AdminController extends Controller
         $kompiNames = $kompis->pluck('nama')->toArray();
         $kompiCount = count($kompiNames);
 
-        // Group students by jurusan to ensure each kompi has all jurusans
-        $mahasiswaByJurusan = Mahasiswa::get()->groupBy('jurusan');
+        $shuffleMode = $request->input('shuffle_mode', 'by_jurusan');
+        $distStrategy = $request->input('distribution_strategy', 'even');
+        $maxPerKompi = (int) $request->input('max_per_kompi', 50);
 
-        foreach ($mahasiswaByJurusan as $jurusan => $students) {
-            // Shuffle students in this jurusan randomly
-            $shuffledStudents = $students->shuffle();
-            
-            // Distribute them evenly in round-robin across available Kompi
-            foreach ($shuffledStudents as $index => $mhs) {
-                $assignedKompi = $kompiNames[$index % $kompiCount];
-                $mhs->update(['kompi' => $assignedKompi]);
-            }
+        // Fetch all active/valid mahasiswa
+        $allStudents = Mahasiswa::all();
+        if ($allStudents->isEmpty()) {
+            return back()->with('error', 'Gagal mengacak: Data mahasiswa kosong.');
         }
 
-        return back()->with('success', 'Mahasiswa berhasil diacak dan didistribusikan secara merata berdasarkan Jurusan ke ' . $kompiCount . ' Kompi.');
+        // 1. Group / Shuffle Order according to mode
+        if ($shuffleMode === 'by_prodi') {
+            $grouped = $allStudents->groupBy(function ($m) {
+                return !empty($m->prodi) ? $m->prodi : 'Lainnya';
+            });
+        } elseif ($shuffleMode === 'by_jurusan') {
+            $grouped = $allStudents->groupBy(function ($m) {
+                return !empty($m->jurusan) ? $m->jurusan : 'Lainnya';
+            });
+        } else {
+            $grouped = collect(['all' => $allStudents]);
+        }
+
+        // Interleave grouped students to distribute evenly across Kompis
+        $finalStudentList = collect();
+        if ($shuffleMode !== 'pure_random') {
+            $groupArrays = [];
+            foreach ($grouped as $groupStudents) {
+                $groupArrays[] = $groupStudents->shuffle()->values();
+            }
+
+            $maxInGroup = max(array_map(function ($arr) {
+                return count($arr);
+            }, $groupArrays));
+
+            for ($i = 0; $i < $maxInGroup; $i++) {
+                foreach ($groupArrays as $gArr) {
+                    if (isset($gArr[$i])) {
+                        $finalStudentList->push($gArr[$i]);
+                    }
+                }
+            }
+        } else {
+            $finalStudentList = $allStudents->shuffle();
+        }
+
+        // 2. Distribute to Kompis according to strategy
+        if ($distStrategy === 'max_quota' && $maxPerKompi > 0) {
+            $kompiPointer = 0;
+            $currentKompiCount = 0;
+
+            foreach ($finalStudentList as $mhs) {
+                if ($currentKompiCount >= $maxPerKompi && ($kompiPointer + 1) < $kompiCount) {
+                    $kompiPointer++;
+                    $currentKompiCount = 0;
+                }
+
+                $assignedKompi = $kompiNames[$kompiPointer];
+                $mhs->update(['kompi' => $assignedKompi]);
+
+                User::where('mahasiswa_id', $mhs->id)
+                    ->orWhere('username', $mhs->id)
+                    ->update(['assigned_kompi' => $assignedKompi]);
+
+                $currentKompiCount++;
+            }
+            $msgStrategy = "dengan kuota maks {$maxPerKompi} orang/kompi";
+        } else {
+            // Even distribution (round-robin)
+            foreach ($finalStudentList as $index => $mhs) {
+                $assignedKompi = $kompiNames[$index % $kompiCount];
+                $mhs->update(['kompi' => $assignedKompi]);
+
+                User::where('mahasiswa_id', $mhs->id)
+                    ->orWhere('username', $mhs->id)
+                    ->update(['assigned_kompi' => $assignedKompi]);
+            }
+            $msgStrategy = "secara merata ke {$kompiCount} Kompi";
+        }
+
+        $modeLabel = $shuffleMode === 'by_prodi' ? 'Program Studi' : ($shuffleMode === 'by_jurusan' ? 'Jurusan' : 'Random');
+        return redirect()->back()->with('success', "Mahasiswa berhasil diacak berdasarkan {$modeLabel} dan didistribusikan {$msgStrategy}.");
     }
 
     public function bulkUpdateKompi(Request $request)
     {
+        $scope = $request->input('update_scope', 'selected');
+
+        // Case 1: Server-side bulk update for ALL matching filter results
+        if ($scope === 'all_filtered') {
+            $targetKompiRaw = $request->input('target_kompi');
+            if (empty($targetKompiRaw) && $request->has('assignments')) {
+                $firstAssignment = collect($request->input('assignments'))->first();
+                if ($firstAssignment && isset($firstAssignment['kompi'])) {
+                    $targetKompiRaw = $firstAssignment['kompi'];
+                }
+            }
+            $targetKompi = (!empty($targetKompiRaw) && $targetKompiRaw !== '__CLEAR__') ? $targetKompiRaw : null;
+
+            $filterKompi = $request->input('filter_kompi');
+            $search = $request->input('search');
+
+            $query = Mahasiswa::query();
+
+            if ($filterKompi && $filterKompi !== 'all') {
+                if ($filterKompi === '__empty__') {
+                    $query->where(function ($q) {
+                        $q->whereNull('kompi')->orWhere('kompi', '')->orWhere('kompi', '-');
+                    });
+                } else {
+                    $query->where('kompi', $filterKompi);
+                }
+            }
+
+            if ($search) {
+                $query->where('name', 'like', "%{$search}%");
+            }
+
+            $mahasiswaIds = $query->pluck('id');
+            $count = $mahasiswaIds->count();
+
+            if ($count === 0) {
+                return redirect()->back()->with('error', 'Tidak ada data mahasiswa yang sesuai dengan filter.');
+            }
+
+            // Perform bulk update in DB for Mahasiswa
+            Mahasiswa::whereIn('id', $mahasiswaIds)->update(['kompi' => $targetKompi]);
+
+            // Sync User table assigned_kompi
+            User::whereIn('mahasiswa_id', $mahasiswaIds)
+                ->orWhereIn('username', $mahasiswaIds)
+                ->update(['assigned_kompi' => $targetKompi]);
+
+            $label = $targetKompi ? "ke '{$targetKompi}'" : "menjadi belum ada kompi";
+            return redirect()->back()->with('success', "Kompi berhasil diperbarui {$label} untuk seluruh {$count} mahasiswa hasil filter secara server-side.");
+        }
+
+        // Case 2: Selective row updates from page submission
         $validated = $request->validate([
             'assignments' => 'required|array',
             'assignments.*.id' => 'required|string|exists:mahasiswa,id',
-            'assignments.*.kompi' => 'required|string|max:100',
+            'assignments.*.kompi' => 'nullable|string|max:100',
         ]);
 
         $updated = 0;
         foreach ($validated['assignments'] as $assignment) {
             $m = Mahasiswa::find($assignment['id']);
-            if ($m && $m->kompi !== $assignment['kompi']) {
-                $m->update(['kompi' => $assignment['kompi']]);
-                $updated++;
+            if ($m) {
+                $rawKompi = $assignment['kompi'] ?? null;
+                $newKompi = (!empty($rawKompi) && $rawKompi !== '__CLEAR__') ? $rawKompi : null;
+                
+                if ($m->kompi !== $newKompi) {
+                    $m->update(['kompi' => $newKompi]);
+
+                    // Sync associated User assigned_kompi
+                    User::where('mahasiswa_id', $m->id)
+                        ->orWhere('username', $m->id)
+                        ->update(['assigned_kompi' => $newKompi]);
+
+                    $updated++;
+                }
             }
         }
 
-        return redirect()->route('admin.kompi-management')->with('success', "Kompi berhasil diperbarui untuk {$updated} mahasiswa.");
+        return redirect()->back()->with('success', "Kompi berhasil diperbarui untuk {$updated} mahasiswa.");
     }
 
     /**

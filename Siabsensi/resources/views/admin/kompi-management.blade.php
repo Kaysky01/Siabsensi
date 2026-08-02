@@ -52,18 +52,27 @@
   <div class="panel">
     <form method="POST" action="{{ route('admin.kompi.bulkUpdate') }}" id="kompi-form">
       @csrf
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div style="display:flex;gap:12px;align-items:center">
-          <label class="form-label" style="margin-bottom:0">Set kompi terpilih ke:</label>
-          <select id="bulk-kompi-value" class="form-input" style="width:150px;padding:5px 10px">
-            <option value="">Pilih Kompi...</option>
+      <input type="hidden" name="update_scope" id="update-scope" value="selected">
+      <input type="hidden" name="filter_kompi" value="{{ $filterKompi ?? 'all' }}">
+      <input type="hidden" name="search" value="{{ $search ?? '' }}">
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label class="form-label" style="margin-bottom:0;font-weight:600">Set Kompi Target:</label>
+          <select id="bulk-kompi-value" name="target_kompi" class="form-input" style="width:180px;padding:6px 10px" onchange="handleHeaderKompiChange()">
+            <option value="">-- Pilih Kompi --</option>
             @foreach($kompiOptions as $k)
               <option value="{{ $k }}">{{ $k }}</option>
             @endforeach
+            <option value="__CLEAR__">-- Kosongkan Kompi --</option>
           </select>
-          <button type="button" class="btn btn-secondary btn-sm" onclick="applyBulkKompi()">Terapkan ke baris</button>
+          <span style="font-size:12px;color:var(--text-muted)">(Pilih Kompi, centang mahasiswa di bawah, lalu klik Simpan)</span>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm">Simpan Perubahan</button>
+
+        <button type="submit" class="btn btn-primary btn-sm" id="btn-save-changes">
+          <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">save</span>
+          Simpan Perubahan (<span id="changes-count">0</span>)
+        </button>
       </div>
 
       <table class="att-table">
@@ -78,17 +87,19 @@
         </thead>
         <tbody>
           @foreach($mahasiswaList as $i => $m)
-          <tr>
-            <td><input type="checkbox" class="row-checkbox" value="{{ $i }}"></td>
+          <tr id="row-{{ $i }}">
+            <td><input type="checkbox" class="row-checkbox" value="{{ $i }}" onchange="updateSelectedCount()"></td>
             <td>{{ $m->name }}</td>
             <td>{{ $m->id }}</td>
             <td>@if($m->kompi && $m->kompi !== '-')<span class="badge badge-blue">{{ $m->kompi }}</span>@else<span class="badge badge-red">Belum ada</span>@endif</td>
             <td>
-              <input type="hidden" name="assignments[{{ $i }}][id]" value="{{ $m->id }}">
-              <select name="assignments[{{ $i }}][kompi]" id="kompi-input-{{ $i }}" class="form-input" style="padding:4px 8px;width:120px" required>
+              <input type="hidden" name="assignments[{{ $i }}][id]" value="{{ $m->id }}" id="id-input-{{ $i }}" disabled>
+              <select name="assignments[{{ $i }}][kompi]" id="kompi-input-{{ $i }}" class="form-input kompi-select" style="padding:4px 8px;width:140px;transition:all 0.2s" data-original="{{ (empty($m->kompi) || $m->kompi === '-') ? '' : $m->kompi }}" data-index="{{ $i }}" onchange="markRowChanged({{ $i }})" disabled>
+                <option value="" {{ (empty($m->kompi) || $m->kompi === '-') ? 'selected' : '' }}>-- Pilih Kompi --</option>
                 @foreach($kompiOptions as $k)
                   <option value="{{ $k }}" {{ $m->kompi == $k ? 'selected' : '' }}>{{ $k }}</option>
                 @endforeach
+                <option value="__CLEAR__">-- Kosongkan Kompi --</option>
               </select>
             </td>
           </tr>
@@ -156,18 +167,55 @@
 
 {{-- Confirm Modal (shuffle) --}}
 <div id="confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9998; flex-direction:column; justify-content:center; align-items:center;">
-  <div style="background:#ffffff; padding:24px; border-radius:12px; width:100%; max-width:400px; box-shadow:0 10px 25px rgba(0,0,0,0.3); text-align:center;">
-    <div style="width:50px; height:50px; border-radius:50%; background:#ffe4e6; color:#e11d48; display:flex; justify-content:center; align-items:center; margin:0 auto 16px;">
-      <span class="material-symbols-outlined" style="font-size:24px;">warning</span>
+  <div style="background:#ffffff; padding:28px; border-radius:12px; width:100%; max-width:480px; box-shadow:0 10px 30px rgba(0,0,0,0.3); text-align:left;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+      <div style="width:42px; height:42px; border-radius:50%; background:#ffe4e6; color:#e11d48; display:flex; justify-content:center; align-items:center; flex-shrink:0;">
+        <span class="material-symbols-outlined" style="font-size:22px;">shuffle</span>
+      </div>
+      <div>
+        <h3 style="margin:0; font-family:var(--font-sans); font-size:18px; color:var(--text-main);">Pengaturan Acak Otomatis</h3>
+        <p style="margin:0; color:var(--text-muted); font-size:12px;">Pilih kriteria pengelompokan dan kapasitas Kompi.</p>
+      </div>
     </div>
-    <h3 style="margin:0 0 12px; font-family:var(--font-sans); font-size:18px; color:var(--text-main);">Acak Seluruh Kompi?</h3>
-    <p style="margin:0 0 24px; color:var(--text-muted); font-size:14px; line-height:1.5;">
-      Peringatan: Tindakan ini akan mengacak ulang <b>SELURUH DATA MAHASISWA</b> secara permanen ke dalam Kompi yang tersedia berdasarkan jurusan secara merata. Anda yakin ingin melanjutkan?
-    </p>
-    <div style="display:flex; gap:12px; justify-content:center;">
-      <button class="btn btn-ghost" onclick="hideConfirmModal()" style="flex:1;">Batal</button>
-      <button class="btn btn-primary" onclick="executeShuffle()" style="flex:1; background:var(--danger); border-color:var(--danger);">Ya, Acak Sekarang</button>
-    </div>
+
+    <form method="POST" action="{{ route('admin.kompi.shuffle') }}" id="shuffle-form">
+      @csrf
+
+      {{-- Kriteria Pengelompokan --}}
+      <div style="margin-bottom:14px;">
+        <label class="form-label" style="font-weight:600; margin-bottom:4px; display:block;">Metode Keseimbangan:</label>
+        <select name="shuffle_mode" class="form-input" style="width:100%; padding:8px 10px;">
+          <option value="by_jurusan">Merata Berdasarkan Jurusan (Rekomendasi)</option>
+          <option value="by_prodi">Merata Berdasarkan Program Studi (Prodi)</option>
+          <option value="pure_random">Acak Bebas (Random Murni)</option>
+        </select>
+        <span style="font-size:11px; color:#64748b; margin-top:2px; display:block;">Setiap Kompi akan mendapatkan gabungan mahasiswa dari seluruh Jurusan/Prodi secara seimbang.</span>
+      </div>
+
+      {{-- Strategi Pembagian Kapasitas --}}
+      <div style="margin-bottom:14px;">
+        <label class="form-label" style="font-weight:600; margin-bottom:4px; display:block;">Pembagian Kapasitas:</label>
+        <select name="distribution_strategy" id="dist-strategy-select" class="form-input" style="width:100%; padding:8px 10px;" onchange="toggleMaxQuotaInput(this.value)">
+          <option value="even">Dibagi Rata ke Seluruh Kompi</option>
+          <option value="max_quota">Maksimal Orang per Kompi</option>
+        </select>
+      </div>
+
+      {{-- Input Kuota per Kompi --}}
+      <div id="max-quota-wrapper" style="margin-bottom:20px; display:none; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+        <label class="form-label" style="font-weight:600; margin-bottom:4px; display:block;">Maksimal Orang per Kompi:</label>
+        <input type="number" name="max_per_kompi" id="max-per-kompi-input" class="form-input" value="50" min="1" max="1000" style="width:100%; padding:6px 10px;">
+        <span style="font-size:11px; color:#64748b; margin-top:2px; display:block;">Kompi diisi hingga jumlah maksimum tercapai sebelum mengisi Kompi berikutnya.</span>
+      </div>
+
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:20px;">
+        <button type="button" class="btn btn-ghost" onclick="hideConfirmModal()">Batal</button>
+        <button type="button" class="btn btn-primary" onclick="executeShuffle()" style="background:var(--danger); border-color:var(--danger); padding:8px 16px;">
+          <span class="material-symbols-outlined" style="font-size:16px; vertical-align:middle;">shuffle</span>
+          Mulai Acak Sekarang
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -183,12 +231,20 @@
 /* Overlay dikendalikan hanya via CSS class, bukan inline style */
 #download-overlay { display: none !important; }
 #download-overlay.visible { display: flex !important; }
+.row-highlight-changed { background-color: #f0fdf4 !important; transition: background-color 0.2s ease; }
+.row-highlight-checked { background-color: #f8fafc !important; }
 </style>
 
 <script>
 // ─── Shuffle ────────────────────────────────────────────────
 function showConfirmModal() { document.getElementById('confirm-modal').style.display = 'flex'; }
 function hideConfirmModal() { document.getElementById('confirm-modal').style.display = 'none'; }
+function toggleMaxQuotaInput(val) {
+  const wrapper = document.getElementById('max-quota-wrapper');
+  if (wrapper) {
+    wrapper.style.display = (val === 'max_quota') ? 'block' : 'none';
+  }
+}
 function executeShuffle() {
   hideConfirmModal();
   document.getElementById('loading-overlay').style.display = 'flex';
@@ -196,21 +252,128 @@ function executeShuffle() {
 }
 
 // ─── Bulk kompi ─────────────────────────────────────────────
-function toggleAll(source) {
-  document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = source.checked);
+function cleanValue(v) {
+  if (!v || v === '-' || v === '__CLEAR__') return '';
+  return String(v).trim();
 }
-function applyBulkKompi() {
-  let val = document.getElementById('bulk-kompi-value').value.trim();
-  if (!val) { alert('Masukkan nilai kompi!'); return; }
-  let count = 0;
+
+function handleHeaderKompiChange() {
+  const targetKompi = document.getElementById('bulk-kompi-value').value;
+  if (!targetKompi) return;
+
   document.querySelectorAll('.row-checkbox').forEach(cb => {
     if (cb.checked) {
-      document.getElementById('kompi-input-' + cb.value).value = val;
-      count++;
+      const idx = cb.value;
+      const select = document.getElementById('kompi-input-' + idx);
+      if (select) {
+        select.value = targetKompi;
+      }
     }
   });
-  if (count === 0) alert('Pilih setidaknya satu mahasiswa!');
+  updateSelectedCount();
 }
+
+function updateSelectedCount() {
+  const checkboxes = document.querySelectorAll('.row-checkbox');
+  const targetKompi = document.getElementById('bulk-kompi-value').value;
+  let checkedCount = 0;
+  let changedCount = 0;
+
+  checkboxes.forEach(cb => {
+    const idx = cb.value;
+    const select = document.getElementById('kompi-input-' + idx);
+    const hiddenId = document.getElementById('id-input-' + idx);
+    const row = document.getElementById('row-' + idx);
+    if (!select || !hiddenId) return;
+
+    if (cb.checked && targetKompi) {
+      select.value = targetKompi;
+    }
+
+    const originalVal = cleanValue(select.getAttribute('data-original'));
+    const currentVal = cleanValue(select.value);
+    const isChanged = (currentVal !== originalVal);
+
+    if (cb.checked || isChanged) {
+      select.disabled = false;
+      hiddenId.disabled = false;
+      if (cb.checked) checkedCount++;
+      changedCount++;
+
+      if (row) {
+        if (isChanged) {
+          row.classList.add('row-highlight-changed');
+          select.style.borderColor = '#16a34a';
+          select.style.fontWeight = '600';
+        } else {
+          row.classList.remove('row-highlight-changed');
+          select.style.borderColor = '';
+          select.style.fontWeight = '';
+        }
+      }
+    } else {
+      select.disabled = true;
+      hiddenId.disabled = true;
+      if (row) {
+        row.classList.remove('row-highlight-changed');
+        select.style.borderColor = '';
+        select.style.fontWeight = '';
+      }
+    }
+  });
+
+  const checkAll = document.getElementById('check-all');
+  const isCheckAll = checkAll && checkAll.checked;
+  const totalMhs = parseInt("{{ $mahasiswaList->total() }}", 10);
+  const scopeInput = document.getElementById('update-scope');
+
+  if (checkAll && checkboxes.length > 0) {
+    checkAll.checked = (checkedCount === checkboxes.length);
+  }
+
+  const chgEl = document.getElementById('changes-count');
+  if (isCheckAll && totalMhs > checkboxes.length) {
+    if (scopeInput) scopeInput.value = 'all_filtered';
+    if (chgEl) chgEl.textContent = `Seluruh ${totalMhs} Mahasiswa`;
+  } else {
+    if (scopeInput) scopeInput.value = 'selected';
+    if (chgEl) chgEl.textContent = changedCount;
+  }
+}
+
+function toggleAll(source) {
+  document.querySelectorAll('.row-checkbox').forEach(cb => {
+    cb.checked = source.checked;
+  });
+  updateSelectedCount();
+}
+
+function markRowChanged(idx) {
+  const cb = document.querySelector(`.row-checkbox[value="${idx}"]`);
+  if (cb) {
+    cb.checked = true;
+  }
+  updateSelectedCount();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const form = document.getElementById('kompi-form');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      const scope = document.getElementById('update-scope').value;
+      if (scope === 'selected') {
+        updateSelectedCount();
+        const count = parseInt(document.getElementById('changes-count').textContent || '0', 10);
+        if (count === 0) {
+          e.preventDefault();
+          alert('Pilih/centang setidaknya satu mahasiswa atau ubah kompi pada tabel sebelum menyimpan!');
+          return false;
+        }
+      }
+    });
+  }
+  updateSelectedCount();
+});
 
 // ─── Download buttons: pakai data attributes ─────────────────
 document.addEventListener('DOMContentLoaded', function () {

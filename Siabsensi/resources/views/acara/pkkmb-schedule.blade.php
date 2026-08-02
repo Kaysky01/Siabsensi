@@ -6,6 +6,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
 <section>
   <div class="page-header">
@@ -234,11 +236,11 @@
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Mulai *</label>
-              <input type="time" name="check_in_start" class="form-input" required>
+              <input type="text" name="check_in_start" class="form-input timepicker" placeholder="07:00" required>
             </div>
             <div class="form-row">
               <label class="form-label">Batas *</label>
-              <input type="time" name="check_in_end" class="form-input" required>
+              <input type="text" name="check_in_end" class="form-input timepicker" placeholder="08:00" required>
             </div>
           </div>
         </div>
@@ -251,11 +253,11 @@
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Mulai *</label>
-              <input type="time" name="check_out_start" class="form-input" required>
+              <input type="text" name="check_out_start" class="form-input timepicker" placeholder="16:00" required>
             </div>
             <div class="form-row">
               <label class="form-label">Akhir *</label>
-              <input type="time" name="check_out_end" class="form-input" required>
+              <input type="text" name="check_out_end" class="form-input timepicker" placeholder="17:00" required>
             </div>
           </div>
         </div>
@@ -318,11 +320,11 @@
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Mulai *</label>
-              <input type="time" name="check_in_start" id="edit-check-in-start" class="form-input" required>
+              <input type="text" name="check_in_start" id="edit-check-in-start" class="form-input timepicker" placeholder="07:00" required>
             </div>
             <div class="form-row">
               <label class="form-label">Batas *</label>
-              <input type="time" name="check_in_end" id="edit-check-in-end" class="form-input" required>
+              <input type="text" name="check_in_end" id="edit-check-in-end" class="form-input timepicker" placeholder="08:00" required>
             </div>
           </div>
         </div>
@@ -335,11 +337,11 @@
           <div class="form-grid">
             <div class="form-row">
               <label class="form-label">Mulai *</label>
-              <input type="time" name="check_out_start" id="edit-check-out-start" class="form-input" required>
+              <input type="text" name="check_out_start" id="edit-check-out-start" class="form-input timepicker" placeholder="16:00" required>
             </div>
             <div class="form-row">
               <label class="form-label">Akhir *</label>
-              <input type="time" name="check_out_end" id="edit-check-out-end" class="form-input" required>
+              <input type="text" name="check_out_end" id="edit-check-out-end" class="form-input timepicker" placeholder="17:00" required>
             </div>
           </div>
         </div>
@@ -363,14 +365,35 @@
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+  flatpickr('.timepicker', {
+    enableTime: true,
+    noCalendar: true,
+    dateFormat: "H:i",
+    time_24hr: true,
+    minuteIncrement: 1,
+    allowInput: true
+  });
+});
+
+function setPickerValue(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el._flatpickr) {
+    el._flatpickr.setDate(val, true);
+  } else {
+    el.value = val;
+  }
+}
+
 function openEditSchedule(id, hariKe, tanggal, checkInStart, checkInEnd, checkOutStart, checkOutEnd, isActive) {
   document.getElementById('edit-schedule-form').action = '/acara/pkkmb-schedule/' + id;
   document.getElementById('edit-hari-ke').value = hariKe;
   document.getElementById('edit-tanggal').value = tanggal;
-  document.getElementById('edit-check-in-start').value = checkInStart;
-  document.getElementById('edit-check-in-end').value = checkInEnd;
-  document.getElementById('edit-check-out-start').value = checkOutStart;
-  document.getElementById('edit-check-out-end').value = checkOutEnd;
+  setPickerValue('edit-check-in-start', checkInStart);
+  setPickerValue('edit-check-in-end', checkInEnd);
+  setPickerValue('edit-check-out-start', checkOutStart);
+  setPickerValue('edit-check-out-end', checkOutEnd);
   document.getElementById('edit-is-active').checked = isActive == 1;
   document.getElementById('modal-edit-schedule').classList.add('show');
 }
@@ -442,5 +465,6 @@ function confirmDeleteSchedule(id, hariKe, tanggal) {
 .form-section-title { font-weight: 700; font-size: 14px; color: var(--text); margin-bottom: var(--space-md); display: flex; align-items: center; gap: 8px; }
 .empty-state-box { text-align: center; padding: 60px 20px; background: var(--bg); border-radius: var(--radius-lg); border: 2px dashed var(--border); }
 .empty-icon { font-size: 64px; color: var(--text-muted); margin-bottom: 16px; }
+.flatpickr-calendar { z-index: 99999 !important; box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important; border-radius: 12px !important; }
 </style>
 @endsection

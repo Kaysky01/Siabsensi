@@ -15,7 +15,7 @@ return new class extends Migration
             // Definisi Kolom
             $table->string('id', 50)->primary();
             $table->string('name', 255);
-            $table->string('kompi', 100);
+            $table->string('kompi', 100)->nullable();
             $table->string('jurusan', 100);
             $table->string('prodi', 100)->nullable();
             $table->date('tanggal_lahir')->nullable();
