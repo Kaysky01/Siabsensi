@@ -51,7 +51,7 @@
           <td><span class="badge {{ $u->is_active ? 'badge-green' : 'badge-red' }}">{{ $u->is_active ? 'Aktif' : 'Nonaktif' }}</span></td>
           <td>
             <div style="display:flex;gap:4px">
-              <button class="btn btn-ghost btn-sm" onclick="openEditUser({{ $u->id }}, '{{ addslashes($u->full_name) }}', '{{ $u->email }}', '{{ $u->assigned_kompi }}')" title="Edit"><span class="material-symbols-outlined" style="font-size:16px">edit</span></button>
+              <button class="btn btn-ghost btn-sm" onclick="openEditUser({{ $u->id }}, '{{ addslashes($u->full_name) }}', '{{ $u->email }}', '{{ $u->assigned_kompi }}', '{{ $u->role }}')" title="Edit"><span class="material-symbols-outlined" style="font-size:16px">edit</span></button>
               @if($u->is_active)
               <form method="POST" action="{{ route('admin.users.deactivate', $u->id) }}" style="display:inline">@csrf<button type="submit" class="btn btn-ghost btn-sm" title="Nonaktifkan"><span class="material-symbols-outlined" style="font-size:16px;color:var(--danger)">block</span></button></form>
               @else
@@ -99,7 +99,7 @@
     <form method="POST" id="edit-user-form">@csrf @method('PUT')
       <div class="form-row"><label class="form-label">Nama Lengkap *</label><input name="full_name" id="eu-name" class="form-input" required></div>
       <div class="form-row"><label class="form-label">Email</label><input type="email" name="email" id="eu-email" class="form-input"></div>
-      <div class="form-row"><label class="form-label">Kompi</label><select name="assigned_kompi" id="eu-kompi" class="form-input"><option value="">-- Tidak ada --</option>@foreach($kompiOptions as $k)<option value="{{ $k }}">{{ $k }}</option>@endforeach</select></div>
+      <div class="form-row" id="edit-kompi-row" style="display:none"><label class="form-label">Kompi</label><select name="assigned_kompi" id="eu-kompi" class="form-input"><option value="">-- Tidak ada --</option>@foreach($kompiOptions as $k)<option value="{{ $k }}">{{ $k }}</option>@endforeach</select></div>
       <div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="this.closest('.modal-backdrop').classList.remove('show')">Batal</button><button type="submit" class="btn btn-primary">Update</button></div>
     </form>
   </div>
@@ -147,11 +147,12 @@
 </div>
 
 <script>
-function openEditUser(id, name, email, kompi) {
+function openEditUser(id, name, email, kompi, role) {
   document.getElementById('edit-user-form').action = '/admin/users/' + id;
   document.getElementById('eu-name').value = name;
   document.getElementById('eu-email').value = email || '';
   document.getElementById('eu-kompi').value = kompi || '';
+  document.getElementById('edit-kompi-row').style.display = (role === 'garda' || role === 'timdis') ? 'block' : 'none';
   document.getElementById('modal-edit-user').classList.add('show');
 }
 function openResetPw(id, username) {

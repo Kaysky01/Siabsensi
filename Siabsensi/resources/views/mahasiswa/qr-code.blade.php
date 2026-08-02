@@ -8,11 +8,11 @@
     <div class="page-sub">Berikut adalah kartu ID Anda. Anda dapat mengunduhnya untuk dicetak atau disimpan di HP.</div>
   </div>
   <div class="header-actions">
-    @if($isProfileComplete)
+    @if($isProfileComplete && ($hasKompi ?? false))
     <button onclick="downloadQR()" class="btn btn-primary btn-sm">
       <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span> Unduh Kartu
     </button>
-    @else
+    @elseif(!$isProfileComplete)
     <a href="{{ route('mahasiswa.profile') }}" class="btn btn-primary btn-sm" style="background-color:#f59e0b;border:none;color:white;text-decoration:none;">
       <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">edit</span> Lengkapi Profil
     </a>
@@ -43,6 +43,26 @@
   <a href="{{ route('mahasiswa.profile') }}" class="btn btn-primary" style="display:inline-flex;text-decoration:none">
     <span class="material-symbols-outlined" style="font-size:16px">person_edit</span> Ke Halaman Profil
   </a>
+</div>
+@elseif(!($hasKompi ?? false))
+<div class="panel" style="max-width:720px;margin:0 auto;padding:32px 24px;text-align:center">
+  <div style="width:88px;height:88px;border-radius:999px;background:#fef2f2;border:2px solid #ef4444;display:flex;align-items:center;justify-content:center;margin:0 auto 18px auto">
+    <span class="material-symbols-outlined" style="font-size:42px;color:#dc2626">lock</span>
+  </div>
+
+  <div style="font-size:24px;font-weight:800;color:#111827;margin-bottom:8px">ID Card Belum Tersedia</div>
+  <div style="font-size:14px;color:#6b7280;line-height:1.7;max-width:560px;margin:0 auto 18px auto">
+    Anda belum ditempatkan ke dalam Kompi. ID Card dan QR Code baru bisa diunduh setelah Anda memiliki Kompi. Silakan hubungi admin untuk penempatan Kompi.
+  </div>
+
+  <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:18px;text-align:left;max-width:520px;margin:0 auto 20px auto">
+    <div style="font-size:13px;font-weight:700;color:#991b1b;margin-bottom:6px">
+      <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">info</span> Informasi
+    </div>
+    <div style="font-size:13px;color:#7f1d1d;line-height:1.6">
+      Kompi Anda belum ditentukan oleh admin. Kartu absensi QR tidak dapat diunduh sampai Anda memiliki Kompi.
+    </div>
+  </div>
 </div>
 @else
 <div class="panel" style="display:flex;justify-content:center;align-items:center;background:var(--bg);padding:40px 20px;overflow:auto;">

@@ -275,9 +275,10 @@ class MahasiswaController extends Controller
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
         $missingProfileFields = $mahasiswa->getMissingProfileFields();
         $isProfileComplete = $mahasiswa->hasCompleteProfile();
+        $hasKompi = !empty(trim($mahasiswa->kompi ?? '')) && trim($mahasiswa->kompi) !== '-';
 
-        if (!$isProfileComplete) {
-            return view('mahasiswa.qr-code', compact('mahasiswa', 'missingProfileFields', 'isProfileComplete'));
+        if (!$isProfileComplete || !$hasKompi) {
+            return view('mahasiswa.qr-code', compact('mahasiswa', 'missingProfileFields', 'isProfileComplete', 'hasKompi'));
         }
         
         $template = $mahasiswa->getIdCardTemplate();
@@ -301,13 +302,16 @@ class MahasiswaController extends Controller
         $templateDepan = $template['template_depan'];
         $templateBelakang = $template['template_belakang'];
         
+        $hasKompi = true;
+
         return view('mahasiswa.qr-code', compact(
             'mahasiswa',
             'qrImage',
             'templateDepan',
             'templateBelakang',
             'missingProfileFields',
-            'isProfileComplete'
+            'isProfileComplete',
+            'hasKompi'
         ));
     }
 

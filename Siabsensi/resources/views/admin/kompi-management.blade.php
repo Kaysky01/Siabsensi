@@ -9,35 +9,22 @@
       <div class="page-sub">Ubah kompi mahasiswa secara massal atau acak berdasarkan jurusan</div>
     </div>
     <div style="display:flex; gap: 8px; align-items: center; flex-wrap:wrap;">
-        <form method="GET" action="{{ route('admin.kompi-management') }}" id="filter-form" style="display:flex; gap: 8px; align-items: center;">
-            <select name="kompi" class="form-input" onchange="document.getElementById('filter-form').submit()">
-                <option value="all">Semua Kompi</option>
-                @foreach($kompiOptions as $kompiName)
-                    <option value="{{ $kompiName }}" {{ $filterKompi == $kompiName ? 'selected' : '' }}>{{ $kompiName }}</option>
-                @endforeach
-            </select>
-        </form>
-
-        {{-- Download buttons --}}
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            @if($filterKompi && $filterKompi !== 'all')
-            <button class="btn btn-secondary btn-sm dl-btn"
-                data-url="{!! route('admin.kompi.download', ['kompi' => $filterKompi]) !!}"
-                data-format="xlsx" data-label="{{ $filterKompi }}"
-                title="Download Excel kompi {{ $filterKompi }}">
-                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span>
-                Download Excel – {{ $filterKompi }}
-            </button>
-            @endif
-            <button class="btn btn-secondary btn-sm dl-btn"
-                data-url="{!! route('admin.kompi.download') !!}"
-                data-format="xlsx" data-label="Semua Kompi"
-                title="Download Excel semua kompi">
-                <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span>
-                Download Excel (Semua Kompi)
-            </button>
-        </div>
-
+        @if($filterKompi && $filterKompi !== 'all' && $filterKompi !== '__empty__')
+        <button class="btn btn-secondary btn-sm dl-btn"
+            data-url="{!! route('admin.kompi.download', ['kompi' => $filterKompi]) !!}"
+            data-format="xlsx" data-label="{{ $filterKompi }}"
+            title="Download Excel kompi {{ $filterKompi }}">
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span>
+            Download Excel – {{ $filterKompi }}
+        </button>
+        @endif
+        <button class="btn btn-secondary btn-sm dl-btn"
+            data-url="{!! route('admin.kompi.download') !!}"
+            data-format="xlsx" data-label="Semua Kompi"
+            title="Download Excel semua kompi">
+            <span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle">download</span>
+            Download Excel (Semua Kompi)
+        </button>
         <form method="POST" action="{{ route('admin.kompi.shuffle') }}" id="shuffle-form">
             @csrf
             <button type="button" class="btn btn-secondary btn-sm" onclick="showConfirmModal()">
@@ -45,6 +32,21 @@
             </button>
         </form>
     </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;padding:14px 20px">
+    <form method="GET" action="{{ route('admin.kompi-management') }}" id="filter-form" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div style="flex:1;min-width:200px"><label class="form-label">Cari Nama</label><input name="search" class="form-input" value="{{ $search ?? '' }}" placeholder="Cari nama mahasiswa..." style="padding:7px 10px"></div>
+      <div><label class="form-label">Kompi</label><select name="kompi" class="form-input" style="width:200px;padding:7px 10px">
+        <option value="all">Semua Kompi</option>
+        @foreach($kompiOptions as $kompiName)
+            <option value="{{ $kompiName }}" {{ $filterKompi == $kompiName ? 'selected' : '' }}>{{ $kompiName }}</option>
+        @endforeach
+        <option value="__empty__" {{ $filterKompi == '__empty__' ? 'selected' : '' }}>Belum Memiliki Kompi</option>
+      </select></div>
+      <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+      <a href="{{ route('admin.kompi-management') }}" class="btn btn-ghost btn-sm">Reset</a>
+    </form>
   </div>
 
   <div class="panel">
@@ -80,7 +82,7 @@
             <td><input type="checkbox" class="row-checkbox" value="{{ $i }}"></td>
             <td>{{ $m->name }}</td>
             <td>{{ $m->id }}</td>
-            <td><span class="badge badge-blue">{{ $m->kompi }}</span></td>
+            <td>@if($m->kompi && $m->kompi !== '-')<span class="badge badge-blue">{{ $m->kompi }}</span>@else<span class="badge badge-red">Belum ada</span>@endif</td>
             <td>
               <input type="hidden" name="assignments[{{ $i }}][id]" value="{{ $m->id }}">
               <select name="assignments[{{ $i }}][kompi]" id="kompi-input-{{ $i }}" class="form-input" style="padding:4px 8px;width:120px" required>

@@ -837,17 +837,28 @@ class AdminController extends Controller
     public function kompiManagement(Request $request)
     {
         $filterKompi = $request->query('kompi');
+        $search = $request->query('search');
 
         $query = Mahasiswa::orderBy('kompi')->orderBy('name');
 
         if ($filterKompi && $filterKompi !== 'all') {
-            $query->where('kompi', $filterKompi);
+            if ($filterKompi === '__empty__') {
+                $query->where(function ($q) {
+                    $q->whereNull('kompi')->orWhere('kompi', '')->orWhere('kompi', '-');
+                });
+            } else {
+                $query->where('kompi', $filterKompi);
+            }
+        }
+
+        if ($search) {
+            $query->where('name', 'like', "%{$search}%");
         }
 
         $mahasiswaList = $query->paginate(20)->withQueryString();
         $kompiOptions = \App\Models\Kompi::pluck('nama')->sortBy(null, SORT_NATURAL | SORT_FLAG_CASE)->values();
 
-        return view('admin.kompi-management', compact('mahasiswaList', 'kompiOptions', 'filterKompi'));
+        return view('admin.kompi-management', compact('mahasiswaList', 'kompiOptions', 'filterKompi', 'search'));
     }
 
     public function shuffleKompi(Request $request)
@@ -1456,6 +1467,9 @@ class AdminController extends Controller
         ]);
 
         $data['password'] = Hash::make($data['password']);
+        if (in_array($data['role'], ['admin', 'acara'])) {
+            $data['assigned_kompi'] = null;
+        }
         $user = User::create($data);
 
         // Sync with Kompi Master Data if Garda
@@ -1474,6 +1488,9 @@ class AdminController extends Controller
             'email' => 'nullable|email',
             'assigned_kompi' => 'nullable|string|max:100',
         ]);
+        if (in_array($user->role, ['admin', 'acara'])) {
+            $fields['assigned_kompi'] = null;
+        }
         $user->update($fields);
 
         // Sync with Kompi Master Data if Garda
