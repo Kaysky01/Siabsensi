@@ -490,7 +490,6 @@ class AdminController extends Controller
                     'no_telp_ortu'      => $this->normalizeMahasiswaImportValue($record['no_telp_ortu'] ?? null),
                     'is_active'         => 1,
                     'created_at'        => $now,
-                    'updated_at'        => $now,
                 ];
 
                 $userBatch[] = [
