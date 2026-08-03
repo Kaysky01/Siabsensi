@@ -435,7 +435,7 @@
       <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
         <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column;">
           <label class="form-label" style="font-size: 12px;">Jurusan</label>
-          <select name="export-jurusan" id="export-jurusan" class="form-input" onchange="updateExportProdiOptions()">
+          <select name="export-jurusan" id="export-jurusan" class="form-input" onchange="updateExportProdiCheckboxes()">
             <option value="">Semua Jurusan</option>
             @foreach($jurusanWithProdi as $j)
               <option value="{{ $j->nama }}" data-prodi="{{ json_encode($j->prodi->pluck('nama')) }}">
@@ -446,10 +446,9 @@
         </div>
         <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column;">
           <label class="form-label" style="font-size: 12px;">Prodi</label>
-          <select name="export-prodi[]" id="export-prodi" class="form-input" multiple style="height: 80px;">
-            <option value="">Semua Prodi</option>
-          </select>
-          <small style="font-size: 10px; color: var(--text-muted);">Tahan Ctrl/Cmd untuk multiple</small>
+          <div id="export-prodi-container" style="border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; max-height: 120px; overflow-y: auto; background: var(--bg);">
+            <div style="color: var(--text-muted); font-size: 12px;">Pilih jurusan terlebih dahulu</div>
+          </div>
         </div>
         <div style="display: flex; gap: 8px;">
           <button type="button" class="btn btn-primary btn-sm" onclick="loadExportStudents()">Tampilkan</button>
@@ -827,30 +826,44 @@ function downloadAdminQR() {
 const jurusanProdiData = @json($jurusanWithProdi);
 
 // Export Modal Functions
-function updateExportProdiOptions() {
+function updateExportProdiCheckboxes() {
   const jurusanSelect = document.getElementById('export-jurusan');
-  const prodiSelect = document.getElementById('export-prodi');
-  
-  while (prodiSelect.options.length > 1) {
-    prodiSelect.remove(1);
-  }
-  
+  const container = document.getElementById('export-prodi-container');
+
   const selectedOption = jurusanSelect.options[jurusanSelect.selectedIndex];
   if (selectedOption && selectedOption.value) {
     const prodiList = JSON.parse(selectedOption.getAttribute('data-prodi') || '[]');
+    if (prodiList.length === 0) {
+      container.innerHTML = '<div style="color: var(--text-muted); font-size: 12px;">Tidak ada prodi untuk jurusan ini</div>';
+      return;
+    }
+    let html = '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;margin-bottom:6px;">'
+             + '<input type="checkbox" class="export-prodi-cb" value="" onchange="toggleAllProdiCb(this)" checked>'
+             + '<span style="font-weight:600;">Semua Prodi</span></label>';
     prodiList.forEach(prodi => {
-      const opt = document.createElement('option');
-      opt.value = prodi;
-      opt.textContent = prodi;
-      prodiSelect.appendChild(opt);
+      html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;margin-bottom:4px;">'
+            + '<input type="checkbox" class="export-prodi-cb export-prodi-item" value="' + prodi + '" checked>'
+            + '<span>' + prodi + '</span></label>';
     });
+    container.innerHTML = html;
+  } else {
+    container.innerHTML = '<div style="color: var(--text-muted); font-size: 12px;">Pilih jurusan terlebih dahulu</div>';
   }
+}
+
+function toggleAllProdiCb(el) {
+  const items = document.querySelectorAll('.export-prodi-item');
+  items.forEach(cb => cb.checked = el.checked);
+}
+
+function getSelectedProdiValues() {
+  const items = document.querySelectorAll('.export-prodi-item:checked');
+  return Array.from(items).map(cb => cb.value);
 }
 
 function loadExportStudents() {
   const jurusan = document.getElementById('export-jurusan').value;
-  const prodiSelect = document.getElementById('export-prodi');
-  const prodiValues = Array.from(prodiSelect.selectedOptions).map(opt => opt.value).filter(val => val !== '');
+  const prodiValues = getSelectedProdiValues();
   
   const container = document.getElementById('export-students-container');
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;"><span class="material-symbols-outlined" style="animation:spin 1s linear infinite">refresh</span><div style="margin-top:8px">Memuat data...</div></div>';
@@ -898,7 +911,7 @@ function loadExportStudents() {
 
 function resetExportFilter() {
   document.getElementById('export-jurusan').value = '';
-  updateExportProdiOptions();
+  document.getElementById('export-prodi-container').innerHTML = '<div style="color: var(--text-muted); font-size: 12px;">Pilih jurusan terlebih dahulu</div>';
   document.getElementById('export-students-container').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">Silakan pilih Jurusan dan/atau Prodi terlebih dahulu</div>';
   document.getElementById('export-selected-count').textContent = '0 mahasiswa dipilih';
 }
@@ -952,8 +965,7 @@ function processExport() {
   
   const formData = new FormData();
   const jurusan = document.getElementById('export-jurusan').value;
-  const prodiSelect = document.getElementById('export-prodi');
-  const prodiValues = Array.from(prodiSelect.selectedOptions).map(opt => opt.value).filter(val => val !== '');
+  const prodiValues = getSelectedProdiValues();
   
   formData.append('jurusan', jurusan);
   prodiValues.forEach(prodi => formData.append('prodi[]', prodi));
@@ -1023,7 +1035,7 @@ function processExport() {
 
 // Initialize export modal
 document.addEventListener('DOMContentLoaded', function() {
-  updateExportProdiOptions();
+  updateExportProdiCheckboxes();
 });
 
 function updateProdiOptions(prefix, selectedProdi = null) {
