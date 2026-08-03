@@ -193,6 +193,11 @@ class DatabaseManager:
             cursor.execute("ALTER TABLE attendance ADD COLUMN late_duration INT DEFAULT 0")
         except mysql.connector.Error:
             pass  # Column already exists
+
+        try:
+            cursor.execute("ALTER TABLE attendance ADD COLUMN is_synced TINYINT(1) DEFAULT 0")
+        except mysql.connector.Error:
+            pass  # Column already exists
         
         # Tabel system_config untuk menyimpan konfigurasi sistem
         cursor.execute("""
@@ -461,6 +466,32 @@ class DatabaseManager:
             "UPDATE camera_streams SET last_seen = %s WHERE id = %s",
             (datetime.now().isoformat(), cam_id)
         )
+
+    def mark_attendance_synced(self, records):
+        """Mark attendance records as synced (is_synced = 1) in local DB"""
+        if not records:
+            return
+        for r in records:
+            mahasiswa_id = r.get('mahasiswa_id')
+            kegiatan_id = r.get('kegiatan_id')
+            att_date = r.get('date')
+            att_id = r.get('id')
+            
+            db_id = None
+            if att_id and str(att_id).startswith('db_'):
+                try:
+                    db_id = int(str(att_id).replace('db_', ''))
+                except ValueError:
+                    pass
+            
+            if db_id:
+                self._execute("UPDATE attendance SET is_synced = 1 WHERE id = %s", (db_id,))
+            elif kegiatan_id and mahasiswa_id:
+                self._execute("UPDATE attendance SET is_synced = 1 WHERE mahasiswa_id = %s AND kegiatan_id = %s", (mahasiswa_id, kegiatan_id))
+            elif mahasiswa_id and att_date:
+                self._execute("UPDATE attendance SET is_synced = 1 WHERE mahasiswa_id = %s AND date = %s", (mahasiswa_id, att_date))
+            elif mahasiswa_id:
+                self._execute("UPDATE attendance SET is_synced = 1 WHERE mahasiswa_id = %s", (mahasiswa_id,))
 
     # ========== ATTENDANCE SCHEDULE METHODS ==========
     

@@ -227,6 +227,17 @@
         <div class="login-footer-text">
           SIABSEN v2.5 — Sistem Absensi Cerdas
         </div>
+        <div class="helpdesk-wrapper">
+          <a href="https://wa.me/6288272013526" target="_blank" rel="noopener noreferrer" class="helpdesk-badge">
+            <span class="helpdesk-icon-box">
+              <span class="material-symbols-outlined" style="font-size: 18px; color: #25D366;">headset_mic</span>
+              <span class="helpdesk-online-dot"></span>
+            </span>
+            <span class="helpdesk-label">Helpdesk WA:</span>
+            <span class="helpdesk-number">0882-7201-3526</span>
+            <span class="material-symbols-outlined helpdesk-arrow">arrow_forward</span>
+          </a>
+        </div>
       </div>
     </div>
   </div>

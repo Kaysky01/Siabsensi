@@ -810,7 +810,7 @@ def get_today_attendance():
         if kegiatan_id:
             rows = db._execute("""
                 SELECT a.id, a.mahasiswa_id, a.check_in, a.check_out,
-                       a.date, a.is_late, a.late_duration, a.kegiatan_id,
+                       a.date, a.is_late, a.late_duration, a.kegiatan_id, a.is_synced,
                        m.name, m.kompi, m.jurusan
                 FROM attendance a
                 JOIN mahasiswa m ON a.mahasiswa_id = m.id
@@ -820,7 +820,7 @@ def get_today_attendance():
         else:
             rows = db._execute("""
                 SELECT a.id, a.mahasiswa_id, a.check_in, a.check_out,
-                       a.date, a.is_late, a.late_duration, a.kegiatan_id,
+                       a.date, a.is_late, a.late_duration, a.kegiatan_id, a.is_synced,
                        m.name, m.kompi, m.jurusan
                 FROM attendance a
                 JOIN mahasiswa m ON a.mahasiswa_id = m.id
@@ -853,7 +853,7 @@ def get_today_attendance():
                 'date': str(r['date']) if r['date'] else today,
                 'is_late': bool(r.get('is_late', False)),
                 'late_duration': r.get('late_duration', 0),
-                'synced': False  # status sync ke server
+                'synced': bool(r.get('is_synced', 0))  # status sync ke server
             })
 
         return jsonify({'success': True, 'data': result, 'source': 'local_db', 'count': len(result)})
@@ -1286,6 +1286,72 @@ def sync_all_from_laravel():
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'
+        }), 500
+
+
+@app.route('/api/python/sync/attendance', methods=['POST'])
+def push_attendance_to_laravel():
+    """Proxy pushing local attendance data to Laravel server in chunks to prevent WAF / payload size 406 error"""
+    try:
+        from app.laravel_sync import LaravelSyncService
+        
+        data_payload = request.json or {}
+        records = data_payload.get('data', [])
+        target_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
+        
+        if not records:
+            return jsonify({'success': True, 'message': 'Synced 0 records', 'synced_count': 0, 'rejected_count': 0, 'rejection_reasons': []}), 200
+            
+        logger.info(f"Pushing {len(records)} attendance records in chunks to: {target_url}")
+        
+        # Try target_url first, fallback to local server if target_url fails
+        try:
+            sync_service = LaravelSyncService(target_url, verify_ssl=False)
+            test_resp = sync_service.session.get(f"{sync_service.base_url}/api/kegiatan", timeout=5, verify=False)
+        except Exception:
+            logger.warning(f"Target URL {target_url} not responsive, falling back to http://127.0.0.1:8000")
+            sync_service = LaravelSyncService("http://127.0.0.1:8000", verify_ssl=False)
+            
+        chunk_size = 50
+        total_synced = 0
+        total_rejected = 0
+        all_rejection_reasons = []
+        
+        for i in range(0, len(records), chunk_size):
+            chunk = records[i:i + chunk_size]
+            try:
+                resp = sync_service.session.post(
+                    f"{sync_service.base_url}/api/sync",
+                    json={'data': chunk},
+                    timeout=30,
+                    verify=False
+                )
+                if resp.status_code == 200:
+                    res_json = resp.json()
+                    chunk_synced = res_json.get('synced_count', 0)
+                    total_synced += chunk_synced
+                    total_rejected += res_json.get('rejected_count', 0)
+                    all_rejection_reasons.extend(res_json.get('rejection_reasons', []))
+                    if db and chunk_synced > 0:
+                        db.mark_attendance_synced(chunk)
+                else:
+                    logger.warning(f"Chunk {i//chunk_size + 1} returned status {resp.status_code}")
+            except Exception as chunk_err:
+                logger.error(f"Error sending chunk {i//chunk_size + 1}: {chunk_err}")
+                
+        return jsonify({
+            'success': True,
+            'message': f'Synced {total_synced} records to production',
+            'synced_count': total_synced,
+            'rejected_count': total_rejected,
+            'rejection_reasons': all_rejection_reasons
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Push attendance sync error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Gagal terhubung ke server Laravel: {str(e)}'
         }), 500
 
 

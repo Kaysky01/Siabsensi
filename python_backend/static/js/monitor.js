@@ -314,7 +314,7 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
         : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" style="width:52px;height:52px;"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>`;
     const labelText = isMasuk ? 'BERHASIL MASUK' : 'BERHASIL KELUAR';
     const labelColor = isMasuk ? '#10b981' : '#3b82f6';
-    const bgBadge   = isMasuk ? '#d1fae5' : '#dbeafe';
+    const bgBadge = isMasuk ? '#d1fae5' : '#dbeafe';
     const displayName = mahasiswaName || 'Mahasiswa';
     const displayTime = timeStr || new Date().toLocaleTimeString('id-ID');
     const displayKompi = (kompi && kompi !== 'Local') ? kompi : '';
@@ -577,7 +577,7 @@ async function syncDataToServer() {
     try {
         showToast(`Menyinkronkan ${unsynced.length} data ke server Laravel...`, '#3b82f6');
 
-        const res = await fetch(`${API_URL}/sync`, {
+        const res = await fetch(`${PYTHON_API_URL}/sync/attendance`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ data: unsynced })
@@ -586,8 +586,27 @@ async function syncDataToServer() {
         if (res.ok) {
             const resData = await res.json();
             const rejectedCount = resData.rejected_count || 0;
-            const syncedCount   = resData.synced_count || 0;
+            const syncedCount = resData.synced_count || 0;
             const rejectionReasons = resData.rejection_reasons || [];
+
+            if (syncedCount > 0) {
+                // Update localStorage fallback if used
+                const localData = getLocalSyncData();
+                let updatedLocal = false;
+                localData.forEach(d => {
+                    if (!d.synced) {
+                        d.synced = true;
+                        updatedLocal = true;
+                    }
+                });
+                if (updatedLocal) {
+                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localData));
+                }
+
+                // Force refresh list from local DB
+                lastLocalSyncHash = "";
+                await fetchLatestAttendance();
+            }
 
             if (rejectedCount > 0) {
                 if (typeof Swal !== 'undefined') {
