@@ -432,30 +432,29 @@
     {{-- Filter Section --}}
     <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
       <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: var(--text-muted);">1. Filter Berdasarkan Jurusan dan Prodi</h4>
-      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;">
-        <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column;">
-          <label class="form-label" style="font-size: 12px;">Jurusan</label>
-          <select name="export-jurusan" id="export-jurusan" class="form-input" onchange="updateExportProdiOptions()">
-            <option value="">Semua Jurusan</option>
-            @foreach($jurusanWithProdi as $j)
-              <option value="{{ $j->nama }}" data-prodi="{{ json_encode($j->prodi->pluck('nama')) }}">
-                {{ $j->nama }}
-              </option>
-            @endforeach
-          </select>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start;">
+          <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column;">
+            <label class="form-label" style="font-size: 12px; margin-bottom: 8px;">Jurusan</label>
+            <select name="export-jurusan" id="export-jurusan" class="form-input" onchange="updateExportProdiOptions()">
+              <option value="">Semua Jurusan</option>
+              @foreach($jurusanWithProdi as $j)
+                <option value="{{ $j->nama }}" data-prodi="{{ json_encode($j->prodi->pluck('nama')) }}">
+                  {{ $j->nama }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+          <div style="flex: 2; min-width: 300px; display: flex; flex-direction: column;">
+            <label class="form-label" style="font-size: 12px; margin-bottom: 8px;">Prodi</label>
+            <div id="export-prodi-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; max-height: 120px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; background: var(--bg);">
+              <div style="color: var(--text-muted); font-size: 12px; font-style: italic; grid-column: 1 / -1;">Pilih jurusan terlebih dahulu...</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 24px; align-items: flex-start;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="loadExportStudents()">Tampilkan</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="resetExportFilter()">Reset</button>
+          </div>
         </div>
-        <div style="flex: 1; min-width: 200px; display: flex; flex-direction: column;">
-          <label class="form-label" style="font-size: 12px;">Prodi</label>
-          <select name="export-prodi[]" id="export-prodi" class="form-input" multiple style="height: 80px;">
-            <option value="">Semua Prodi</option>
-          </select>
-          <small style="font-size: 10px; color: var(--text-muted);">Tahan Ctrl/Cmd untuk multiple</small>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button type="button" class="btn btn-primary btn-sm" onclick="loadExportStudents()">Tampilkan</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="resetExportFilter()">Reset</button>
-        </div>
-      </div>
     </div>
 
     {{-- Student Selection Section --}}
@@ -829,28 +828,41 @@ const jurusanProdiData = @json($jurusanWithProdi);
 // Export Modal Functions
 function updateExportProdiOptions() {
   const jurusanSelect = document.getElementById('export-jurusan');
-  const prodiSelect = document.getElementById('export-prodi');
+  const prodiContainer = document.getElementById('export-prodi-container');
   
-  while (prodiSelect.options.length > 1) {
-    prodiSelect.remove(1);
-  }
+  prodiContainer.innerHTML = '';
   
   const selectedOption = jurusanSelect.options[jurusanSelect.selectedIndex];
   if (selectedOption && selectedOption.value) {
     const prodiList = JSON.parse(selectedOption.getAttribute('data-prodi') || '[]');
-    prodiList.forEach(prodi => {
-      const opt = document.createElement('option');
-      opt.value = prodi;
-      opt.textContent = prodi;
-      prodiSelect.appendChild(opt);
-    });
+    if (prodiList.length > 0) {
+      let html = '<div style="grid-column: 1 / -1; display: flex; gap: 8px; margin-bottom: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--border);"><label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 11px; font-weight: 600;"><input type="checkbox" id="export-prodi-select-all" onchange="toggleExportProdiSelectAll(this)"> Pilih Semua Prodi</label></div>';
+      
+      prodiList.forEach(prodi => {
+        html += '<label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;"><input type="checkbox" class="export-prodi-checkbox" value="' + prodi + '"><span>' + prodi + '</span></label>';
+      });
+      prodiContainer.innerHTML = html;
+    } else {
+      prodiContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; font-style: italic; grid-column: 1 / -1;">Tidak ada prodi pada jurusan ini...</div>';
+    }
+  } else {
+    prodiContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; font-style: italic; grid-column: 1 / -1;">Pilih jurusan terlebih dahulu...</div>';
   }
+}
+
+function toggleExportProdiSelectAll(source) {
+  const checkboxes = document.querySelectorAll('.export-prodi-checkbox');
+  checkboxes.forEach(cb => cb.checked = source.checked);
+}
+
+function getSelectedExportProdiValues() {
+  const checkboxes = document.querySelectorAll('.export-prodi-checkbox:checked');
+  return Array.from(checkboxes).map(cb => cb.value);
 }
 
 function loadExportStudents() {
   const jurusan = document.getElementById('export-jurusan').value;
-  const prodiSelect = document.getElementById('export-prodi');
-  const prodiValues = Array.from(prodiSelect.selectedOptions).map(opt => opt.value).filter(val => val !== '');
+  const prodiValues = getSelectedExportProdiValues();
   
   const container = document.getElementById('export-students-container');
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;"><span class="material-symbols-outlined" style="animation:spin 1s linear infinite">refresh</span><div style="margin-top:8px">Memuat data...</div></div>';
@@ -952,8 +964,7 @@ function processExport() {
   
   const formData = new FormData();
   const jurusan = document.getElementById('export-jurusan').value;
-  const prodiSelect = document.getElementById('export-prodi');
-  const prodiValues = Array.from(prodiSelect.selectedOptions).map(opt => opt.value).filter(val => val !== '');
+  const prodiValues = getSelectedExportProdiValues();
   
   formData.append('jurusan', jurusan);
   prodiValues.forEach(prodi => formData.append('prodi[]', prodi));

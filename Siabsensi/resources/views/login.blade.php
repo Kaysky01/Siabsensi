@@ -33,7 +33,7 @@
       <form id="login-form" action="{{ route('auth') }}" method="POST">
         @csrf
         <div class="form-group">
-          <label class="form-label">Username / Nomor Registrasi</label>
+          <label class="form-label">Nomor Registrasi</label>
           <div class="form-input-wrapper">
             <span class="material-symbols-outlined">person</span>
             <input 

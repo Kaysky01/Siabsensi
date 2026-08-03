@@ -905,15 +905,21 @@ class AdminController extends Controller
             }
         }
 
-        $students = $query->orderBy('name', 'asc')->get();
+        $students = $query->orderBy('prodi')->orderBy('name', 'asc')->get();
 
         if ($students->isEmpty()) {
             return back()->with('error', 'Tidak ada mahasiswa yang ditemukan berdasarkan filter.');
         }
 
+        // Kelompokkan data berdasarkan prodi
+        $groupedStudents = $students->groupBy(function ($s) {
+            return $s->prodi && $s->prodi !== '-' && $s->prodi !== '' ? $s->prodi : 'Tanpa Prodi';
+        })->sortKeys();
+
         // Generate Excel file with selected fields
         $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
+        $sheet->getParent()->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
 
         // Define field labels
         $fieldLabels = [
@@ -928,36 +934,128 @@ class AdminController extends Controller
             'no_telp_ortu' => 'No. Telp Ortu',
         ];
 
-        // Set headers
-        $col = 1;
-        foreach ($validated['export_fields'] as $field) {
-            $sheet->setCellValueByColumnAndRow($col++, 1, $fieldLabels[$field]);
-        }
+        $numCols = 1 + count($validated['export_fields']); // 1 untuk kolom No
+        $lastCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($numCols);
 
-        // Set data
-        $row = 2;
-        foreach ($students as $student) {
-            $col = 1;
-            foreach ($validated['export_fields'] as $field) {
-                $value = $student->{$field} ?? '';
-                if ($field === 'tanggal_lahir' && $value) {
-                    $value = \Carbon\Carbon::parse($value)->format('d/m/Y');
-                }
-                $sheet->setCellValueByColumnAndRow($col++, $row, $value);
+        // Judul utama dokumen
+        $currentRow = 1;
+        $sheet->setCellValue('A1', 'Data Mahasiswa');
+        $sheet->mergeCells("A1:{$lastCol}1");
+        $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle("A1:{$lastCol}1")->getFont()->getColor()->setARGB('FF1E3A8A');
+        $sheet->getStyle("A1:{$lastCol}1")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle("A1:{$lastCol}1")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->getRowDimension(1)->setRowHeight(26);
+        $currentRow++;
+
+        $isFirstGroup = true;
+        foreach ($groupedStudents as $prodiName => $groupStudents) {
+            if (!$isFirstGroup) {
+                $currentRow += 2; // jarak antar tabel prodi
             }
-            $row++;
-        }
+            $isFirstGroup = false;
 
-        // Style the header
-        $headerRange = 'A1:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($validated['export_fields'])) . '1';
-        $sheet->getStyle($headerRange)->getFont()->setBold(true);
-        $sheet->getStyle($headerRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF1E3A8A');
-        $sheet->getStyle($headerRange)->getFont()->getColor()->setARGB('FFFFFFFF');
+            // Judul prodi
+            $prodiTitleRange = "A{$currentRow}:{$lastCol}{$currentRow}";
+            $sheet->setCellValue("A{$currentRow}", 'Prodi: ' . $prodiName);
+            $sheet->mergeCells($prodiTitleRange);
+            $sheet->getStyle($prodiTitleRange)->getFont()->setBold(true)->setSize(12);
+            $sheet->getStyle($prodiTitleRange)->getFont()->getColor()->setARGB('FF1E40AF');
+            $sheet->getStyle($prodiTitleRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFDBEAFE');
+            $sheet->getStyle($prodiTitleRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+            $sheet->getRowDimension($currentRow)->setRowHeight(20);
+            $currentRow++;
+
+            // Header tabel
+            $headerRow = $currentRow;
+            $sheet->setCellValueByColumnAndRow(1, $headerRow, 'No');
+            $col = 2;
+            foreach ($validated['export_fields'] as $field) {
+                $sheet->setCellValueByColumnAndRow($col++, $headerRow, $fieldLabels[$field]);
+            }
+            $currentRow++;
+
+            // Data
+            $dataStartRow = $currentRow;
+            $no = 1;
+            foreach ($groupStudents as $student) {
+                $sheet->setCellValueByColumnAndRow(1, $currentRow, $no);
+                $col = 2;
+                foreach ($validated['export_fields'] as $field) {
+                    $value = $student->{$field} ?? '';
+                    if ($field === 'tanggal_lahir' && $value) {
+                        $value = \Carbon\Carbon::parse($value)->format('d/m/Y');
+                    }
+                    $sheet->setCellValueByColumnAndRow($col++, $currentRow, $value);
+                }
+                $no++;
+                $currentRow++;
+            }
+            $dataEndRow = $currentRow - 1;
+
+            // Style header tabel (bold, background biru, putih)
+            $headerRange = "A{$headerRow}:{$lastCol}{$headerRow}";
+            $sheet->getStyle($headerRange)->getFont()->setBold(true);
+            $sheet->getStyle($headerRange)->getFont()->getColor()->setARGB('FFFFFFFF');
+            $sheet->getStyle($headerRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF1E3A8A');
+            $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle($headerRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+            $sheet->getRowDimension($headerRow)->setRowHeight(20);
+
+            // Border seluruh tabel (header + data)
+            $tableRange = "A{$headerRow}:{$lastCol}{$dataEndRow}";
+            $sheet->getStyle($tableRange)->applyFromArray([
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                        'color' => ['argb' => 'FF000000'],
+                    ],
+                ],
+            ]);
+
+            // Rata tengah kolom No & vertical center untuk semua data
+            $sheet->getStyle("A{$dataStartRow}:A{$dataEndRow}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $dataRange = "B{$dataStartRow}:{$lastCol}{$dataEndRow}";
+            $sheet->getStyle($dataRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        }
 
         // Auto-size columns
-        foreach (range('A', \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($validated['export_fields']))) as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
+        foreach (range(1, $numCols) as $colIdx) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
         }
+
+        // ===== PRINT SETUP (Print-Ready A4 Portrait) =====
+        $sheet->getPageSetup()
+            ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_PORTRAIT)
+            ->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4)
+            ->setFitToWidth(1)
+            ->setFitToHeight(0)
+            ->setHorizontalCentered(true)
+            ->setVerticalCentered(false);
+
+        // Margins tipis (0.2 inci)
+        $sheet->getPageMargins()
+            ->setTop(0.2)
+            ->setBottom(0.2)
+            ->setLeft(0.2)
+            ->setRight(0.2)
+            ->setHeader(0.15)
+            ->setFooter(0.15);
+
+        // Repeat header row (baris pertama) di setiap halaman cetak
+        $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(1, 1);
+
+        // Cetak gridlines
+        $sheet->setShowGridlines(true);
+
+        // Header/footer kosong
+        $sheet->getHeaderFooter()->setOddHeader('&C&BData Mahasiswa');
+        $sheet->getHeaderFooter()->setOddFooter('&RHalaman &P dari &N');
+
+        // Print area: seluruh data
+        $lastDataRow = $currentRow - 1;
+        $sheet->getPageSetup()->setPrintArea("A1:{$lastCol}{$lastDataRow}");
 
         $excelWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
         $excelFileName = 'data_mahasiswa_' . date('Y-m-d_His') . '.xlsx';
