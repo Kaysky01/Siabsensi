@@ -27,7 +27,8 @@ class RiwayatController extends Controller
             ->select(
                 'attendance.*',
                 'mahasiswa.name',
-                'mahasiswa.kompi'
+                'mahasiswa.kompi',
+                'mahasiswa.photo_path'
             );
 
         if ($selectedSchedule) {

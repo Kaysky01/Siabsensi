@@ -25,7 +25,7 @@
         </select>
       </div>
       <div><label class="form-label">Cari Nama</label>
-        <input type="text" name="search" class="form-input" style="width:200px;padding:7px 10px" placeholder="Cari nama mahasiswa..." value="{{ $search ?? '' }}">
+        <input type="text" name="search" class="form-input" style="width:200px;padding:7px 10px" placeholder="Cari nama / ID..." value="{{ $search ?? '' }}">
       </div>
       <button type="submit" class="btn btn-primary btn-sm">Proses Laporan</button>
       <a href="{{ route('admin.kelulusan') }}" class="btn btn-ghost btn-sm">Reset</a>

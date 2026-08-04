@@ -75,9 +75,25 @@
         <tr>
           <td>
             <div style="display:flex;align-items:center;gap:8px">
-              <div class="avatar" style="width:32px;height:32px;background:var(--primary-light);color:var(--primary);font-size:12px;display:flex;align-items:center;justify-content:center;border-radius:50%">
-                {{ strtoupper(substr($item->name, 0, 2)) }}
-              </div>
+              @php
+                $photoUrl = null;
+                if (!empty($item->photo_path)) {
+                  $path = $item->photo_path;
+                  if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+                    $photoUrl = $path;
+                  } else {
+                    $cleanPath = ltrim(str_replace(['public/', 'storage/'], '', $path), '/');
+                    $photoUrl = url('/file-bukti/' . $cleanPath);
+                  }
+                }
+              @endphp
+              @if($photoUrl)
+                <img src="{{ $photoUrl }}" alt="{{ $item->name }}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #3b82f6;flex-shrink:0;">
+              @else
+                <div class="avatar" style="width:32px;height:32px;background:var(--primary-light);color:var(--primary);font-size:12px;display:flex;align-items:center;justify-content:center;border-radius:50%">
+                  {{ strtoupper(substr($item->name, 0, 2)) }}
+                </div>
+              @endif
               {{ $item->name }}
             </div>
           </td>

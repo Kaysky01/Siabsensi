@@ -55,7 +55,7 @@ class TimdisController extends Controller
             $recentQuery->where('mahasiswa.kompi', $assignedKompi);
         }
         $recent = $recentQuery->orderBy('attendance.check_in', 'desc')
-            ->select('attendance.*', 'mahasiswa.name', 'mahasiswa.kompi')
+            ->select('attendance.*', 'mahasiswa.name', 'mahasiswa.kompi', 'mahasiswa.photo_path')
             ->take(8)
             ->get();
             
@@ -114,7 +114,10 @@ class TimdisController extends Controller
         }
 
         if ($searchQuery) {
-            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
+            $query->where(function ($q) use ($searchQuery, $mhsTable) {
+                $q->where("$mhsTable.name", 'like', "%{$searchQuery}%")
+                  ->orWhere("$mhsTable.id", 'like', "%{$searchQuery}%");
+            });
         }
 
         $submissions = $query->paginate(20)->withQueryString();
@@ -213,7 +216,10 @@ class TimdisController extends Controller
         }
 
         if ($searchQuery) {
-            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
+            $query->where(function ($q) use ($searchQuery, $mhsTable) {
+                $q->where("$mhsTable.name", 'like', "%{$searchQuery}%")
+                  ->orWhere("$mhsTable.id", 'like', "%{$searchQuery}%");
+            });
         }
 
         $submissions = $query->paginate(20)->withQueryString();

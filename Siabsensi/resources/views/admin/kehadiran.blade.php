@@ -52,7 +52,7 @@
     <form method="GET" action="{{ route('admin.kehadiran') }}" style="display:flex;gap:8px;max-width:300px;width:100%">
       <input type="hidden" name="status" value="{{ request('status') }}">
       <div class="form-input-wrapper" style="width:100%;display:flex">
-        <input type="text" name="search" class="form-input" placeholder="Cari nama mahasiswa..." value="{{ request('search') }}" style="border-radius:4px 0 0 4px">
+        <input type="text" name="search" class="form-input" placeholder="Cari nama / ID mahasiswa..." value="{{ request('search') }}" style="border-radius:4px 0 0 4px">
         <button type="submit" class="btn btn-primary" style="border-radius:0 4px 4px 0;padding:0 12px">
           <span class="material-symbols-outlined" style="font-size:18px">search</span>
         </button>

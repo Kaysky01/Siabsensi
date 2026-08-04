@@ -50,7 +50,7 @@ class DashboardController extends Controller
             ->whereDate('attendance.date', $today)
             ->where('mahasiswa.kompi', $kompi)
             ->orderBy('attendance.check_in', 'desc')
-            ->select('attendance.*', 'mahasiswa.name')
+            ->select('attendance.*', 'mahasiswa.name', 'mahasiswa.photo_path')
             ->take(8)
             ->get();
 

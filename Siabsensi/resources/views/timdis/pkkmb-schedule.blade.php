@@ -175,7 +175,7 @@
               <span class="material-symbols-outlined">{{ $schedule->is_active ? 'pause_circle' : 'play_circle' }}</span>
             </button>
           </form>
-          <button class="btn-icon btn-edit" title="Edit" onclick="openEditSchedule({{ $schedule->id }}, {{ $schedule->hari_ke }}, '{{ $schedule->tanggal->format('Y-m-d') }}', '{{ Carbon\Carbon::parse($schedule->check_in_start)->format('H:i') }}', '{{ Carbon\Carbon::parse($schedule->check_in_end)->format('H:i') }}', '{{ Carbon\Carbon::parse($schedule->check_out_start)->format('H:i') }}', '{{ Carbon\Carbon::parse($schedule->check_out_end)->format('H:i') }}', {{ $schedule->is_active ? 1 : 0 }})">
+          <button class="btn-icon btn-edit" title="Edit" onclick="openEditSchedule({{ $schedule->id }}, '{{ addslashes($schedule->hari_ke) }}', '{{ $schedule->tanggal->format('Y-m-d') }}', '{{ Carbon\Carbon::parse($schedule->check_in_start)->format('H:i') }}', '{{ Carbon\Carbon::parse($schedule->check_in_end)->format('H:i') }}', '{{ Carbon\Carbon::parse($schedule->check_out_start)->format('H:i') }}', '{{ Carbon\Carbon::parse($schedule->check_out_end)->format('H:i') }}', {{ $schedule->is_active ? 1 : 0 }})">
             <span class="material-symbols-outlined">edit</span>
           </button>
           <form method="POST" action="{{ route('timdis.pkkmb-schedule.destroy', $schedule->id) }}" onsubmit="return confirm('Hapus jadwal Hari ke-{{ $schedule->hari_ke }}?\n\nSemua data absensi terkait akan tetap tersimpan.')" style="margin:0">
@@ -229,7 +229,7 @@
               <span class="material-symbols-outlined label-icon">counter_1</span>
               PKKMB Hari Ke- *
             </label>
-            <input type="number" name="hari_ke" class="form-input" min="1" placeholder="Contoh: 1" required>
+            <input type="text" name="hari_ke" class="form-input" maxlength="50" placeholder="Contoh: 1 atau Pre-PKKMB" required>
           </div>
           <div class="form-row">
             <label class="form-label">
@@ -313,7 +313,7 @@
               <span class="material-symbols-outlined label-icon">counter_1</span>
               PKKMB Hari Ke- *
             </label>
-            <input type="number" name="hari_ke" id="edit-hari-ke" class="form-input" min="1" required>
+            <input type="text" name="hari_ke" id="edit-hari-ke" class="form-input" maxlength="50" required>
           </div>
           <div class="form-row">
             <label class="form-label">

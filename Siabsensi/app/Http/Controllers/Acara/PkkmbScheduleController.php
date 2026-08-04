@@ -22,7 +22,7 @@ class PkkmbScheduleController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'hari_ke' => 'required|integer|min:1',
+            'hari_ke' => 'required|string|max:50',
             'tanggal' => 'required|date|unique:pkkmb_schedules,tanggal',
             'check_in_start' => 'required|date_format:H:i',
             'check_in_end' => 'required|date_format:H:i|after:check_in_start',
@@ -52,7 +52,7 @@ class PkkmbScheduleController extends Controller
         $schedule = PkkmbSchedule::findOrFail($id);
         
         $validated = $request->validate([
-            'hari_ke' => 'required|integer|min:1',
+            'hari_ke' => 'required|string|max:50',
             'tanggal' => 'required|date|unique:pkkmb_schedules,tanggal,' . $id,
             'check_in_start' => 'required|date_format:H:i',
             'check_in_end' => 'required|date_format:H:i|after:check_in_start',

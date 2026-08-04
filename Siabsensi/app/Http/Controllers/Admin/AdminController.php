@@ -109,7 +109,10 @@ class AdminController extends Controller
             
             // Apply filters
             if ($search) {
-                $query->where("$mhsTable.name", 'like', "%{$search}%");
+                $query->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
             }
             if ($kompi) {
                 $query->where("$mhsTable.kompi", $kompi);
@@ -135,7 +138,10 @@ class AdminController extends Controller
             
             // Apply filters
             if ($search) {
-                $query->where("$mhsTable.name", 'like', "%{$search}%");
+                $query->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
             }
             if ($kompi) {
                 $query->where("$mhsTable.kompi", $kompi);
@@ -154,7 +160,10 @@ class AdminController extends Controller
             
             // Apply filters
             if ($search) {
-                $query->where("$mhsTable.name", 'like', "%{$search}%");
+                $query->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
             }
             if ($kompi) {
                 $query->where("$mhsTable.kompi", $kompi);
@@ -169,8 +178,9 @@ class AdminController extends Controller
         // Get filter options
         $kompiOptions = \App\Models\Kompi::pluck('nama')->sortBy(null, SORT_NATURAL | SORT_FLAG_CASE)->values();
         $jurusanOptions = \App\Models\Jurusan::pluck('nama')->sort()->values();
+        $prodiOptions = \App\Models\Prodi::pluck('nama')->sort()->values();
 
-        return view('admin.attendance', compact('attendances', 'start', 'end', 'filter', 'search', 'kompi', 'jurusan', 'kompiOptions', 'jurusanOptions'));
+        return view('admin.attendance', compact('attendances', 'start', 'end', 'filter', 'search', 'kompi', 'jurusan', 'kompiOptions', 'jurusanOptions', 'prodiOptions'));
     }
 
     // ─── MAHASISWA ────────────────────────────────────────────────────────────
@@ -186,7 +196,12 @@ class AdminController extends Controller
         }
 
         if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                  ->orWhere('id', 'like', '%' . $search . '%')
+                  ->orWhere('qr_code_id', 'like', '%' . $search . '%');
+            });
         }
         if ($request->filled('kompi')) {
             if ($request->kompi === '__empty__') {
@@ -1108,7 +1123,10 @@ class AdminController extends Controller
         }
 
         if ($search) {
-            $query->where('name', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('id', 'like', "%{$search}%");
+            });
         }
 
         $mahasiswaList = $query->paginate(20)->withQueryString();
@@ -1248,7 +1266,10 @@ class AdminController extends Controller
             }
 
             if ($search) {
-                $query->where('name', 'like', "%{$search}%");
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('id', 'like', "%{$search}%");
+                });
             }
 
             $mahasiswaIds = $query->pluck('id');
@@ -1465,7 +1486,10 @@ class AdminController extends Controller
             
             // Apply filters
             if ($search) {
-                $query->where("$mhsTable.name", 'like', "%{$search}%");
+                $query->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
             }
             if ($kompi) {
                 $query->where("$mhsTable.kompi", $kompi);
@@ -1490,7 +1514,10 @@ class AdminController extends Controller
             
             // Apply filters
             if ($search) {
-                $query->where("$mhsTable.name", 'like', "%{$search}%");
+                $query->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
             }
             if ($kompi) {
                 $query->where("$mhsTable.kompi", $kompi);
@@ -1643,7 +1670,10 @@ class AdminController extends Controller
         }
 
         if ($searchQuery) {
-            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
+            $query->where(function ($q) use ($searchQuery, $mhsTable) {
+                $q->where("$mhsTable.name", 'like', "%{$searchQuery}%")
+                  ->orWhere("$mhsTable.id", 'like', "%{$searchQuery}%");
+            });
         }
 
         $submissions = $query->paginate(20)->withQueryString();
@@ -1737,7 +1767,10 @@ class AdminController extends Controller
         }
 
         if ($searchQuery) {
-            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
+            $query->where(function ($q) use ($searchQuery, $mhsTable) {
+                $q->where("$mhsTable.name", 'like', "%{$searchQuery}%")
+                  ->orWhere("$mhsTable.id", 'like', "%{$searchQuery}%");
+            });
         }
 
         $submissions = $query->paginate(20)->withQueryString();
@@ -1973,9 +2006,304 @@ class AdminController extends Controller
     // ─── EXPORT ──────────────────────────────────────────────────────────────
     public function exportAttendance(Request $request)
     {
-        $start = $request->query('start');
-        $end = $request->query('end');
-        return Excel::download(new AttendanceExport($start, $end), 'absensi_' . date('Y-m-d') . '.xlsx');
+        $start = $request->input('start', Carbon::today()->toDateString());
+        $end = $request->input('end', Carbon::today()->toDateString());
+        $status = $request->input('status', $request->input('filter', 'all'));
+        $kompi = $request->input('kompi', '');
+        $jurusan = $request->input('jurusan', '');
+        $prodi = $request->input('prodi', '');
+        $search = $request->input('search', '');
+        $exportFields = $request->input('export_fields', []);
+
+        $table = (new Attendance)->getTable();
+        $mhsTable = (new Mahasiswa)->getTable();
+
+        if ($status === 'alpha') {
+            $query = Mahasiswa::select(
+                "$mhsTable.id",
+                "$mhsTable.id as mahasiswa_id",
+                "$mhsTable.name",
+                "$mhsTable.kompi",
+                "$mhsTable.jurusan",
+                "$mhsTable.prodi",
+                "$mhsTable.email",
+                DB::raw('null as check_in'),
+                DB::raw('null as check_out'),
+                DB::raw('null as date'),
+                DB::raw("'alpha' as status"),
+                DB::raw('null as camera_id')
+            )->whereNotExists(function ($q) use ($table, $mhsTable, $start, $end) {
+                $q->select(DB::raw(1))->from($table)
+                    ->whereColumn("$table.mahasiswa_id", "$mhsTable.id");
+                if ($start && $end) {
+                    $q->whereBetween("$table.date", [$start, $end]);
+                }
+            });
+        } else {
+            $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+                ->select(
+                    "$table.*",
+                    "$mhsTable.id as mhs_id",
+                    "$mhsTable.name",
+                    "$mhsTable.kompi",
+                    "$mhsTable.jurusan",
+                    "$mhsTable.prodi",
+                    "$mhsTable.email"
+                );
+
+            if ($start && $end) {
+                $query->whereBetween("$table.date", [$start, $end]);
+            } elseif ($start) {
+                $query->whereDate("$table.date", '>=', $start);
+            } elseif ($end) {
+                $query->whereDate("$table.date", '<=', $end);
+            }
+
+            if ($status && $status !== 'all') {
+                if (in_array($status, ['hadir', 'present'])) {
+                    $query->whereIn("$table.status", ['hadir', 'present']);
+                } else {
+                    $query->where("$table.status", $status);
+                }
+            }
+        }
+
+        if ($kompi && $kompi !== 'all') {
+            $query->where("$mhsTable.kompi", $kompi);
+        }
+
+        if ($jurusan) {
+            $query->where("$mhsTable.jurusan", $jurusan);
+        }
+
+        if ($prodi) {
+            $query->where("$mhsTable.prodi", $prodi);
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search, $mhsTable) {
+                $q->where("$mhsTable.name", 'like', "%{$search}%")
+                  ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+            });
+        }
+
+        $records = $query->orderBy("$mhsTable.prodi", 'asc')->orderBy("$mhsTable.name", 'asc')->get();
+
+        if ($records->isEmpty()) {
+            return redirect()->back()->with('error', 'Tidak ada data absensi yang ditemukan berdasarkan filter yang dipilih.');
+        }
+
+        // Kelompokkan data berdasarkan prodi
+        $groupedData = $records->groupBy(function ($item) {
+            return $item->prodi && $item->prodi !== '-' && $item->prodi !== '' ? $item->prodi : 'Tanpa Prodi';
+        })->sortKeys();
+
+        $fieldLabelsMap = [
+            'id' => 'Nomor Pendaftaran',
+            'name' => 'Nama Mahasiswa',
+            'email' => 'Email',
+            'kompi' => 'Kompi',
+            'jurusan' => 'Jurusan',
+            'prodi' => 'Prodi',
+            'date' => 'Tanggal',
+            'check_in' => 'Jam Masuk',
+            'check_out' => 'Jam Keluar',
+            'status' => 'Status Absensi',
+            'camera_id' => 'Kamera / Device',
+        ];
+
+        $selectedFields = !empty($exportFields) ? array_intersect(array_keys($fieldLabelsMap), (array)$exportFields) : array_keys($fieldLabelsMap);
+
+        // Generate Excel File
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Monitoring Absensi');
+        $sheet->getParent()->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
+
+        $numCols = 1 + count($selectedFields); // 1 untuk No
+        $lastCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($numCols);
+
+        // Header Dokumen Utama
+        $currentRow = 1;
+        $sheet->setCellValue('A1', 'Monitoring Live Absensi Mahasiswa');
+        $sheet->mergeCells("A1:{$lastCol}1");
+        $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true)->setSize(14)->getColor()->setARGB('FF1E3A8A');
+        $sheet->getStyle("A1:{$lastCol}1")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle("A1:{$lastCol}1")->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->getRowDimension(1)->setRowHeight(26);
+        $currentRow++;
+
+        // Subtitle Info
+        $dateSubtitle = 'Periode: ' . \Carbon\Carbon::parse($start)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($end)->format('d/m/Y') . '  |  Dicetak: ' . now()->format('d M Y, H:i') . ' WIB  |  Total: ' . $records->count() . ' data';
+        $sheet->setCellValue("A{$currentRow}", $dateSubtitle);
+        $sheet->mergeCells("A{$currentRow}:{$lastCol}{$currentRow}");
+        $sheet->getStyle("A{$currentRow}:{$lastCol}{$currentRow}")->getFont()->setSize(10)->getColor()->setARGB('FF475569');
+        $sheet->getStyle("A{$currentRow}:{$lastCol}{$currentRow}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $sheet->getRowDimension($currentRow)->setRowHeight(18);
+        $currentRow += 2;
+
+        $isFirstGroup = true;
+        foreach ($groupedData as $prodiName => $groupItems) {
+            if (!$isFirstGroup) {
+                $currentRow += 2; // jarak antar tabel prodi
+            }
+            $isFirstGroup = false;
+
+            // Header Judul Prodi
+            $prodiTitleRange = "A{$currentRow}:{$lastCol}{$currentRow}";
+            $sheet->setCellValue("A{$currentRow}", 'Prodi: ' . $prodiName . ' (' . count($groupItems) . ' data)');
+            $sheet->mergeCells($prodiTitleRange);
+            $sheet->getStyle($prodiTitleRange)->getFont()->setBold(true)->setSize(12)->getColor()->setARGB('FF1E40AF');
+            $sheet->getStyle($prodiTitleRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFDBEAFE');
+            $sheet->getStyle($prodiTitleRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+            $sheet->getRowDimension($currentRow)->setRowHeight(20);
+            $currentRow++;
+
+            // Header Tabel
+            $headerRow = $currentRow;
+            $sheet->setCellValueByColumnAndRow(1, $headerRow, 'No');
+            $col = 2;
+            foreach ($selectedFields as $field) {
+                $sheet->setCellValueByColumnAndRow($col++, $headerRow, $fieldLabelsMap[$field]);
+            }
+            $currentRow++;
+
+            // Isi Data
+            $dataStartRow = $currentRow;
+            $no = 1;
+            foreach ($groupItems as $item) {
+                $sheet->setCellValueByColumnAndRow(1, $currentRow, $no);
+
+                $statusText = ucfirst($item->status ?? 'alpha');
+                if ($item->status === 'izin') {
+                    $statusText = 'Izin';
+                } elseif ($item->status === 'sakit') {
+                    $statusText = 'Sakit';
+                } elseif ($item->check_out) {
+                    $statusText = 'Lengkap';
+                } elseif ($item->check_in) {
+                    $statusText = 'Hadir';
+                } elseif ($item->status === 'alpha') {
+                    $statusText = 'Alpha (Belum Absen)';
+                }
+
+                $col = 2;
+                foreach ($selectedFields as $field) {
+                    switch ($field) {
+                        case 'id':
+                            $val = (string) ($item->mhs_id ?? $item->mahasiswa_id ?? $item->id ?? '-');
+                            $sheet->setCellValueExplicitByColumnAndRow($col, $currentRow, $val, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                            break;
+                        case 'name':
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->name ?? '-');
+                            break;
+                        case 'email':
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->email ?? '-');
+                            break;
+                        case 'kompi':
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->kompi ?? '-');
+                            break;
+                        case 'jurusan':
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->jurusan ?? '-');
+                            break;
+                        case 'prodi':
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->prodi ?? '-');
+                            break;
+                        case 'date':
+                            $val = $item->date ? \Carbon\Carbon::parse($item->date)->format('d/m/Y') : '-';
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
+                            break;
+                        case 'check_in':
+                            $val = $item->check_in ? \Carbon\Carbon::parse($item->check_in)->format('H:i') : '-';
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
+                            break;
+                        case 'check_out':
+                            $val = $item->check_out ? \Carbon\Carbon::parse($item->check_out)->format('H:i') : '-';
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
+                            break;
+                        case 'status':
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $statusText);
+                            break;
+                        case 'camera_id':
+                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->camera_id ?? '-');
+                            break;
+                    }
+                    $col++;
+                }
+                $no++;
+                $currentRow++;
+            }
+            $dataEndRow = $currentRow - 1;
+
+            // Style Header Tabel (Dark Blue)
+            $headerRange = "A{$headerRow}:{$lastCol}{$headerRow}";
+            $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+            $sheet->getStyle($headerRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF1E3A8A');
+            $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle($headerRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+            $sheet->getRowDimension($headerRow)->setRowHeight(20);
+
+            // Border seluruh tabel (header + data)
+            $tableRange = "A{$headerRow}:{$lastCol}{$dataEndRow}";
+            $sheet->getStyle($tableRange)->applyFromArray([
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                        'color' => ['argb' => 'FF000000'],
+                    ],
+                ],
+            ]);
+
+            // Alignment
+            $sheet->getStyle("A{$dataStartRow}:A{$dataEndRow}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $dataRange = "B{$dataStartRow}:{$lastCol}{$dataEndRow}";
+            $sheet->getStyle($dataRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        }
+
+        // Auto-size columns
+        foreach (range(1, $numCols) as $colIdx) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx);
+            $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+        }
+
+        // Print Setup (Print-Ready A4 Portrait)
+        $sheet->getPageSetup()
+            ->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_PORTRAIT)
+            ->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4)
+            ->setFitToWidth(1)
+            ->setFitToHeight(0)
+            ->setHorizontalCentered(true)
+            ->setVerticalCentered(false);
+
+        $sheet->getPageMargins()
+            ->setTop(0.2)
+            ->setBottom(0.2)
+            ->setLeft(0.2)
+            ->setRight(0.2)
+            ->setHeader(0.15)
+            ->setFooter(0.15);
+
+        $sheet->setShowGridlines(true);
+        $sheet->getHeaderFooter()->setOddHeader('&C&BMonitoring Absensi Mahasiswa');
+        $sheet->getHeaderFooter()->setOddFooter('&RHalaman &P dari &N');
+
+        $lastDataRow = $currentRow - 1;
+        $sheet->getPageSetup()->setPrintArea("A1:{$lastCol}{$lastDataRow}");
+
+        $excelWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $excelFileName = 'monitoring_absensi_' . date('Y-m-d_His') . '.xlsx';
+
+        return response()->stream(
+            function () use ($excelWriter) {
+                $excelWriter->save('php://output');
+            },
+            200,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment;filename="' . $excelFileName . '"',
+                'Cache-Control' => 'max-age=0',
+            ]
+        );
     }
 
     // ─── QR CODE ─────────────────────────────────────────────────────────────

@@ -36,7 +36,10 @@ class VerificationController extends Controller
         }
 
         if ($searchQuery) {
-            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
+            $query->where(function ($q) use ($searchQuery, $mhsTable) {
+                $q->where("$mhsTable.name", 'like', "%{$searchQuery}%")
+                  ->orWhere("$mhsTable.id", 'like', "%{$searchQuery}%");
+            });
         }
 
         $submissions = $query->paginate(20)->withQueryString();
@@ -126,7 +129,10 @@ class VerificationController extends Controller
         }
 
         if ($searchQuery) {
-            $query->where("$mhsTable.name", 'like', "%{$searchQuery}%");
+            $query->where(function ($q) use ($searchQuery, $mhsTable) {
+                $q->where("$mhsTable.name", 'like', "%{$searchQuery}%")
+                  ->orWhere("$mhsTable.id", 'like', "%{$searchQuery}%");
+            });
         }
 
         $submissions = $query->paginate(20)->withQueryString();

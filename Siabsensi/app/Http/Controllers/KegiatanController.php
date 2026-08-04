@@ -87,7 +87,11 @@ class KegiatanController extends Controller
         $query = Mahasiswa::where('is_active', 1);
 
         if ($request->has('search') && $request->search) {
-            $query->where('name', 'like', '%'.$request->search.'%');
+            $searchVal = $request->search;
+            $query->where(function ($q) use ($searchVal) {
+                $q->where('name', 'like', '%' . $searchVal . '%')
+                  ->orWhere('id', 'like', '%' . $searchVal . '%');
+            });
         }
         if ($request->has('kompi') && $request->kompi) {
             $query->where('kompi', $request->kompi);

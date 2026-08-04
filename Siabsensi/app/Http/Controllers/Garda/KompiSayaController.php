@@ -45,17 +45,19 @@ class KompiSayaController extends Controller
         $search = trim((string) $request->input('search', ''));
         $statusFilter = trim((string) $request->input('status', ''));
 
-        // 1. Full Unfiltered Kompi Students
-        $allMhsInKompi = Mahasiswa::where('is_active', 1)
-            ->where('kompi', $kompi)
+        // 1. Full Unfiltered Kompi Students (include is_active NULL and 1, exclude only 0)
+        $allMhsInKompi = Mahasiswa::where('kompi', $kompi)
+            ->where(function ($q) {
+                $q->where('is_active', '!=', 0)->orWhereNull('is_active');
+            })
             ->get();
 
         $allMahasiswaIds = $allMhsInKompi->pluck('id')->toArray();
         $totalMahasiswa = count($allMahasiswaIds);
 
         // 2. Breakdown stats per Jurusan & Prodi
-        $jurusanSummary = Mahasiswa::where('is_active', 1)
-            ->where('kompi', $kompi)
+        $jurusanSummary = Mahasiswa::where('kompi', $kompi)
+            ->where(function ($q) { $q->where('is_active', '!=', 0)->orWhereNull('is_active'); })
             ->whereNotNull('jurusan')
             ->where('jurusan', '!=', '')
             ->select('jurusan', DB::raw('count(*) as count'))
@@ -63,8 +65,8 @@ class KompiSayaController extends Controller
             ->orderBy('jurusan')
             ->get();
 
-        $prodiSummary = Mahasiswa::where('is_active', 1)
-            ->where('kompi', $kompi)
+        $prodiSummary = Mahasiswa::where('kompi', $kompi)
+            ->where(function ($q) { $q->where('is_active', '!=', 0)->orWhereNull('is_active'); })
             ->whereNotNull('prodi')
             ->where('prodi', '!=', '')
             ->select('prodi', DB::raw('count(*) as count'))
@@ -72,16 +74,16 @@ class KompiSayaController extends Controller
             ->orderBy('prodi')
             ->get();
 
-        // 3. Daily Attendance stats today
+        // 3. Daily Attendance stats today (any attendance today, including kegiatan-based)
         $today = Carbon::today()->format('Y-m-d');
-        $dailyCheckInsToday = Attendance::daily()
-            ->where('date', $today)
+        $dailyCheckInsToday = Attendance::where('date', $today)
             ->whereNotNull('check_in')
             ->whereIn('mahasiswa_id', $allMahasiswaIds)
+            ->distinct()
             ->pluck('mahasiswa_id')
             ->toArray();
 
-        $sudahAbsenMasukTodayCount = count($dailyCheckInsToday);
+        $sudahAbsenMasukTodayCount = count(array_unique($dailyCheckInsToday));
         $belumAbsenMasukTodayCount = max(0, $totalMahasiswa - $sudahAbsenMasukTodayCount);
 
         // 4. Total Session Attendances Summary
@@ -100,8 +102,8 @@ class KompiSayaController extends Controller
         }
 
         // 5. Query Mahasiswa for Paginated List
-        $mahasiswaQuery = Mahasiswa::where('is_active', 1)
-            ->where('kompi', $kompi)
+        $mahasiswaQuery = Mahasiswa::where('kompi', $kompi)
+            ->where(function ($q) { $q->where('is_active', '!=', 0)->orWhereNull('is_active'); })
             ->orderBy('name');
 
         if ($search !== '') {

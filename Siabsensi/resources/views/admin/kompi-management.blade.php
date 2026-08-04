@@ -36,7 +36,7 @@
 
   <div class="panel" style="margin-bottom:16px;padding:14px 20px">
     <form method="GET" action="{{ route('admin.kompi-management') }}" id="filter-form" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-      <div style="flex:1;min-width:200px"><label class="form-label">Cari Nama</label><input name="search" class="form-input" value="{{ $search ?? '' }}" placeholder="Cari nama mahasiswa..." style="padding:7px 10px"></div>
+      <div style="flex:1;min-width:200px"><label class="form-label">Cari Nama / ID</label><input name="search" class="form-input" value="{{ $search ?? '' }}" placeholder="Cari nama / ID mahasiswa..." style="padding:7px 10px"></div>
       <div><label class="form-label">Kompi</label><select name="kompi" class="form-input" style="width:230px;padding:7px 10px">
         <option value="all">Semua Kompi</option>
         @foreach($kompiOptions as $kompiName)

@@ -41,7 +41,7 @@ class AttendanceController extends Controller
 
         if ($filter === 'alpha') {
             $query = Mahasiswa::select(
-                "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.id as mahasiswa_id",
+                "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path", "$mhsTable.id as mahasiswa_id",
                 DB::raw('null as check_in'), DB::raw('null as check_out'), DB::raw('null as date'),
                 DB::raw("'alpha' as status"), DB::raw('null as camera_id'),
                 DB::raw('null as kegiatan_id'), DB::raw('null as is_late'), DB::raw('null as late_duration')
@@ -58,7 +58,10 @@ class AttendanceController extends Controller
 
             // Apply user filters
             if ($search) {
-                $query->where("$mhsTable.name", 'like', "%{$search}%");
+                $query->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
             }
             if ($kompi) {
                 $query->where("$mhsTable.kompi", $kompi);
@@ -73,7 +76,7 @@ class AttendanceController extends Controller
                 ->whereBetween("$table.date", [$start, $end])
                 ->orderBy("$table.date", 'desc')
                 ->orderBy("$table.check_in", 'desc')
-                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
+                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path");
             
             if ($assignedKompi) {
                 $query->where("$mhsTable.kompi", $assignedKompi);
@@ -88,7 +91,10 @@ class AttendanceController extends Controller
             
             // Apply filters
             if ($search) {
-                $query->where("$mhsTable.name", 'like', "%{$search}%");
+                $query->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
             }
             if ($kompi) {
                 $query->where("$mhsTable.kompi", $kompi);
@@ -103,7 +109,7 @@ class AttendanceController extends Controller
                 ->whereBetween("$table.date", [$start, $end])
                 ->orderBy("$table.date", 'desc')
                 ->orderBy("$table.check_in", 'desc')
-                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
+                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path");
             
             if ($assignedKompi) {
                 $query->where("$mhsTable.kompi", $assignedKompi);
@@ -111,7 +117,10 @@ class AttendanceController extends Controller
 
             // Apply filters
             if ($search) {
-                $query->where("$mhsTable.name", 'like', "%{$search}%");
+                $query->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
             }
             if ($kompi) {
                 $query->where("$mhsTable.kompi", $kompi);

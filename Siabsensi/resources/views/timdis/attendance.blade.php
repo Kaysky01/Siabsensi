@@ -150,7 +150,23 @@
           <td>{{ $attendances->firstItem() + $i }}</td>
           <td>
             <div class="mahasiswa-cell">
-              <div class="avatar" style="background:var(--primary-light);color:var(--primary)">{{ strtoupper(substr($att->name, 0, 2)) }}</div>
+              @php
+                $photoUrl = null;
+                if (!empty($att->photo_path)) {
+                  $path = $att->photo_path;
+                  if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+                    $photoUrl = $path;
+                  } else {
+                    $cleanPath = ltrim(str_replace(['public/', 'storage/'], '', $path), '/');
+                    $photoUrl = url('/file-bukti/' . $cleanPath);
+                  }
+                }
+              @endphp
+              @if($photoUrl)
+                <img src="{{ $photoUrl }}" alt="{{ $att->name }}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid #3b82f6;flex-shrink:0;">
+              @else
+                <div class="avatar" style="background:var(--primary-light);color:var(--primary)">{{ strtoupper(substr($att->name, 0, 2)) }}</div>
+              @endif
               <div class="mhs-name">{{ $att->name }}</div>
             </div>
           </td>

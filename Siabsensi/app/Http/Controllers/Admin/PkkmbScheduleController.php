@@ -29,7 +29,7 @@ class PkkmbScheduleController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'hari_ke' => 'required|integer|min:1',
+            'hari_ke' => 'required|string|max:50',
             'tanggal' => 'required|date|unique:pkkmb_schedules,tanggal',
             'check_in_start' => 'required|date_format:H:i',
             'check_in_end' => 'required|date_format:H:i|after:check_in_start',
@@ -38,16 +38,16 @@ class PkkmbScheduleController extends Controller
             'is_active' => 'nullable|boolean',
         ], [
             'hari_ke.required' => 'Hari ke- wajib diisi',
-            'hari_ke.min' => 'Hari ke- minimal 1',
+            'hari_ke.max'      => 'Label hari maksimal 50 karakter',
             'tanggal.required' => 'Tanggal wajib diisi',
-            'tanggal.unique' => 'Tanggal sudah ada dalam jadwal',
-            'check_in_start.required' => 'Waktu mulai check-in wajib diisi',
-            'check_in_end.required' => 'Batas check-in wajib diisi',
-            'check_in_end.after' => 'Batas check-in harus setelah waktu mulai',
+            'tanggal.unique'   => 'Tanggal sudah ada dalam jadwal',
+            'check_in_start.required'  => 'Waktu mulai check-in wajib diisi',
+            'check_in_end.required'    => 'Batas check-in wajib diisi',
+            'check_in_end.after'       => 'Batas check-in harus setelah waktu mulai',
             'check_out_start.required' => 'Waktu minimal check-out wajib diisi',
-            'check_out_start.after' => 'Waktu check-out harus setelah batas check-in',
-            'check_out_end.required' => 'Waktu maksimal check-out wajib diisi',
-            'check_out_end.after' => 'Batas akhir check-out harus setelah waktu mulai check-out',
+            'check_out_start.after'    => 'Waktu check-out harus setelah batas check-in',
+            'check_out_end.required'   => 'Waktu maksimal check-out wajib diisi',
+            'check_out_end.after'      => 'Batas akhir check-out harus setelah waktu mulai check-out',
         ]);
 
         $validated['is_active'] = $request->has('is_active') ? true : false;
@@ -76,7 +76,7 @@ class PkkmbScheduleController extends Controller
         $schedule = PkkmbSchedule::findOrFail($id);
         
         $validated = $request->validate([
-            'hari_ke' => 'required|integer|min:1',
+            'hari_ke' => 'required|string|max:50',
             'tanggal' => 'required|date|unique:pkkmb_schedules,tanggal,' . $id,
             'check_in_start' => 'required|date_format:H:i',
             'check_in_end' => 'required|date_format:H:i|after:check_in_start',
@@ -85,12 +85,13 @@ class PkkmbScheduleController extends Controller
             'is_active' => 'nullable|boolean',
         ], [
             'hari_ke.required' => 'Hari ke- wajib diisi',
+            'hari_ke.max'      => 'Label hari maksimal 50 karakter',
             'tanggal.required' => 'Tanggal wajib diisi',
-            'tanggal.unique' => 'Tanggal sudah ada dalam jadwal',
-            'check_in_start.required' => 'Waktu mulai check-in wajib diisi',
-            'check_in_end.after' => 'Batas check-in harus setelah waktu mulai',
-            'check_out_start.after' => 'Waktu check-out harus setelah batas check-in',
-            'check_out_end.after' => 'Batas akhir check-out harus setelah waktu mulai check-out',
+            'tanggal.unique'   => 'Tanggal sudah ada dalam jadwal',
+            'check_in_start.required'  => 'Waktu mulai check-in wajib diisi',
+            'check_in_end.after'       => 'Batas check-in harus setelah waktu mulai',
+            'check_out_start.after'    => 'Waktu check-out harus setelah batas check-in',
+            'check_out_end.after'      => 'Batas akhir check-out harus setelah waktu mulai check-out',
         ]);
 
         $validated['is_active'] = $request->has('is_active') ? true : false;
