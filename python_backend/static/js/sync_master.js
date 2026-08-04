@@ -48,7 +48,7 @@ function showSyncMasterDataDialog() {
             const urlInput = document.getElementById('laravel-url-input');
             const laravelUrl = (urlInput && urlInput.value.trim()) || LARAVEL_URL;
             LARAVEL_URL = laravelUrl;
-            
+
             // Show interactive progress dialog with percentage
             showProgressSyncDialog(laravelUrl);
         }
@@ -124,7 +124,7 @@ async function executeStepByStepSync(laravelUrl) {
         const bar = document.getElementById('sync-progress-bar');
         const text = document.getElementById('sync-percent-text');
         const title = document.getElementById('sync-step-title');
-        
+
         const validPct = Math.min(100, Math.max(0, percent));
         if (bar) bar.style.width = `${validPct}%`;
         if (text) text.innerText = `${validPct}%`;
@@ -137,9 +137,9 @@ async function executeStepByStepSync(laravelUrl) {
         stepEl.style.opacity = '1';
         const iconEl = stepEl.querySelector('.step-icon');
         const labelSpan = stepEl.querySelector('span:last-child');
-        
+
         if (labelText && labelSpan) labelSpan.innerText = labelText;
-        
+
         if (state === 'active') {
             if (iconEl) iconEl.innerHTML = '⏳';
             stepEl.style.fontWeight = '600';
@@ -162,7 +162,7 @@ async function executeStepByStepSync(laravelUrl) {
         const intervalTime = 250;
         const totalSteps = durationMs / intervalTime;
         const increment = (endPct - startPct) / totalSteps;
-        
+
         progressTimer = setInterval(() => {
             current = Math.min(endPct, current + increment);
             updateProgress(Math.round(current));
@@ -183,10 +183,10 @@ async function executeStepByStepSync(laravelUrl) {
         // Step 1: Tes Koneksi (0% -> 10%)
         setStepStatus('step-conn', 'active');
         updateProgress(5, 'Menguji koneksi ke server...');
-        
+
         const connRes = await fetch(`/api/python/sync/test-connection?laravel_url=${encodeURIComponent(laravelUrl)}`);
         const connData = await connRes.json();
-        
+
         if (!connRes.ok || !connData.success) {
             setStepStatus('step-conn', 'error', `Koneksi Gagal: ${connData.message || 'Server tidak merespon'}`);
             throw new Error(connData.message || 'Gagal terhubung ke server Laravel');
@@ -195,7 +195,7 @@ async function executeStepByStepSync(laravelUrl) {
         // Ambil jumlah data aktual dari statistik server
         const serverStats = (connData.data && connData.data.stats) || connData.stats || {};
         const mhsCount = serverStats.mahasiswa_count ? Number(serverStats.mahasiswa_count).toLocaleString('id-ID') : '';
-        
+
         setStepStatus('step-conn', 'done', 'Koneksi Server Laravel Berhasil');
         updateProgress(10, `Koneksi OK! Terdeteksi ${mhsCount || ''} data mahasiswa...`);
 
@@ -203,7 +203,7 @@ async function executeStepByStepSync(laravelUrl) {
         const mhsLabel = mhsCount ? `Sync ${mhsCount} Data Mahasiswa & User Accounts...` : 'Sync Data Mahasiswa & User Accounts...';
         setStepStatus('step-mhs', 'active', mhsLabel);
         startSmoothProgress(10, 52, 18000); // Smooth percentage ticks while fetching
-        
+
         const mhsRes = await fetch(`/api/python/sync/mahasiswa?laravel_url=${encodeURIComponent(laravelUrl)}`);
         const mhsData = await mhsRes.json();
         stopSmoothProgress();
@@ -222,7 +222,7 @@ async function executeStepByStepSync(laravelUrl) {
         // Step 3: Sync Schedules (55% -> 70%)
         setStepStatus('step-sch', 'active');
         updateProgress(60, 'Menyimpan Jadwal PKKMB...');
-        
+
         const schRes = await fetch(`/api/python/sync/schedules?laravel_url=${encodeURIComponent(laravelUrl)}`);
         const schData = await schRes.json();
 
@@ -238,7 +238,7 @@ async function executeStepByStepSync(laravelUrl) {
         // Step 4: Sync Kegiatan (70% -> 85%)
         setStepStatus('step-keg', 'active');
         updateProgress(75, 'Menyimpan Data Kegiatan...');
-        
+
         const kegRes = await fetch(`/api/python/sync/kegiatan?laravel_url=${encodeURIComponent(laravelUrl)}`);
         const kegData = await kegRes.json();
 
@@ -267,7 +267,7 @@ async function executeStepByStepSync(laravelUrl) {
         }
 
         updateProgress(100, 'Sinkronisasi 100% Selesai!');
-        
+
         // Wait 700ms so user can see 100% complete state clearly before final summary dialog
         await new Promise(r => setTimeout(r, 700));
 
@@ -300,15 +300,15 @@ function showSyncResults(data) {
     }
 
     const results = data.results;
-    
+
     // Build result HTML
     let resultHtml = '<div style="text-align: left;">';
-    
+
     // Mahasiswa
     if (results.mahasiswa) {
         const mhs = results.mahasiswa;
         const uncreatedList = mhs.uncreated_users || [];
-        
+
         resultHtml += `
             <div style="margin-bottom: 15px; padding: 12px; background: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
                 <div style="font-weight: 600; color: #065f46; margin-bottom: 8px;">
@@ -337,7 +337,7 @@ function showSyncResults(data) {
             </div>
         `;
     }
-    
+
     // Schedules
     if (results.schedules) {
         const sch = results.schedules;
@@ -354,7 +354,7 @@ function showSyncResults(data) {
             </div>
         `;
     }
-    
+
     // Kegiatan
     if (results.kegiatan) {
         const keg = results.kegiatan;
@@ -388,9 +388,9 @@ function showSyncResults(data) {
             </div>
         `;
     }
-    
+
     resultHtml += '</div>';
-    
+
     Swal.fire({
         title: '✅ Sinkronisasi Berhasil!',
         html: resultHtml,
@@ -407,7 +407,7 @@ async function testLaravelConnection(laravelUrl) {
     try {
         const response = await fetch(`/api/python/sync/test-connection?laravel_url=${encodeURIComponent(laravelUrl)}`);
         const data = await response.json();
-        
+
         return {
             success: data.success,
             message: data.message
@@ -437,9 +437,9 @@ async function syncMahasiswaOnly() {
             try {
                 const response = await fetch(`/api/python/sync/mahasiswa?laravel_url=${encodeURIComponent(LARAVEL_URL)}`, {
                     method: 'GET',
-                    headers: {'Content-Type': 'application/json'}
+                    headers: { 'Content-Type': 'application/json' }
                 });
-                
+
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.message);
                 return data;
@@ -448,7 +448,7 @@ async function syncMahasiswaOnly() {
             }
         }
     });
-    
+
     if (result.isConfirmed && result.value) {
         const stats = result.value.stats;
         Swal.fire({
@@ -482,9 +482,9 @@ async function syncSchedulesOnly() {
             try {
                 const response = await fetch(`/api/python/sync/schedules?laravel_url=${encodeURIComponent(LARAVEL_URL)}`, {
                     method: 'GET',
-                    headers: {'Content-Type': 'application/json'}
+                    headers: { 'Content-Type': 'application/json' }
                 });
-                
+
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.message);
                 return data;
@@ -493,7 +493,7 @@ async function syncSchedulesOnly() {
             }
         }
     });
-    
+
     if (result.isConfirmed && result.value) {
         const stats = result.value.stats;
         Swal.fire({
@@ -527,9 +527,9 @@ async function syncKegiatanOnly() {
             try {
                 const response = await fetch(`/api/python/sync/kegiatan?laravel_url=${encodeURIComponent(LARAVEL_URL)}`, {
                     method: 'GET',
-                    headers: {'Content-Type': 'application/json'}
+                    headers: { 'Content-Type': 'application/json' }
                 });
-                
+
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.message);
                 return data;
@@ -538,7 +538,7 @@ async function syncKegiatanOnly() {
             }
         }
     });
-    
+
     if (result.isConfirmed && result.value) {
         const stats = result.value.stats;
         Swal.fire({

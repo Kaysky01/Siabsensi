@@ -124,16 +124,60 @@ class Mahasiswa extends Model
             return false;
         }
 
-        return Storage::disk('public')->exists($photoPath);
+        if (str_starts_with($photoPath, 'http://') || str_starts_with($photoPath, 'https://')) {
+            return true;
+        }
+
+        $cleanPath = ltrim($photoPath, '/');
+        if (str_starts_with($cleanPath, 'storage/')) {
+            $cleanPath = substr($cleanPath, 8);
+        } elseif (str_starts_with($cleanPath, 'public/')) {
+            $cleanPath = substr($cleanPath, 7);
+        }
+
+        if (Storage::disk('public')->exists($cleanPath)) {
+            return true;
+        }
+
+        if (file_exists(public_path($cleanPath)) || file_exists(public_path($photoPath)) || file_exists(storage_path('app/public/' . $cleanPath))) {
+            return true;
+        }
+
+        return false;
     }
 
     public function getPhotoUrlAttribute(): ?string
     {
-        if (!$this->hasValidProfilePhoto()) {
+        $photoPath = is_string($this->photo_path) ? trim($this->photo_path) : null;
+
+        if (blank($photoPath)) {
             return null;
         }
 
-        return url('/file-bukti/' . ltrim($this->photo_path, '/'));
+        if (str_starts_with($photoPath, 'http://') || str_starts_with($photoPath, 'https://')) {
+            return $photoPath;
+        }
+
+        $cleanPath = ltrim($photoPath, '/');
+        if (str_starts_with($cleanPath, 'storage/')) {
+            $cleanPath = substr($cleanPath, 8);
+        } elseif (str_starts_with($cleanPath, 'public/')) {
+            $cleanPath = substr($cleanPath, 7);
+        }
+
+        if (Storage::disk('public')->exists($cleanPath) || file_exists(storage_path('app/public/' . $cleanPath))) {
+            return url('/file-bukti/' . $cleanPath);
+        }
+
+        if (file_exists(public_path($cleanPath))) {
+            return asset($cleanPath);
+        }
+
+        if (file_exists(public_path($photoPath))) {
+            return asset($photoPath);
+        }
+
+        return null;
     }
 
     public function hasCompleteProfile(): bool

@@ -62,7 +62,25 @@
           <tr>
             <td>
               <div class="mahasiswa-cell">
-                <div class="avatar" style="background:var(--primary-light);color:var(--primary)">{{ strtoupper(substr($att->name, 0, 2)) }}</div>
+                @php
+                  $photoPath = is_string($att->photo_path) ? trim($att->photo_path) : null;
+                  $photoUrl = null;
+                  if ($photoPath) {
+                    if (str_starts_with($photoPath, 'http://') || str_starts_with($photoPath, 'https://')) {
+                      $photoUrl = $photoPath;
+                    } else {
+                      $cleanPath = ltrim($photoPath, '/');
+                      if (str_starts_with($cleanPath, 'storage/')) $cleanPath = substr($cleanPath, 8);
+                      elseif (str_starts_with($cleanPath, 'public/')) $cleanPath = substr($cleanPath, 7);
+                      $photoUrl = url('/file-bukti/' . $cleanPath);
+                    }
+                  }
+                @endphp
+                @if($photoUrl)
+                  <img src="{{ $photoUrl }}" alt="{{ $att->name }}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid #3b82f6;flex-shrink:0;">
+                @else
+                  <div class="avatar" style="background:var(--primary-light);color:var(--primary);width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;">{{ strtoupper(substr($att->name, 0, 2)) }}</div>
+                @endif
                 <div>
                   <div class="mhs-name">{{ $att->name }}</div>
                   <div class="mhs-dept">{{ $att->kompi }}</div>

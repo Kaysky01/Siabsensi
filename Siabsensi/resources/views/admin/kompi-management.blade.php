@@ -37,10 +37,12 @@
   <div class="panel" style="margin-bottom:16px;padding:14px 20px">
     <form method="GET" action="{{ route('admin.kompi-management') }}" id="filter-form" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
       <div style="flex:1;min-width:200px"><label class="form-label">Cari Nama</label><input name="search" class="form-input" value="{{ $search ?? '' }}" placeholder="Cari nama mahasiswa..." style="padding:7px 10px"></div>
-      <div><label class="form-label">Kompi</label><select name="kompi" class="form-input" style="width:200px;padding:7px 10px">
+      <div><label class="form-label">Kompi</label><select name="kompi" class="form-input" style="width:230px;padding:7px 10px">
         <option value="all">Semua Kompi</option>
         @foreach($kompiOptions as $kompiName)
-            <option value="{{ $kompiName }}" {{ $filterKompi == $kompiName ? 'selected' : '' }}>{{ $kompiName }}</option>
+            <option value="{{ $kompiName }}" {{ $filterKompi == $kompiName ? 'selected' : '' }}>
+                {{ $kompiName }} ({{ $kompiCounts[$kompiName] ?? 0 }} Anggota)
+            </option>
         @endforeach
         <option value="__empty__" {{ $filterKompi == '__empty__' ? 'selected' : '' }}>Belum Memiliki Kompi</option>
       </select></div>
@@ -89,8 +91,19 @@
           @foreach($mahasiswaList as $i => $m)
           <tr id="row-{{ $i }}">
             <td><input type="checkbox" class="row-checkbox" value="{{ $i }}" onchange="updateSelectedCount()"></td>
-            <td>{{ $m->name }}</td>
-            <td>{{ $m->id }}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:10px">
+                @if($m->photo_url)
+                  <img src="{{ $m->photo_url }}" alt="{{ $m->name }}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid #3b82f6;flex-shrink:0">
+                @else
+                  <div style="width:38px;height:38px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;border:1px dashed #bfdbfe;color:#2563eb;font-weight:700;font-size:13px;flex-shrink:0">
+                    {{ strtoupper(substr($m->name, 0, 2)) }}
+                  </div>
+                @endif
+                <span style="font-weight:600;font-size:13px;color:#0f172a">{{ $m->name }}</span>
+              </div>
+            </td>
+            <td><span style="font-family:monospace;font-size:12px;color:#64748b">{{ $m->id }}</span></td>
             <td>@if($m->kompi && $m->kompi !== '-')<span class="badge badge-blue">{{ $m->kompi }}</span>@else<span class="badge badge-red">Belum ada</span>@endif</td>
             <td>
               <input type="hidden" name="assignments[{{ $i }}][id]" value="{{ $m->id }}" id="id-input-{{ $i }}" disabled>

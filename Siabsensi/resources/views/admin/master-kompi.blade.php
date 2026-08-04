@@ -81,6 +81,7 @@
     <thead>
       <tr>
         <th>Nama Kompi</th>
+        <th>Jumlah Anggota</th>
         <th>Penanggung Jawab (Garda)</th>
         <th>Penanggung Jawab (Tim Disiplin)</th>
         <th width="120">Aksi</th>
@@ -90,6 +91,12 @@
       @forelse($kompiList as $k)
       <tr>
         <td style="font-weight:600"><span class="badge badge-blue" style="font-size:13px;padding:5px 12px">{{ $k->nama }}</span></td>
+        <td>
+          <span class="badge" style="background:#f1f5f9;color:#1e293b;border:1px solid #cbd5e1;font-size:12px;padding:4px 10px;border-radius:20px;font-weight:700">
+            <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;margin-right:2px;color:#2563eb">groups</span>
+            {{ number_format($k->totalMahasiswa ?? 0) }} Anggota
+          </span>
+        </td>
         <td>
           @if($k->gardas && $k->gardas->count() > 0)
             <div style="display:flex;flex-wrap:wrap;gap:6px">
@@ -134,7 +141,7 @@
       </tr>
       @empty
       <tr>
-        <td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada data Kompi</td>
+        <td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Belum ada data Kompi</td>
       </tr>
       @endforelse
     </tbody>

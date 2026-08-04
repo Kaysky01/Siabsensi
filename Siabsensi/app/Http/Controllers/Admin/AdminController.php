@@ -43,7 +43,7 @@ class AdminController extends Controller
         $recent = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
             ->whereDate("$table.date", $today)
             ->orderBy("$table.check_in", 'desc')
-            ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi")
+            ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.photo_path")
             ->take(8)
             ->get();
 
@@ -97,7 +97,7 @@ class AdminController extends Controller
 
         if ($filter === 'alpha') {
             $query = Mahasiswa::select(
-                "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.id as mahasiswa_id",
+                "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path", "$mhsTable.id as mahasiswa_id",
                 DB::raw('null as check_in'), DB::raw('null as check_out'), DB::raw('null as date'),
                 DB::raw("'alpha' as status"), DB::raw('null as camera_id'),
                 DB::raw('null as kegiatan_id'), DB::raw('null as is_late'), DB::raw('null as late_duration')
@@ -124,7 +124,7 @@ class AdminController extends Controller
                 ->whereBetween("$table.date", [$start, $end])
                 ->orderBy("$table.date", 'desc')
                 ->orderBy("$table.check_in", 'desc')
-                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
+                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path");
             
             // Filter by status
             if (in_array($filter, ['hadir', 'present'])) {
@@ -150,7 +150,7 @@ class AdminController extends Controller
                 ->whereBetween("$table.date", [$start, $end])
                 ->orderBy("$table.date", 'desc')
                 ->orderBy("$table.check_in", 'desc')
-                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan");
+                ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path");
             
             // Apply filters
             if ($search) {
@@ -1113,8 +1113,14 @@ class AdminController extends Controller
 
         $mahasiswaList = $query->paginate(20)->withQueryString();
         $kompiOptions = \App\Models\Kompi::pluck('nama')->sortBy(null, SORT_NATURAL | SORT_FLAG_CASE)->values();
+        $kompiCounts = Mahasiswa::select('kompi', DB::raw('count(*) as total'))
+            ->whereNotNull('kompi')
+            ->where('kompi', '!=', '')
+            ->where('kompi', '!=', '-')
+            ->groupBy('kompi')
+            ->pluck('total', 'kompi');
 
-        return view('admin.kompi-management', compact('mahasiswaList', 'kompiOptions', 'filterKompi', 'search'));
+        return view('admin.kompi-management', compact('mahasiswaList', 'kompiOptions', 'filterKompi', 'search', 'kompiCounts'));
     }
 
     public function shuffleKompi(Request $request)

@@ -87,6 +87,7 @@ class MasterDataController extends Controller
         foreach ($kompiList as $k) {
             $k->gardas = User::where('role', 'garda')->where('assigned_kompi', $k->nama)->get();
             $k->timdisList = User::where('role', 'timdis')->where('assigned_kompi', $k->nama)->get();
+            $k->totalMahasiswa = \App\Models\Mahasiswa::where('kompi', $k->nama)->count();
         }
 
         return view('admin.master-kompi', compact('kompiList', 'gardaUsers', 'timdisUsers'));

@@ -85,7 +85,11 @@
         <tr>
           <td>
             <div class="mahasiswa-cell">
-              <div class="avatar" style="background:var(--primary-light);color:var(--primary)">{{ strtoupper(substr($m->name, 0, 2)) }}</div>
+              @if($m->photo_url)
+                <img src="{{ $m->photo_url }}" alt="{{ $m->name }}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid #3b82f6;flex-shrink:0;">
+              @else
+                <div class="avatar" style="background:var(--primary-light);color:var(--primary);width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;">{{ strtoupper(substr($m->name, 0, 2)) }}</div>
+              @endif
               <div>
                 <div class="mhs-name">{{ $m->name }}</div>
                 <div class="mhs-dept">{{ $m->id }}</div>
