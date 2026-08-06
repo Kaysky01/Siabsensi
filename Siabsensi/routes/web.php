@@ -436,17 +436,8 @@ Route::post('/api/sync', function (Request $request) {
                 Attendance::create($createData);
             }
             $syncedCount++;
-
-                        // Use Laravel calculation
-                        $createData['is_late'] = $isLate;
-                        $createData['late_duration'] = $lateDuration;
-                    }
-                }
-                
-                Attendance::create($createData);
-            }
-            $syncedCount++;
         }
+
 
         $message = "Synced {$syncedCount} records";
         if ($rejectedCount > 0) {
