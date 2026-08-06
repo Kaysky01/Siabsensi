@@ -1,0 +1,15 @@
+[
+  {
+    "id": "local_1786026862291",
+    "mahasiswa_id": "SMBPT0617",
+    "name": "Aufa Sabila",
+    "kompi": "KOMPI 11",
+    "kegiatan_id": null,
+    "check_in": null,
+    "check_out": "2026-08-06 21:34:22",
+    "action": "already_checked_out",
+    "is_late": false,
+    "late_duration": 0,
+    "synced": false
+  }
+]

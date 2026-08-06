@@ -846,5 +846,126 @@ class LaravelSyncService:
             # Don't fail completely if system_config sync fails
             logger.warning("System config sync failed, but continuing...")
         
+        # Sync Attendance from Laravel
+        logger.info("Starting attendance sync from Laravel...")
+        att_fetch = self.fetch_attendance()
+        if att_fetch['success']:
+            att_sync = self.sync_attendance_to_local(att_fetch['data'])
+            results['attendance'] = att_sync
+        else:
+            results['attendance'] = att_fetch
+            logger.warning("Attendance sync from Laravel failed, but continuing...")
+
         logger.info("Sync completed!")
         return results
+
+    def fetch_attendance(self) -> Dict:
+        """
+        Menarik data absensi hari ini dari Laravel API
+        """
+        try:
+            logger.info("Fetching attendance from Laravel...")
+            response = self.session.get(
+                f"{self.base_url}/api/sync/attendance", 
+                timeout=30,
+                verify=self.verify_ssl
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            if not data.get('success'):
+                return {
+                    'success': False,
+                    'message': data.get('message', 'Failed to fetch attendance')
+                }
+            
+            attendances = data.get('data', [])
+            logger.info(f"Fetched {len(attendances)} attendance records")
+            
+            return {
+                'success': True,
+                'data': attendances,
+                'count': len(attendances)
+            }
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching attendance: {e}")
+            return {
+                'success': False,
+                'message': f'Error fetching attendance: {str(e)}'
+            }
+
+    def sync_attendance_to_local(self, attendances: List[Dict]) -> Dict:
+        """
+        Simpan/update data absensi dari Laravel ke database MySQL lokal
+        """
+        inserted = 0
+        updated = 0
+        errors = 0
+        
+        conn = self._get_conn()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            for att in attendances:
+                mhs_id = att.get('mahasiswa_id')
+                if not mhs_id:
+                    continue
+                
+                check_in = att.get('check_in')
+                check_out = att.get('check_out')
+                date_val = att.get('date')
+                kegiatan_id = att.get('kegiatan_id')
+                is_late = 1 if att.get('is_late') else 0
+                late_duration = att.get('late_duration', 0)
+                
+                if kegiatan_id:
+                    cursor.execute(
+                        "SELECT id, check_in, check_out FROM attendance WHERE mahasiswa_id = %s AND kegiatan_id = %s",
+                        (mhs_id, kegiatan_id)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT id, check_in, check_out FROM attendance WHERE mahasiswa_id = %s AND date = %s AND kegiatan_id IS NULL",
+                        (mhs_id, date_val)
+                    )
+                existing = cursor.fetchone()
+                
+                if existing:
+                    # Preserve non-null local timestamps if server sends null
+                    final_check_in = check_in if check_in else existing['check_in']
+                    final_check_out = check_out if check_out else existing['check_out']
+                    cursor.execute("""
+                        UPDATE attendance SET
+                            check_in = %s,
+                            check_out = %s,
+                            is_late = %s,
+                            late_duration = %s,
+                            is_synced = 1
+                        WHERE id = %s
+                    """, (final_check_in, final_check_out, is_late, late_duration, existing['id']))
+                    updated += 1
+                else:
+                    cursor.execute("""
+                        INSERT INTO attendance (
+                            mahasiswa_id, kegiatan_id, date, check_in, check_out,
+                            is_late, late_duration, camera_id, is_synced
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'SYNC-LARAVEL', 1)
+                    """, (mhs_id, kegiatan_id, date_val, check_in, check_out, is_late, late_duration))
+                    inserted += 1
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error syncing attendance to local: {e}")
+            conn.rollback()
+            errors += 1
+        finally:
+            cursor.close()
+            conn.close()
+            
+        return {
+            'success': True,
+            'inserted': inserted,
+            'updated': updated,
+            'errors': errors,
+            'total': len(attendances)
+        }
+

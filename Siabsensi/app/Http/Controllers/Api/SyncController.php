@@ -142,6 +142,39 @@ class SyncController extends Controller
     }
 
     /**
+     * Get today's attendance records for Python sync
+     */
+    public function attendance()
+    {
+        try {
+            $today = \Carbon\Carbon::today()->format('Y-m-d');
+            $attendances = \App\Models\Attendance::where('date', $today)
+                ->select([
+                    'id',
+                    'mahasiswa_id',
+                    'kegiatan_id',
+                    'date',
+                    'check_in',
+                    'check_out',
+                    'status',
+                    'is_late',
+                    'late_duration'
+                ])->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $attendances,
+                'count' => $attendances->count()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch attendance: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get sync status and statistics
      */
     public function status()
@@ -170,3 +203,4 @@ class SyncController extends Controller
         }
     }
 }
+

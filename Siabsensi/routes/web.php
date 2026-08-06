@@ -360,70 +360,24 @@ Route::post('/api/sync', function (Request $request) {
                     ->where('kegiatan_id', $kegiatanId)
                     ->first();
             } else {
-                // For daily attendance, VALIDATE AGAINST PKKMB SCHEDULE
+                // For daily attendance
                 $today = Carbon::today()->format('Y-m-d');
                 $schedule = \App\Models\PkkmbSchedule::where('tanggal', $today)
                     ->where('is_active', 1)
                     ->first();
                 
-                // Reject if no schedule for today
-                if (!$schedule) {
-                    $rejectedCount++;
-                    $rejectionReasons[] = "Tidak ada jadwal PKKMB untuk hari ini (Mahasiswa: {$mahasiswa->name})";
-                    Log::warning("Attendance sync rejected - No PKKMB schedule for today", [
-                        'mahasiswa_id' => $mahasiswaId,
-                        'mahasiswa_name' => $mahasiswa->name,
-                        'date' => $today
-                    ]);
-                    continue;
-                }
-                
-                // Get grace period
-                $gracePeriod = \App\Models\SystemConfig::getGracePeriodMinutes();
-                
-                // Validate check-in time if this is a check-in
-                $checkIn = isset($record['check_in']) ? Carbon::parse($record['check_in']) : Carbon::now();
-                $checkInTime = $checkIn->format('H:i:s');
-                
-                // Parse schedule times
-                $checkInStart = Carbon::parse($schedule->check_in_start)->format('H:i:s');
-                $checkInEnd = Carbon::parse($schedule->check_in_end)->format('H:i:s');
-                $graceEndTime = Carbon::parse($schedule->check_in_end)->addMinutes($gracePeriod)->format('H:i:s');
-                
-                // Check if too early
-                if ($checkInTime < $checkInStart) {
-                    $rejectedCount++;
-                    $rejectionReasons[] = "Check-in terlalu awal (Mahasiswa: {$mahasiswa->name}, Waktu: {$checkInTime}, Batas mulai: {$checkInStart})";
-                    Log::warning("Attendance sync rejected - Too early", [
-                        'mahasiswa_id' => $mahasiswaId,
-                        'mahasiswa_name' => $mahasiswa->name,
-                        'check_in_time' => $checkInTime,
-                        'schedule_start' => $checkInStart
-                    ]);
-                    continue;
-                }
-                
-                // Check if too late (after grace period)
-                if ($checkInTime > $graceEndTime) {
-                    $rejectedCount++;
-                    $rejectionReasons[] = "Check-in terlambat melewati batas (Mahasiswa: {$mahasiswa->name}, Waktu: {$checkInTime}, Batas akhir: {$graceEndTime})";
-                    Log::warning("Attendance sync rejected - Too late", [
-                        'mahasiswa_id' => $mahasiswaId,
-                        'mahasiswa_name' => $mahasiswa->name,
-                        'check_in_time' => $checkInTime,
-                        'grace_end_time' => $graceEndTime,
-                        'grace_period' => $gracePeriod
-                    ]);
-                    continue;
-                }
-                
-                // Determine if late
-                $isLate = $checkInTime > $checkInEnd;
+                $checkInObj = isset($record['check_in']) ? Carbon::parse($record['check_in']) : null;
+                $isLate = false;
                 $lateDuration = 0;
-                if ($isLate) {
-                    $start = Carbon::parse($checkInEnd);
-                    $end = Carbon::parse($checkInTime);
-                    $lateDuration = $start->diffInMinutes($end);
+                
+                if ($checkInObj && $schedule) {
+                    $checkInTime = $checkInObj->format('H:i:s');
+                    $checkInEnd = Carbon::parse($schedule->check_in_end)->format('H:i:s');
+                    if ($checkInTime > $checkInEnd) {
+                        $isLate = true;
+                        $start = Carbon::parse($checkInEnd);
+                        $lateDuration = $start->diffInMinutes($checkInObj);
+                    }
                 }
                 
                 $attendance = Attendance::daily()
@@ -438,30 +392,32 @@ Route::post('/api/sync', function (Request $request) {
             if ($attendance) {
                 $updateData = [
                     'status' => 'hadir',
-                    'check_in' => $attendance->check_in ?? $checkIn ?? Carbon::now()->toDateTimeString(),
-                    'check_out' => $checkOut ?: $attendance->check_out,
                 ];
+                if ($checkIn) {
+                    $updateData['check_in'] = $attendance->check_in ?? $checkIn;
+                }
+                if ($checkOut) {
+                    $updateData['check_out'] = $checkOut;
+                }
                 
                 // Add late info - prioritize from Python backend, fallback to Laravel calculation
                 if (!$kegiatanId) {
                     if (isset($record['is_late'])) {
-                        // Use data from Python backend
                         $updateData['is_late'] = $record['is_late'];
                         $updateData['late_duration'] = $record['late_duration'] ?? 0;
                     } elseif (isset($isLate) && isset($lateDuration)) {
-                        // Use Laravel calculation
                         $updateData['is_late'] = $isLate;
                         $updateData['late_duration'] = $lateDuration;
                     }
                 }
                 
                 $attendance->update($updateData);
-            } else if ($checkIn) {
+            } else if ($checkIn || $checkOut) {
                 $createData = [
                     'mahasiswa_id' => $mahasiswaId,
                     'kegiatan_id' => $kegiatanId,
                     'date' => $kegiatanDate,
-                    'check_in' => $checkIn,
+                    'check_in' => $checkIn ?? Carbon::now()->toDateTimeString(),
                     'check_out' => $checkOut,
                     'status' => 'hadir',
                 ];
@@ -469,10 +425,18 @@ Route::post('/api/sync', function (Request $request) {
                 // Add late info - prioritize from Python backend, fallback to Laravel calculation
                 if (!$kegiatanId) {
                     if (isset($record['is_late'])) {
-                        // Use data from Python backend
                         $createData['is_late'] = $record['is_late'];
                         $createData['late_duration'] = $record['late_duration'] ?? 0;
                     } elseif (isset($isLate) && isset($lateDuration)) {
+                        $createData['is_late'] = $isLate;
+                        $createData['late_duration'] = $lateDuration;
+                    }
+                }
+                
+                Attendance::create($createData);
+            }
+            $syncedCount++;
+
                         // Use Laravel calculation
                         $createData['is_late'] = $isLate;
                         $createData['late_duration'] = $lateDuration;
@@ -527,6 +491,8 @@ Route::prefix('api/sync')->group(function () {
     Route::get('/schedules', [\App\Http\Controllers\Api\SyncController::class, 'schedules']);
     Route::get('/kegiatan', [\App\Http\Controllers\Api\SyncController::class, 'kegiatan']);
     Route::get('/system-config', [\App\Http\Controllers\Api\SyncController::class, 'systemConfig']);
+    Route::get('/attendance', [\App\Http\Controllers\Api\SyncController::class, 'attendance']);
     Route::get('/status', [\App\Http\Controllers\Api\SyncController::class, 'status']);
 });
+
 
