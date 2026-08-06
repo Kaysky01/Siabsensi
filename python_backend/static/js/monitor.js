@@ -308,13 +308,15 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
     const isMasuk = type === 'masuk';
     const gradientColor = isMasuk
         ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-        : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+        : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
+    const glowColor = isMasuk ? 'rgba(16, 185, 129, 0.25)' : 'rgba(59, 130, 246, 0.25)';
     const iconHtml = isMasuk
-        ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" style="width:52px;height:52px;"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`
-        : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" style="width:52px;height:52px;"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>`;
-    const labelText = isMasuk ? 'BERHASIL MASUK' : 'BERHASIL KELUAR';
-    const labelColor = isMasuk ? '#10b981' : '#3b82f6';
-    const bgBadge = isMasuk ? '#d1fae5' : '#dbeafe';
+        ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>`;
+    const labelText = isMasuk ? 'ABSENSI MASUK TERKONFIRMASI' : 'ABSENSI KELUAR TERKONFIRMASI';
+    const labelColor = isMasuk ? '#047857' : '#1d4ed8';
+    const bgBadge = isMasuk ? '#ecfdf5' : '#eff6ff';
+    const borderBadge = isMasuk ? '#a7f3d0' : '#bfdbfe';
     const displayName = mahasiswaName || 'Mahasiswa';
     const displayTime = timeStr || new Date().toLocaleTimeString('id-ID');
     const displayKompi = (kompi && kompi !== 'Local') ? kompi : '';
@@ -324,15 +326,15 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
     if (existing) existing.remove();
     if (_attendancePopupTimeout) { clearTimeout(_attendancePopupTimeout); _attendancePopupTimeout = null; }
 
-    // Inject CSS animasi jika belum ada
+    // Inject CSS animasi ultra-bersih jika belum ada
     if (!document.getElementById('att-popup-style')) {
         const s = document.createElement('style');
         s.id = 'att-popup-style';
         s.textContent = `
-            @keyframes attFadeIn  { from { opacity:0 } to { opacity:1 } }
-            @keyframes attFadeOut { from { opacity:1 } to { opacity:0 } }
-            @keyframes attPopIn   { 0%{transform:scale(0.7);opacity:0} 70%{transform:scale(1.05);opacity:1} 100%{transform:scale(1);opacity:1} }
-            @keyframes attShrink  { from { width:100% } to { width:0% } }
+            @keyframes attFadeIn   { from { opacity:0 } to { opacity:1 } }
+            @keyframes attFadeOut  { from { opacity:1; transform:scale(1); } to { opacity:0; transform:scale(0.95); } }
+            @keyframes attPopIn    { 0%{transform:scale(0.7) translateY(10px);opacity:0} 100%{transform:scale(1) translateY(0);opacity:1} }
+            @keyframes attShrink   { from { width:100% } to { width:0% } }
         `;
         document.head.appendChild(s);
     }
@@ -340,23 +342,52 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
     // Buat overlay
     const overlay = document.createElement('div');
     overlay.id = 'att-popup-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;animation:attFadeIn 0.2s ease forwards;';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15, 23, 42, 0.75);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;animation:attFadeIn 0.2s ease forwards;';
     overlay.innerHTML = `
-        <div style="background:#fff;border-radius:20px;padding:32px 28px;width:340px;max-width:90vw;
-                    text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.25);
-                    animation:attPopIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
-                    position:relative;overflow:hidden;">
-            <div style="position:absolute;bottom:0;left:0;height:4px;background:${labelColor};width:100%;animation:attShrink 2s linear forwards;"></div>
-            <div style="display:inline-flex;align-items:center;justify-content:center;
-                        width:76px;height:76px;border-radius:50%;background:${gradientColor};
-                        margin-bottom:16px;box-shadow:0 8px 24px rgba(0,0,0,0.15);">
+        <div style="background:#ffffff;border-radius:24px;padding:36px 32px 32px 32px;width:520px;max-width:90vw;
+                    display:flex;flex-direction:column;align-items:center;text-align:center;
+                    box-shadow:0 25px 60px -15px rgba(0,0,0,0.35), 0 0 30px ${glowColor};
+                    animation:attPopIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                    position:relative;overflow:hidden;border:1px solid #e2e8f0;">
+            
+            <!-- Top Progress Line -->
+            <div style="position:absolute;top:0;left:0;height:5px;background:${gradientColor};width:100%;animation:attShrink 3.5s linear forwards;"></div>
+            
+            <!-- Icon Circle -->
+            <div style="display:flex;align-items:center;justify-content:center;
+                        width:84px;height:84px;border-radius:50%;background:${gradientColor};
+                        box-shadow:0 10px 24px ${glowColor};margin-top:8px;margin-bottom:16px;flex-shrink:0;">
                 ${iconHtml}
             </div>
-            <div style="font-size:12px;font-weight:700;letter-spacing:2.5px;color:${labelColor};margin-bottom:10px;text-transform:uppercase;">${labelText}</div>
-            <div style="font-size:22px;font-weight:800;color:#111827;margin-bottom:6px;line-height:1.3;word-break:break-word;">${displayName}</div>
-            ${displayKompi ? `<div style="font-size:13px;color:#6b7280;margin-bottom:12px;">${displayKompi}</div>` : '<div style="margin-bottom:12px;"></div>'}
-            <div style="display:inline-block;background:${bgBadge};color:${labelColor};font-size:14px;font-weight:600;padding:6px 20px;border-radius:999px;">${displayTime}</div>
+
+            <!-- Status Badge -->
+            <div style="display:inline-flex;align-items:center;justify-content:center;gap:6px;
+                        background:${bgBadge};color:${labelColor};border:1px solid ${borderBadge};
+                        padding:6px 20px;border-radius:999px;font-size:13px;font-weight:800;
+                        letter-spacing:1.5px;text-transform:uppercase;margin-bottom:16px;">
+                ✓ ${labelText}
+            </div>
+
+            <!-- Mahasiswa Name -->
+            <div style="font-size:30px;font-weight:800;color:#0f172a;margin-bottom:10px;line-height:1.25;word-break:break-word;width:100%;">
+                ${displayName}
+            </div>
+
+            <!-- Kompi Badge -->
+            ${displayKompi ? `
+                <div style="font-size:14px;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;padding:5px 18px;border-radius:8px;margin-bottom:20px;display:inline-flex;align-items:center;gap:6px;">
+                    <span class="material-symbols-outlined" style="font-size:18px;color:${labelColor};">shield</span>
+                    ${displayKompi}
+                </div>
+            ` : '<div style="margin-bottom:16px;"></div>'}
+
+            <!-- Time Box -->
+            <div style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:${bgBadge};padding:12px 24px;border-radius:14px;border:1.5px solid ${borderBadge};">
+                <span class="material-symbols-outlined" style="font-size:24px;color:${labelColor};">schedule</span>
+                <span style="font-family:'IBM Plex Mono', monospace, sans-serif;font-size:24px;font-weight:800;color:${labelColor};letter-spacing:1px;">${displayTime}</span>
+            </div>
         </div>`;
+
 
     document.body.appendChild(overlay);
 
@@ -367,14 +398,15 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
         setTimeout(() => { if (el.parentNode) el.remove(); }, 200);
     }
 
-    // Auto-close setelah 2 detik
-    _attendancePopupTimeout = setTimeout(closePopup, 2000);
+    _attendancePopupTimeout = setTimeout(closePopup, 3500);
 
-    // Klik backdrop untuk tutup
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) { clearTimeout(_attendancePopupTimeout); closePopup(); }
     });
 }
+
+
+
 
 // ===== RECORD ATTENDANCE =====
 async function recordAttendance(mahasiswaId, confidence = 0.0) {
