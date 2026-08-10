@@ -22,6 +22,7 @@ function showSyncMasterDataDialog() {
                     <li>Jadwal PKKMB</li>
                     <li>Data Kegiatan</li>
                     <li>Toleransi Keterlambatan & Konfigurasi Sistem</li>
+                    <li>Data Kehadiran / Check-In Hari Ini</li>
                 </ul>
                 <div style="margin-top: 20px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
@@ -92,9 +93,13 @@ function showProgressSyncDialog(laravelUrl) {
                         <span class="step-icon" style="font-size: 15px;">⚪</span>
                         <span>Sync Data Kegiatan</span>
                     </div>
-                    <div id="step-cfg" style="display: flex; align-items: center; gap: 10px; opacity: 0.5; transition: all 0.2s;">
+                    <div id="step-cfg" style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px; opacity: 0.5; transition: all 0.2s;">
                         <span class="step-icon" style="font-size: 15px;">⚪</span>
                         <span>Sync Toleransi Keterlambatan (Konfigurasi Sistem)</span>
+                    </div>
+                    <div id="step-att" style="display: flex; align-items: center; gap: 10px; opacity: 0.5; transition: all 0.2s;">
+                        <span class="step-icon" style="font-size: 15px;">⚪</span>
+                        <span>Sync Data Kehadiran / Check-In Hari Ini</span>
                     </div>
                 </div>
             </div>
@@ -251,9 +256,9 @@ async function executeStepByStepSync(laravelUrl) {
         }
         updateProgress(85, 'Kegiatan selesai. Menarik Toleransi Keterlambatan...');
 
-        // Step 5: Sync System Config / Toleransi (85% -> 100%)
+        // Step 5: Sync System Config / Toleransi (85% -> 92%)
         setStepStatus('step-cfg', 'active');
-        updateProgress(90, 'Menyimpan Toleransi Keterlambatan & Konfigurasi...');
+        updateProgress(88, 'Menyimpan Toleransi Keterlambatan & Konfigurasi...');
 
         const cfgRes = await fetch(`/api/python/sync/system-config?laravel_url=${encodeURIComponent(laravelUrl)}`);
         const cfgData = await cfgRes.json();
@@ -264,6 +269,22 @@ async function executeStepByStepSync(laravelUrl) {
         } else {
             setStepStatus('step-cfg', 'done', `Toleransi Keterlambatan Selesai Disimpan`);
             results.system_config = cfgData.stats;
+        }
+        updateProgress(92, 'Toleransi selesai. Menarik Data Kehadiran Hari Ini...');
+
+        // Step 6: Sync Attendance (92% -> 100%)
+        setStepStatus('step-att', 'active');
+        updateProgress(95, 'Menyimpan Data Kehadiran Hari Ini...');
+
+        const attRes = await fetch(`/api/python/sync/pull-attendance?laravel_url=${encodeURIComponent(laravelUrl)}`);
+        const attData = await attRes.json();
+
+        if (!attRes.ok || !attData.success) {
+            setStepStatus('step-att', 'error', `Sync Data Kehadiran Gagal`);
+            results.attendance = { inserted: 0, updated: 0, errors: 1 };
+        } else {
+            setStepStatus('step-att', 'done', `Data Kehadiran Hari Ini Selesai Disimpan`);
+            results.attendance = attData.stats;
         }
 
         updateProgress(100, 'Sinkronisasi 100% Selesai!');
@@ -384,6 +405,23 @@ function showSyncResults(data) {
                     ${cfg.inserted || 0} ditambahkan, 
                     ${cfg.updated || 0} diupdate
                     ${cfg.errors > 0 ? `<span style="color: #dc2626;">(${cfg.errors} error)</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // Attendance Hari Ini
+    if (results.attendance) {
+        const att = results.attendance;
+        resultHtml += `
+            <div style="margin-bottom: 15px; padding: 12px; background: #fff7ed; border-radius: 8px; border-left: 4px solid #ea580c;">
+                <div style="font-weight: 600; color: #9a3412; margin-bottom: 8px;">
+                    ⏱️ Data Kehadiran Hari Ini
+                </div>
+                <div style="font-size: 13px; color: #9a3412;">
+                    ${att.inserted || 0} ditambahkan, 
+                    ${att.updated || 0} diupdate
+                    ${att.errors > 0 ? `<span style="color: #dc2626;">(${att.errors} error)</span>` : ''}
                 </div>
             </div>
         `;

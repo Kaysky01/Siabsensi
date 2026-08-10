@@ -459,6 +459,21 @@ button, a, input, select, textarea {
   color: var(--primary-dark);
 }
 
+.action-badge.sakit {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.action-badge.izin {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.action-badge.alpha {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .scan-time {
   font-family: var(--font-mono);
   font-size: 13px;

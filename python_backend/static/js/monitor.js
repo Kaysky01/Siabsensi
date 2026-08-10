@@ -890,8 +890,8 @@ function renderRecentScans(attendanceData) {
 
     countEl.textContent = filteredData.length;
 
-    // Ambil 10 data teratas
-    const recent = filteredData.slice(0, 50);
+    // Sidebar: tampilkan max 100 data terbaru
+    const recent = filteredData.slice(0, 100);
 
     container.innerHTML = recent.map(record => {
         const isCheckout = !!record.check_out;
@@ -907,11 +907,29 @@ function renderRecentScans(attendanceData) {
                 timeShow = isNaN(d.getTime()) ? timeRaw : d.toLocaleTimeString('id-ID', { hour12: false }).replace(/\./g, ':');
             }
         }
-        const actionText = isCheckout ? 'KELUAR' : 'MASUK';
+
+        const statusLower = (record.status || '').toLowerCase();
+        let actionText = 'MASUK';
+        let badgeClass = 'masuk';
+
+        if (statusLower === 'sakit') {
+            actionText = 'SAKIT';
+            badgeClass = 'sakit';
+        } else if (statusLower === 'izin') {
+            actionText = 'IZIN';
+            badgeClass = 'izin';
+        } else if (statusLower === 'alpha') {
+            actionText = 'ALPHA';
+            badgeClass = 'alpha';
+        } else if (isCheckout) {
+            actionText = 'KELUAR';
+            badgeClass = 'keluar';
+        }
+
         const initials = getInitials(record.name || 'U N');
 
         // Hitung cooldown jika masih check-in (belum check-out)
-        const remainingSec = !isCheckout ? getCooldownRemaining(record) : null;
+        const remainingSec = (!isCheckout && badgeClass === 'masuk') ? getCooldownRemaining(record) : null;
         const inCooldown = remainingSec !== null;
 
         let cooldownBadge = '';
@@ -924,7 +942,7 @@ function renderRecentScans(attendanceData) {
 
         // Tampilkan badge terlambat jika is_late = true
         let lateBadge = '';
-        if (record.is_late && !isCheckout) {
+        if (record.is_late && !isCheckout && badgeClass === 'masuk') {
             const lateDuration = record.late_duration || 0;
             lateBadge = `
                 <div style="margin-top:6px;font-size:10px;color:#991b1b;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;padding:3px 8px;display:inline-block;font-weight:600;">
@@ -933,13 +951,13 @@ function renderRecentScans(attendanceData) {
         }
 
         return `
-            <div class="log-item ${isCheckout ? 'checkout' : ''} ${inCooldown ? '' : ''}">
+            <div class="log-item ${isCheckout ? 'checkout' : ''}">
                 <div class="log-avatar">${initials}</div>
                 <div class="log-body">
                     <div class="mhs-name">${record.name}</div>
                     <div class="mhs-info">
                         <span>${record.kompi || '—'}</span>
-                        <span class="action-badge ${isCheckout ? 'keluar' : 'masuk'}">${actionText}</span>
+                        <span class="action-badge ${badgeClass}">${actionText}</span>
                     </div>
                     ${lateBadge}
                     ${cooldownBadge}
@@ -951,17 +969,49 @@ function renderRecentScans(attendanceData) {
 
 // ===== UPDATE STATISTIK =====
 function updateStats(data) {
-    const total = data.length;
-    const hadir = new Set(data.map(r => r.mahasiswa_id || r.name)).size;
-    const masih = data.filter(r => !r.check_out).length;
+    // Gunakan unique mahasiswa_id untuk menghitung jumlah hadir
+    const uniqueMhs = new Map();
+    let sakitIzinCount = 0;
+
+    data.forEach(r => {
+        const key = r.mahasiswa_id || r.name;
+        // Untuk duplikat, prioritaskan record dengan check_out (sudah lengkap)
+        if (!uniqueMhs.has(key) || r.check_out) {
+            uniqueMhs.set(key, r);
+        }
+
+        const st = (r.status || '').toLowerCase();
+        if (['sakit', 'izin', 'alpha'].includes(st)) {
+            sakitIzinCount++;
+        }
+    });
+
+    const hadir = uniqueMhs.size - sakitIzinCount;
+    
+    // Masih di lokasi = unik mahasiswa yang sudah check_in tapi belum check_out
+    let masih = 0;
+    uniqueMhs.forEach(r => {
+        const st = (r.status || '').toLowerCase();
+        if (r.check_in && !r.check_out && !['sakit', 'izin', 'alpha'].includes(st)) {
+            masih++;
+        }
+    });
+    
+    const totalScan = data.length;
 
     const elTotal = document.getElementById('stat-total');
     const elHadir = document.getElementById('stat-hadir');
     const elMasih = document.getElementById('stat-masih');
+    const elSakit = document.getElementById('stat-sakit');
 
-    if (elTotal) elTotal.textContent = hadir;
-    if (elHadir) elHadir.textContent = hadir;
+    // stat-total → Total Hadir (unique mahasiswa hadir)
+    if (elTotal) elTotal.textContent = hadir > 0 ? hadir : 0;
+    // stat-hadir → Total Scan (jumlah record)  
+    if (elHadir) elHadir.textContent = totalScan;
+    // stat-masih → Masih di Lokasi
     if (elMasih) elMasih.textContent = masih;
+    // stat-sakit → Sakit / Izin / Alpha
+    if (elSakit) elSakit.textContent = sakitIzinCount;
 }
 
 // ===== UPDATE FOOTER =====
@@ -1012,15 +1062,12 @@ function handleIncomingData(newData) {
         }
     });
 
-    // Urutkan berdasarkan waktu check_in terbaru agar yang terbaru selalu di atas
+    // Urutkan berdasarkan waktu aksi terbaru (checkout jika ada, atau checkin) agar yang terbaru selalu di atas
     currentAttendanceList.sort((a, b) => {
-        const timeA = new Date(a.check_in || a.created_at || 0).getTime();
-        const timeB = new Date(b.check_in || b.created_at || 0).getTime();
-        return timeB - timeA;
+        const timeA = a.check_out || a.check_in || a.created_at || '0';
+        const timeB = b.check_out || b.check_in || b.created_at || '0';
+        return timeB.localeCompare(timeA);
     });
-
-    // Batasi maksimum segups data agar tetap ringan di client
-    currentAttendanceList = currentAttendanceList.slice(0, 50);
 
     // Sync cooldown dan render
     syncCooldownMap(currentAttendanceList);
@@ -1040,23 +1087,26 @@ async function fetchLatestAttendance() {
         if (res.ok) {
             const json = await res.json();
             if (json.success && json.data) {
-                const dataStr = JSON.stringify(json.data);
-                if (dataStr !== lastLocalSyncHash) {
-                    lastLocalSyncHash = dataStr;
-                    currentAttendanceList = json.data;
-                    syncCooldownMap(currentAttendanceList);
-                    renderRecentScans(currentAttendanceList);
-                    updateStats(currentAttendanceList);
-                    updateFooter();
-                }
+                // Simpan SEMUA data untuk stats, tanpa limit
+                currentAttendanceList = json.data;
+                
+                // Urutkan: yang terbaru di atas (checkout time > checkin time)
+                currentAttendanceList.sort((a, b) => {
+                    const timeA = a.check_out || a.check_in || '0';
+                    const timeB = b.check_out || b.check_in || '0';
+                    return timeB.localeCompare(timeA);
+                });
+                
+                syncCooldownMap(currentAttendanceList);
+                renderRecentScans(currentAttendanceList);
+                updateStats(currentAttendanceList);
+                updateFooter();
             }
         }
     } catch (err) {
         // Jika DB tidak tersedia, fallback ke localStorage
         const data = getLocalSyncData();
-        const dataStr = JSON.stringify(data);
-        if (data && data.length > 0 && dataStr !== lastLocalSyncHash) {
-            lastLocalSyncHash = dataStr;
+        if (data && data.length > 0) {
             handleIncomingData(data);
         }
     }

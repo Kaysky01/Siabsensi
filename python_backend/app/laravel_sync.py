@@ -895,10 +895,87 @@ class LaravelSyncService:
                 'message': f'Error fetching attendance: {str(e)}'
             }
 
+    def _format_datetime_for_mysql(self, val):
+        """Format string/ISO/datetime object to MySQL DATETIME format (YYYY-MM-DD HH:MM:SS).
+        Otomatis konversi UTC → WIB (UTC+7) jika timestamp mengandung timezone indicator Z atau +00:00."""
+        if not val:
+            return None
+        try:
+            val_str = str(val).strip()
+            if not val_str or val_str.lower() in ('none', 'null', ''):
+                return None
+            from dateutil import parser as dateparser
+            from datetime import timezone, timedelta
+            dt = dateparser.parse(val_str)
+            # Jika timestamp punya timezone info (misal 'Z' atau '+00:00'), konversi ke WIB
+            if dt.tzinfo is not None:
+                wib = timezone(timedelta(hours=7))
+                dt = dt.astimezone(wib)
+            elif val_str.endswith('Z') or '+00:00' in val_str:
+                # Fallback: jika dateutil tidak parse timezone tapi string jelas UTC
+                from datetime import timezone as tz, timedelta as td
+                dt = dt.replace(tzinfo=tz.utc).astimezone(tz(td(hours=7)))
+            return dt.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception as e:
+            logger.warning(f"Failed to parse datetime '{val}': {e}")
+            val_s = str(val)
+            if len(val_s) >= 19:
+                return val_s[:10] + ' ' + val_s[11:19]
+            return val_s
+
+    def _format_date_for_mysql(self, date_val, check_in=None):
+        """Format date string to MySQL DATE format (YYYY-MM-DD).
+        Otomatis konversi UTC → WIB agar tanggal benar (misal 2026-08-09T17:00:00Z → 2026-08-10 di WIB)."""
+        if date_val:
+            try:
+                val_str = str(date_val).strip()
+                if val_str and val_str.lower() not in ('none', 'null', ''):
+                    from dateutil import parser as dateparser
+                    from datetime import timezone, timedelta
+                    dt = dateparser.parse(val_str)
+                    if dt.tzinfo is not None:
+                        wib = timezone(timedelta(hours=7))
+                        dt = dt.astimezone(wib)
+                    elif val_str.endswith('Z') or '+00:00' in val_str:
+                        from datetime import timezone as tz, timedelta as td
+                        dt = dt.replace(tzinfo=tz.utc).astimezone(tz(td(hours=7)))
+                    return dt.strftime('%Y-%m-%d')
+            except Exception:
+                if len(str(date_val)) >= 10:
+                    return str(date_val)[:10]
+        
+        if check_in:
+            formatted_ci = self._format_datetime_for_mysql(check_in)
+            if formatted_ci and len(formatted_ci) >= 10:
+                return formatted_ci[:10]
+                
+        from datetime import datetime
+        return datetime.now().strftime('%Y-%m-%d')
+
+    def _ensure_attendance_schema(self, cursor):
+        """Pastikan semua kolom pendukung (is_synced, is_late, dll) selalu ada di tabel attendance (auto-heal jika terkena migrate:fresh)"""
+        cols = [
+            ("check_in_time", "TIME NULL"),
+            ("check_out_time", "TIME NULL"),
+            ("kegiatan_id", "BIGINT UNSIGNED NULL"),
+            ("sesi_id", "BIGINT UNSIGNED NULL"),
+            ("is_late", "TINYINT(1) DEFAULT 0"),
+            ("late_duration", "INT DEFAULT 0"),
+            ("is_synced", "TINYINT(1) DEFAULT 0")
+        ]
+        for col_name, col_type in cols:
+            try:
+                cursor.execute(f"ALTER TABLE attendance ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass  # Kolom sudah ada
+
     def sync_attendance_to_local(self, attendances: List[Dict]) -> Dict:
         """
-        Simpan/update data absensi dari Laravel ke database MySQL lokal
+        Simpan/update data absensi dari Laravel ke database MySQL lokal (Bulk Optimized & Resilient)
         """
+        if not attendances:
+            return {'success': True, 'inserted': 0, 'updated': 0, 'errors': 0, 'total': 0}
+
         inserted = 0
         updated = 0
         errors = 0
@@ -906,58 +983,87 @@ class LaravelSyncService:
         conn = self._get_conn()
         cursor = conn.cursor(dictionary=True)
         try:
+            # 1. Auto-heal skema tabel attendance (antisipasi jika user jalankan php artisan migrate:fresh)
+            self._ensure_attendance_schema(cursor)
+            
+            # 2. Nonaktifkan FK checks untuk kecepatan & pencegahan error relasi
+            cursor.execute("SET FOREIGN_KEY_CHECKS=0")
+            
+            # 3. Ambil data existing ke memori Python 1x saja (mengatur N+1 query problem)
+            cursor.execute("SELECT id, mahasiswa_id, kegiatan_id, date, check_in, check_out FROM attendance")
+            existing_rows = cursor.fetchall() or []
+            existing_map = {}
+            for r in existing_rows:
+                k_keg = (str(r['mahasiswa_id']), r['kegiatan_id'], str(r['date']) if r['date'] else None)
+                k_day = (str(r['mahasiswa_id']), None, str(r['date']) if r['date'] else None)
+                existing_map[k_keg] = r
+                existing_map[k_day] = r
+
             for att in attendances:
-                mhs_id = att.get('mahasiswa_id')
-                if not mhs_id:
-                    continue
-                
-                check_in = att.get('check_in')
-                check_out = att.get('check_out')
-                date_val = att.get('date')
-                kegiatan_id = att.get('kegiatan_id')
-                is_late = 1 if att.get('is_late') else 0
-                late_duration = att.get('late_duration', 0)
-                
-                if kegiatan_id:
-                    cursor.execute(
-                        "SELECT id, check_in, check_out FROM attendance WHERE mahasiswa_id = %s AND kegiatan_id = %s",
-                        (mhs_id, kegiatan_id)
-                    )
-                else:
-                    cursor.execute(
-                        "SELECT id, check_in, check_out FROM attendance WHERE mahasiswa_id = %s AND date = %s AND kegiatan_id IS NULL",
-                        (mhs_id, date_val)
-                    )
-                existing = cursor.fetchone()
-                
-                if existing:
-                    # Preserve non-null local timestamps if server sends null
-                    final_check_in = check_in if check_in else existing['check_in']
-                    final_check_out = check_out if check_out else existing['check_out']
-                    cursor.execute("""
-                        UPDATE attendance SET
-                            check_in = %s,
-                            check_out = %s,
-                            is_late = %s,
-                            late_duration = %s,
-                            is_synced = 1
-                        WHERE id = %s
-                    """, (final_check_in, final_check_out, is_late, late_duration, existing['id']))
-                    updated += 1
-                else:
-                    cursor.execute("""
-                        INSERT INTO attendance (
-                            mahasiswa_id, kegiatan_id, date, check_in, check_out,
-                            is_late, late_duration, camera_id, is_synced
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'SYNC-LARAVEL', 1)
-                    """, (mhs_id, kegiatan_id, date_val, check_in, check_out, is_late, late_duration))
-                    inserted += 1
+                try:
+                    raw_mhs_id = att.get('mahasiswa_id')
+                    if not raw_mhs_id:
+                        continue
+                    mhs_id = str(raw_mhs_id).strip()
+                    
+                    check_in = self._format_datetime_for_mysql(att.get('check_in'))
+                    check_out = self._format_datetime_for_mysql(att.get('check_out'))
+                    date_val = self._format_date_for_mysql(att.get('date'), check_in)
+                    kegiatan_id = att.get('kegiatan_id')
+                    is_late = 1 if att.get('is_late') else 0
+                    late_duration = att.get('late_duration', 0)
+                    
+                    status_raw = (att.get('status') or '').lower()
+                    
+                    # Jika data dari server belum ada check_in dan belum ada check_out,
+                    # dan statusnya bukan sakit/izin, lewati (jangan simpan record kosong ke DB lokal)
+                    if not check_in and not check_out and status_raw not in ['sakit', 'izin']:
+                        continue
+
+                    key_kegiatan = (mhs_id, kegiatan_id, date_val if not kegiatan_id else None)
+                    key_daily = (mhs_id, None, date_val)
+                    
+                    existing = existing_map.get(key_kegiatan) or existing_map.get(key_daily)
+                    status_val = att.get('status') or ('hadir' if check_in else 'alpha')
+                    
+                    if existing:
+                        final_check_in = check_in if check_in else self._format_datetime_for_mysql(existing['check_in'])
+                        final_check_out = check_out if check_out else self._format_datetime_for_mysql(existing['check_out'])
+                        cursor.execute("""
+                            UPDATE attendance SET
+                                check_in = %s,
+                                check_out = %s,
+                                status = %s,
+                                is_late = %s,
+                                late_duration = %s,
+                                is_synced = 1
+                            WHERE id = %s
+                        """, (final_check_in, final_check_out, status_val, is_late, late_duration, existing['id']))
+                        updated += 1
+                    else:
+                        cursor.execute("""
+                            INSERT INTO attendance (
+                                mahasiswa_id, kegiatan_id, date, check_in, check_out,
+                                status, is_late, late_duration, camera_id, is_synced
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'SYNC-LARAVEL', 1)
+                        """, (mhs_id, kegiatan_id, date_val, check_in, check_out, status_val, is_late, late_duration))
+                        inserted += 1
+                except Exception as e:
+                    logger.error(f"Error syncing attendance record for mhs {att.get('mahasiswa_id')}: {e}")
+                    errors += 1
+            
+            # Commit sekaligus di akhir batch
             conn.commit()
+            
         except Exception as e:
-            logger.error(f"Error syncing attendance to local: {e}")
+            logger.error(f"Error in batch attendance sync: {e}")
             conn.rollback()
-            errors += 1
+            errors = len(attendances)
         finally:
+            try:
+                cursor.execute("SET FOREIGN_KEY_CHECKS=1")
+            except Exception:
+                pass
             cursor.close()
             conn.close()
             

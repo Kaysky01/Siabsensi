@@ -450,12 +450,12 @@ class DatabaseManager:
             
             if kegiatan_id:
                 self._execute("""
-                    UPDATE attendance SET check_out = %s, check_out_time = %s, snapshot_path = %s
+                    UPDATE attendance SET check_out = %s, check_out_time = %s, snapshot_path = %s, is_synced = 0
                     WHERE mahasiswa_id = %s AND kegiatan_id = %s
                 """, (time_str, just_time_str, snapshot_path, mahasiswa_id, kegiatan_id))
             else:
                 self._execute("""
-                    UPDATE attendance SET check_out = %s, check_out_time = %s, snapshot_path = %s
+                    UPDATE attendance SET check_out = %s, check_out_time = %s, snapshot_path = %s, is_synced = 0
                     WHERE mahasiswa_id = %s AND date = %s AND kegiatan_id IS NULL AND sesi_id IS NULL
                 """, (time_str, just_time_str, snapshot_path, mahasiswa_id, today))
             return {'status': 'checked_out', 'time': just_time_str}

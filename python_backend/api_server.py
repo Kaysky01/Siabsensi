@@ -799,34 +799,57 @@ def record_attendance():
 
 @app.route('/api/python/attendance/today', methods=['GET'])
 def get_today_attendance():
-    """Ambil data attendance hari ini dari local DB untuk ditampilkan di monitor"""
+    """Ambil data attendance hari ini (atau tanggal aktif terbaru) dari local DB untuk ditampilkan di monitor"""
     try:
         if db is None:
             return jsonify({'success': True, 'data': [], 'source': 'no_db'})
 
         today = datetime.now().strftime('%Y-%m-%d')
         kegiatan_id = request.args.get('kegiatan_id', None)
+        date_param = request.args.get('date', None)
+
+        if date_param:
+            target_date = date_param
+        else:
+            target_date = today
+            # Jika hari ini tidak ada data absensi, gunakan tanggal absensi terbaru yang ada di database
+            if kegiatan_id:
+                count_res = db._execute("SELECT COUNT(*) as c FROM attendance WHERE kegiatan_id = %s AND date = %s", (kegiatan_id, today), fetch_one=True)
+                if not count_res or count_res.get('c', 0) == 0:
+                    max_d = db._execute("SELECT MAX(date) as max_date FROM attendance WHERE kegiatan_id = %s", (kegiatan_id,), fetch_one=True)
+                    if max_d and max_d.get('max_date'):
+                        target_date = str(max_d['max_date'])
+            else:
+                count_res = db._execute("SELECT COUNT(*) as c FROM attendance WHERE date = %s AND kegiatan_id IS NULL", (today,), fetch_one=True)
+                if not count_res or count_res.get('c', 0) == 0:
+                    max_d = db._execute("SELECT MAX(date) as max_date FROM attendance WHERE kegiatan_id IS NULL", fetch_one=True)
+                    if max_d and max_d.get('max_date'):
+                        target_date = str(max_d['max_date'])
 
         if kegiatan_id:
             rows = db._execute("""
-                SELECT a.id, a.mahasiswa_id, a.check_in, a.check_out,
+                SELECT a.id, a.mahasiswa_id, a.check_in, a.check_out, a.status,
                        a.date, a.is_late, a.late_duration, a.kegiatan_id, a.is_synced,
-                       m.name, m.kompi, m.jurusan
+                       COALESCE(m.name, a.mahasiswa_id) as name,
+                       COALESCE(m.kompi, '-') as kompi,
+                       COALESCE(m.jurusan, '-') as jurusan
                 FROM attendance a
-                JOIN mahasiswa m ON a.mahasiswa_id = m.id
-                WHERE a.kegiatan_id = %s
+                LEFT JOIN mahasiswa m ON a.mahasiswa_id = m.id
+                WHERE a.kegiatan_id = %s AND a.date = %s
                 ORDER BY a.check_in DESC
-            """, (kegiatan_id,), fetch_all=True)
+            """, (kegiatan_id, target_date), fetch_all=True)
         else:
             rows = db._execute("""
-                SELECT a.id, a.mahasiswa_id, a.check_in, a.check_out,
+                SELECT a.id, a.mahasiswa_id, a.check_in, a.check_out, a.status,
                        a.date, a.is_late, a.late_duration, a.kegiatan_id, a.is_synced,
-                       m.name, m.kompi, m.jurusan
+                       COALESCE(m.name, a.mahasiswa_id) as name,
+                       COALESCE(m.kompi, '-') as kompi,
+                       COALESCE(m.jurusan, '-') as jurusan
                 FROM attendance a
-                JOIN mahasiswa m ON a.mahasiswa_id = m.id
+                LEFT JOIN mahasiswa m ON a.mahasiswa_id = m.id
                 WHERE a.date = %s AND a.kegiatan_id IS NULL
                 ORDER BY a.check_in DESC
-            """, (today,), fetch_all=True)
+            """, (target_date,), fetch_all=True)
 
         def fmt_time(val):
             if val is None:
@@ -850,13 +873,20 @@ def get_today_attendance():
                 'kegiatan_id': r.get('kegiatan_id'),
                 'check_in': fmt_time(r['check_in']),
                 'check_out': fmt_time(r['check_out']),
-                'date': str(r['date']) if r['date'] else today,
+                'status': r.get('status') or ('hadir' if r['check_in'] else 'alpha'),
+                'date': str(r['date']) if r['date'] else target_date,
                 'is_late': bool(r.get('is_late', False)),
                 'late_duration': r.get('late_duration', 0),
                 'synced': bool(r.get('is_synced', 0))  # status sync ke server
             })
 
-        return jsonify({'success': True, 'data': result, 'source': 'local_db', 'count': len(result)})
+        return jsonify({
+            'success': True,
+            'data': result,
+            'source': 'local_db',
+            'count': len(result),
+            'date': target_date
+        })
 
     except Exception as e:
         logger.error(f"Get today attendance error: {e}")
@@ -1106,16 +1136,25 @@ def debug_schedule():
         logger.error(f"Debug schedule error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
+def _get_laravel_sync_service(req):
+    """Helper untuk mendapatkan instance LaravelSyncService dengan re-import dinamis"""
+    import importlib
+    import app.laravel_sync
+    importlib.reload(app.laravel_sync)
+    from app.laravel_sync import LaravelSyncService
+
+    laravel_url = req.args.get('laravel_url', None)
+    if not laravel_url:
+        laravel_url = 'https://pkkmb.polinela.ac.id'
+
+    return LaravelSyncService(laravel_url, verify_ssl=False)
+
+
 @app.route('/api/python/sync/test-connection', methods=['GET'])
 def test_laravel_connection():
     """Test koneksi ke Laravel API"""
     try:
-        from app.laravel_sync import LaravelSyncService
-        
-        # Get Laravel URL from query params or use default hosting URL
-        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
-        
-        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
+        sync_service = _get_laravel_sync_service(request)
         result = sync_service.test_connection()
         
         if result['success']:
@@ -1134,11 +1173,7 @@ def test_laravel_connection():
 def sync_mahasiswa_from_laravel():
     """Sinkronisasi data mahasiswa dari Laravel API ke database lokal"""
     try:
-        from app.laravel_sync import LaravelSyncService
-        
-        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
-        
-        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
+        sync_service = _get_laravel_sync_service(request)
         
         # Fetch data from Laravel
         fetch_result = sync_service.fetch_mahasiswa()
@@ -1165,11 +1200,7 @@ def sync_mahasiswa_from_laravel():
 def sync_schedules_from_laravel():
     """Sinkronisasi data jadwal PKKMB dari Laravel API ke database lokal"""
     try:
-        from app.laravel_sync import LaravelSyncService
-        
-        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
-        
-        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
+        sync_service = _get_laravel_sync_service(request)
         
         # Fetch data from Laravel
         fetch_result = sync_service.fetch_schedules()
@@ -1196,11 +1227,7 @@ def sync_schedules_from_laravel():
 def sync_kegiatan_from_laravel():
     """Sinkronisasi data kegiatan dari Laravel API ke database lokal"""
     try:
-        from app.laravel_sync import LaravelSyncService
-        
-        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
-        
-        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
+        sync_service = _get_laravel_sync_service(request)
         
         # Fetch data from Laravel
         fetch_result = sync_service.fetch_kegiatan()
@@ -1227,11 +1254,7 @@ def sync_kegiatan_from_laravel():
 def sync_system_config_from_laravel():
     """Sinkronisasi system config (termasuk toleransi keterlambatan) dari Laravel API ke database lokal"""
     try:
-        from app.laravel_sync import LaravelSyncService
-        
-        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
-        
-        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
+        sync_service = _get_laravel_sync_service(request)
         
         # Fetch data from Laravel
         fetch_result = sync_service.fetch_system_config()
@@ -1254,16 +1277,41 @@ def sync_system_config_from_laravel():
             'message': f'Error: {str(e)}'
         }), 500
 
+@app.route('/api/python/sync/pull-attendance', methods=['GET'])
+def sync_attendance_from_laravel():
+    """Sinkronisasi data kehadiran hari ini dari Laravel API ke database lokal"""
+    try:
+        sync_service = _get_laravel_sync_service(request)
+        
+        # Fetch data from Laravel
+        fetch_result = sync_service.fetch_attendance()
+        if not fetch_result['success']:
+            return jsonify(fetch_result), 500
+        
+        # Sync to local database
+        sync_result = sync_service.sync_attendance_to_local(fetch_result['data'])
+        
+        return jsonify({
+            'success': True,
+            'message': 'Sinkronisasi data kehadiran berhasil',
+            'stats': sync_result
+        })
+        
+    except Exception as e:
+        logger.error(f"Sync attendance error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
 @app.route('/api/python/sync/all', methods=['GET'])
 def sync_all_from_laravel():
     """Sinkronisasi semua data (mahasiswa, schedules, kegiatan) dari Laravel ke database lokal"""
     try:
-        from app.laravel_sync import LaravelSyncService
+        sync_service = _get_laravel_sync_service(request)
         
-        laravel_url = request.args.get('laravel_url', 'https://pkkmb.polinela.ac.id')
-        
-        logger.info(f"Starting full sync from Laravel: {laravel_url}")
-        sync_service = LaravelSyncService(laravel_url, verify_ssl=False)
+        logger.info(f"Starting full sync from Laravel: {sync_service.base_url}")
         
         # Sync all data
         result = sync_service.sync_all()
