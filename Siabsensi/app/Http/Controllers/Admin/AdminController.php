@@ -2008,7 +2008,16 @@ class AdminController extends Controller
     {
         $start = $request->input('start', Carbon::today()->toDateString());
         $end = $request->input('end', Carbon::today()->toDateString());
-        $status = $request->input('status', $request->input('filter', 'all'));
+        $statuses = (array) $request->input('statuses', []);
+        if (empty($statuses)) {
+            $singleStatus = $request->input('status', $request->input('filter', 'all'));
+            if ($singleStatus === 'all') {
+                $statuses = ['hadir', 'izin', 'sakit', 'alpha'];
+            } else {
+                $statuses = [$singleStatus];
+            }
+        }
+
         $kompi = $request->input('kompi', '');
         $jurusan = $request->input('jurusan', '');
         $prodi = $request->input('prodi', '');
@@ -2018,8 +2027,65 @@ class AdminController extends Controller
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
 
-        if ($status === 'alpha') {
-            $query = Mahasiswa::select(
+        $includeAlpha = in_array('alpha', $statuses);
+        $nonAlphaStatuses = array_diff($statuses, ['alpha']);
+
+        $recordsCollection = collect();
+
+        // 1. Fetch Attendance Records for non-alpha statuses (hadir, izin, sakit)
+        if (!empty($nonAlphaStatuses)) {
+            $queryAtt = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
+                ->select(
+                    "$table.*",
+                    "$mhsTable.id as mhs_id",
+                    "$mhsTable.name",
+                    "$mhsTable.kompi",
+                    "$mhsTable.jurusan",
+                    "$mhsTable.prodi",
+                    "$mhsTable.email"
+                );
+
+            if ($start && $end) {
+                $queryAtt->whereBetween("$table.date", [$start, $end]);
+            } elseif ($start) {
+                $queryAtt->whereDate("$table.date", '>=', $start);
+            } elseif ($end) {
+                $queryAtt->whereDate("$table.date", '<=', $end);
+            }
+
+            $mappedStatuses = [];
+            foreach ($nonAlphaStatuses as $s) {
+                if ($s === 'hadir') {
+                    $mappedStatuses[] = 'hadir';
+                    $mappedStatuses[] = 'present';
+                } else {
+                    $mappedStatuses[] = $s;
+                }
+            }
+            $queryAtt->whereIn("$table.status", array_unique($mappedStatuses));
+
+            if ($kompi && $kompi !== 'all') {
+                $queryAtt->where("$mhsTable.kompi", $kompi);
+            }
+            if ($jurusan) {
+                $queryAtt->where("$mhsTable.jurusan", $jurusan);
+            }
+            if ($prodi) {
+                $queryAtt->where("$mhsTable.prodi", $prodi);
+            }
+            if ($search) {
+                $queryAtt->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
+            }
+
+            $recordsCollection = $recordsCollection->concat($queryAtt->orderBy("$mhsTable.prodi", 'asc')->orderBy("$mhsTable.name", 'asc')->get());
+        }
+
+        // 2. Fetch Alpha Records if 'alpha' is checked
+        if ($includeAlpha) {
+            $queryAlpha = Mahasiswa::select(
                 "$mhsTable.id",
                 "$mhsTable.id as mahasiswa_id",
                 "$mhsTable.name",
@@ -2039,64 +2105,42 @@ class AdminController extends Controller
                     $q->whereBetween("$table.date", [$start, $end]);
                 }
             });
-        } else {
-            $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
-                ->select(
-                    "$table.*",
-                    "$mhsTable.id as mhs_id",
-                    "$mhsTable.name",
-                    "$mhsTable.kompi",
-                    "$mhsTable.jurusan",
-                    "$mhsTable.prodi",
-                    "$mhsTable.email"
-                );
 
-            if ($start && $end) {
-                $query->whereBetween("$table.date", [$start, $end]);
-            } elseif ($start) {
-                $query->whereDate("$table.date", '>=', $start);
-            } elseif ($end) {
-                $query->whereDate("$table.date", '<=', $end);
+            if ($kompi && $kompi !== 'all') {
+                $queryAlpha->where("$mhsTable.kompi", $kompi);
+            }
+            if ($jurusan) {
+                $queryAlpha->where("$mhsTable.jurusan", $jurusan);
+            }
+            if ($prodi) {
+                $queryAlpha->where("$mhsTable.prodi", $prodi);
+            }
+            if ($search) {
+                $queryAlpha->where(function ($q) use ($search, $mhsTable) {
+                    $q->where("$mhsTable.name", 'like', "%{$search}%")
+                      ->orWhere("$mhsTable.id", 'like', "%{$search}%");
+                });
             }
 
-            if ($status && $status !== 'all') {
-                if (in_array($status, ['hadir', 'present'])) {
-                    $query->whereIn("$table.status", ['hadir', 'present']);
-                } else {
-                    $query->where("$table.status", $status);
-                }
-            }
+            $recordsCollection = $recordsCollection->concat($queryAlpha->orderBy("$mhsTable.prodi", 'asc')->orderBy("$mhsTable.name", 'asc')->get());
         }
 
-        if ($kompi && $kompi !== 'all') {
-            $query->where("$mhsTable.kompi", $kompi);
-        }
-
-        if ($jurusan) {
-            $query->where("$mhsTable.jurusan", $jurusan);
-        }
-
-        if ($prodi) {
-            $query->where("$mhsTable.prodi", $prodi);
-        }
-
-        if ($search) {
-            $query->where(function ($q) use ($search, $mhsTable) {
-                $q->where("$mhsTable.name", 'like', "%{$search}%")
-                  ->orWhere("$mhsTable.id", 'like', "%{$search}%");
-            });
-        }
-
-        $records = $query->orderBy("$mhsTable.prodi", 'asc')->orderBy("$mhsTable.name", 'asc')->get();
+        $records = $recordsCollection->sortBy([
+            ['prodi', 'asc'],
+            ['name', 'asc'],
+        ]);
 
         if ($records->isEmpty()) {
             return redirect()->back()->with('error', 'Tidak ada data absensi yang ditemukan berdasarkan filter yang dipilih.');
         }
 
-        // Kelompokkan data berdasarkan prodi
-        $groupedData = $records->groupBy(function ($item) {
-            return $item->prodi && $item->prodi !== '-' && $item->prodi !== '' ? $item->prodi : 'Tanpa Prodi';
-        })->sortKeys();
+        // Pisahkan data menjadi 3 kategori (3 Sheet):
+        // Sheet 1: Khusus Jalur Mandiri
+        // Sheet 2: Seluruh Jalur (Kecuali Mandiri)
+        // Sheet 3: Kompi 14 (Mahasiswa Ngulang)
+        $recordsMandiri = $records->filter(fn($item) => $this->isJalurMandiriRecord($item));
+        $recordsExMandiri = $records->filter(fn($item) => !$this->isJalurMandiriRecord($item));
+        $recordsKompi14 = $records->filter(fn($item) => $this->isKompi14Record($item));
 
         $fieldLabelsMap = [
             'id' => 'Nomor Pendaftaran',
@@ -2114,18 +2158,100 @@ class AdminController extends Controller
 
         $selectedFields = !empty($exportFields) ? array_intersect(array_keys($fieldLabelsMap), (array)$exportFields) : array_keys($fieldLabelsMap);
 
-        // Generate Excel File
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Monitoring Absensi');
-        $sheet->getParent()->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
+        $requestedSheets = (array) $request->input('sheets', ['mandiri', 'reguler', 'non_mandiri', 'kompi_14']);
+        if (empty($requestedSheets)) {
+            $requestedSheets = ['mandiri', 'reguler', 'non_mandiri', 'kompi_14'];
+        }
 
+        // Generate Multi-Sheet Excel Workbook based on selected checkboxes
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $spreadsheet->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
+
+        $sheetIndex = 0;
+
+        // Sheet: Jalur Mandiri
+        if (in_array('mandiri', $requestedSheets)) {
+            $sheet = $sheetIndex === 0 ? $spreadsheet->getActiveSheet() : $spreadsheet->createSheet();
+            $sheet->setTitle('Jalur Mandiri');
+            $this->buildAttendanceSheet($sheet, 'Monitoring Live Absensi - Jalur Mandiri', $recordsMandiri, $selectedFields, $fieldLabelsMap, $start, $end);
+            $sheetIndex++;
+        }
+
+        // Sheet: Jalur Reguler (Seluruh Jalur Kecuali Mandiri)
+        if (in_array('reguler', $requestedSheets) || in_array('non_mandiri', $requestedSheets)) {
+            $sheet = $sheetIndex === 0 ? $spreadsheet->getActiveSheet() : $spreadsheet->createSheet();
+            $sheet->setTitle('Jalur Reguler');
+            $this->buildAttendanceSheet($sheet, 'Monitoring Live Absensi - Jalur Reguler', $recordsExMandiri, $selectedFields, $fieldLabelsMap, $start, $end);
+            $sheetIndex++;
+        }
+
+        // Sheet: Kompi 14 (Mahasiswa Ngulang)
+        if (in_array('kompi_14', $requestedSheets)) {
+            $sheet = $sheetIndex === 0 ? $spreadsheet->getActiveSheet() : $spreadsheet->createSheet();
+            $sheet->setTitle('Kompi 14 (Ngulang)');
+            $this->buildAttendanceSheet($sheet, 'Monitoring Live Absensi - Kompi 14 (Mahasiswa Ngulang)', $recordsKompi14, $selectedFields, $fieldLabelsMap, $start, $end);
+            $sheetIndex++;
+        }
+
+        if ($sheetIndex === 0) {
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Monitoring Absensi');
+            $this->buildAttendanceSheet($sheet, 'Monitoring Live Absensi', $records, $selectedFields, $fieldLabelsMap, $start, $end);
+        }
+
+        $spreadsheet->setActiveSheetIndex(0);
+
+        $excelWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $excelFileName = 'monitoring_absensi_' . date('Y-m-d_His') . '.xlsx';
+
+        return response()->stream(
+            function () use ($excelWriter) {
+                $excelWriter->save('php://output');
+            },
+            200,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment;filename="' . $excelFileName . '"',
+                'Cache-Control' => 'max-age=0',
+            ]
+        );
+    }
+
+    private function isJalurMandiriRecord($item): bool
+    {
+        $kompi = strtolower($item->kompi ?? '');
+        $id = strtoupper((string) ($item->mhs_id ?? $item->mahasiswa_id ?? $item->id ?? ''));
+        $jurusan = strtolower($item->jurusan ?? '');
+        $prodi = strtolower($item->prodi ?? '');
+
+        if (str_contains($kompi, 'mandiri')) return true;
+        if (str_contains($id, 'MANDIRI') || str_starts_with($id, 'MAND') || str_starts_with($id, 'MAN-') || str_starts_with($id, 'MND-')) return true;
+        if (str_contains($jurusan, 'mandiri') || str_contains($prodi, 'mandiri')) return true;
+
+        return false;
+    }
+
+    private function isKompi14Record($item): bool
+    {
+        $kompi = trim(strtoupper($item->kompi ?? ''));
+        return $kompi === 'KOMPI 14' || $kompi === '14' || preg_match('/kompi\s*14\b/i', $kompi);
+    }
+
+    private function buildAttendanceSheet(
+        \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet,
+        string $titleHeader,
+        \Illuminate\Support\Collection $records,
+        array $selectedFields,
+        array $fieldLabelsMap,
+        string $start,
+        string $end
+    ): void {
         $numCols = 1 + count($selectedFields); // 1 untuk No
         $lastCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($numCols);
 
         // Header Dokumen Utama
         $currentRow = 1;
-        $sheet->setCellValue('A1', 'Monitoring Live Absensi Mahasiswa');
+        $sheet->setCellValue('A1', $titleHeader);
         $sheet->mergeCells("A1:{$lastCol}1");
         $sheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true)->setSize(14)->getColor()->setARGB('FF1E3A8A');
         $sheet->getStyle("A1:{$lastCol}1")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
@@ -2142,122 +2268,135 @@ class AdminController extends Controller
         $sheet->getRowDimension($currentRow)->setRowHeight(18);
         $currentRow += 2;
 
-        $isFirstGroup = true;
-        foreach ($groupedData as $prodiName => $groupItems) {
-            if (!$isFirstGroup) {
-                $currentRow += 2; // jarak antar tabel prodi
-            }
-            $isFirstGroup = false;
-
-            // Header Judul Prodi
-            $prodiTitleRange = "A{$currentRow}:{$lastCol}{$currentRow}";
-            $sheet->setCellValue("A{$currentRow}", 'Prodi: ' . $prodiName . ' (' . count($groupItems) . ' data)');
-            $sheet->mergeCells($prodiTitleRange);
-            $sheet->getStyle($prodiTitleRange)->getFont()->setBold(true)->setSize(12)->getColor()->setARGB('FF1E40AF');
-            $sheet->getStyle($prodiTitleRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFDBEAFE');
-            $sheet->getStyle($prodiTitleRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
-            $sheet->getRowDimension($currentRow)->setRowHeight(20);
+        if ($records->isEmpty()) {
+            $sheet->setCellValue("A{$currentRow}", 'Tidak ada data absensi untuk kategori ini.');
+            $sheet->mergeCells("A{$currentRow}:{$lastCol}{$currentRow}");
+            $sheet->getStyle("A{$currentRow}:{$lastCol}{$currentRow}")->getFont()->setItalic(true)->getColor()->setARGB('FF64748B');
+            $sheet->getStyle("A{$currentRow}:{$lastCol}{$currentRow}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
             $currentRow++;
+        } else {
+            // Kelompokkan data berdasarkan prodi
+            $groupedData = $records->groupBy(function ($item) {
+                return $item->prodi && $item->prodi !== '-' && $item->prodi !== '' ? $item->prodi : 'Tanpa Prodi';
+            })->sortKeys();
 
-            // Header Tabel
-            $headerRow = $currentRow;
-            $sheet->setCellValueByColumnAndRow(1, $headerRow, 'No');
-            $col = 2;
-            foreach ($selectedFields as $field) {
-                $sheet->setCellValueByColumnAndRow($col++, $headerRow, $fieldLabelsMap[$field]);
-            }
-            $currentRow++;
-
-            // Isi Data
-            $dataStartRow = $currentRow;
-            $no = 1;
-            foreach ($groupItems as $item) {
-                $sheet->setCellValueByColumnAndRow(1, $currentRow, $no);
-
-                $statusText = ucfirst($item->status ?? 'alpha');
-                if ($item->status === 'izin') {
-                    $statusText = 'Izin';
-                } elseif ($item->status === 'sakit') {
-                    $statusText = 'Sakit';
-                } elseif ($item->check_out) {
-                    $statusText = 'Lengkap';
-                } elseif ($item->check_in) {
-                    $statusText = 'Hadir';
-                } elseif ($item->status === 'alpha') {
-                    $statusText = 'Alpha (Belum Absen)';
+            $isFirstGroup = true;
+            foreach ($groupedData as $prodiName => $groupItems) {
+                if (!$isFirstGroup) {
+                    $currentRow += 2; // jarak antar tabel prodi
                 }
+                $isFirstGroup = false;
 
+                // Header Judul Prodi
+                $prodiTitleRange = "A{$currentRow}:{$lastCol}{$currentRow}";
+                $sheet->setCellValue("A{$currentRow}", 'Prodi: ' . $prodiName . ' (' . count($groupItems) . ' data)');
+                $sheet->mergeCells($prodiTitleRange);
+                $sheet->getStyle($prodiTitleRange)->getFont()->setBold(true)->setSize(12)->getColor()->setARGB('FF1E40AF');
+                $sheet->getStyle($prodiTitleRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFDBEAFE');
+                $sheet->getStyle($prodiTitleRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+                $sheet->getRowDimension($currentRow)->setRowHeight(20);
+                $currentRow++;
+
+                // Header Tabel
+                $headerRow = $currentRow;
+                $sheet->setCellValueByColumnAndRow(1, $headerRow, 'No');
                 $col = 2;
                 foreach ($selectedFields as $field) {
-                    switch ($field) {
-                        case 'id':
-                            $val = (string) ($item->mhs_id ?? $item->mahasiswa_id ?? $item->id ?? '-');
-                            $sheet->setCellValueExplicitByColumnAndRow($col, $currentRow, $val, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-                            break;
-                        case 'name':
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->name ?? '-');
-                            break;
-                        case 'email':
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->email ?? '-');
-                            break;
-                        case 'kompi':
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->kompi ?? '-');
-                            break;
-                        case 'jurusan':
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->jurusan ?? '-');
-                            break;
-                        case 'prodi':
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->prodi ?? '-');
-                            break;
-                        case 'date':
-                            $val = $item->date ? \Carbon\Carbon::parse($item->date)->format('d/m/Y') : '-';
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
-                            break;
-                        case 'check_in':
-                            $val = $item->check_in ? \Carbon\Carbon::parse($item->check_in)->format('H:i') : '-';
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
-                            break;
-                        case 'check_out':
-                            $val = $item->check_out ? \Carbon\Carbon::parse($item->check_out)->format('H:i') : '-';
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
-                            break;
-                        case 'status':
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $statusText);
-                            break;
-                        case 'camera_id':
-                            $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->camera_id ?? '-');
-                            break;
-                    }
-                    $col++;
+                    $sheet->setCellValueByColumnAndRow($col++, $headerRow, $fieldLabelsMap[$field]);
                 }
-                $no++;
                 $currentRow++;
-            }
-            $dataEndRow = $currentRow - 1;
 
-            // Style Header Tabel (Dark Blue)
-            $headerRange = "A{$headerRow}:{$lastCol}{$headerRow}";
-            $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
-            $sheet->getStyle($headerRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF1E3A8A');
-            $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle($headerRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
-            $sheet->getRowDimension($headerRow)->setRowHeight(20);
+                // Isi Data
+                $dataStartRow = $currentRow;
+                $no = 1;
+                foreach ($groupItems as $item) {
+                    $sheet->setCellValueByColumnAndRow(1, $currentRow, $no);
 
-            // Border seluruh tabel (header + data)
-            $tableRange = "A{$headerRow}:{$lastCol}{$dataEndRow}";
-            $sheet->getStyle($tableRange)->applyFromArray([
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                        'color' => ['argb' => 'FF000000'],
+                    $statusText = ucfirst($item->status ?? 'alpha');
+                    if ($item->status === 'izin') {
+                        $statusText = 'Izin';
+                    } elseif ($item->status === 'sakit') {
+                        $statusText = 'Sakit';
+                    } elseif ($item->check_out) {
+                        $statusText = 'Lengkap';
+                    } elseif ($item->check_in) {
+                        $statusText = 'Hadir';
+                    } elseif ($item->status === 'alpha') {
+                        $statusText = 'Alpha (Belum Absen)';
+                    }
+
+                    $col = 2;
+                    foreach ($selectedFields as $field) {
+                        switch ($field) {
+                            case 'id':
+                                $val = (string) ($item->mhs_id ?? $item->mahasiswa_id ?? $item->id ?? '-');
+                                $sheet->setCellValueExplicitByColumnAndRow($col, $currentRow, $val, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                                break;
+                            case 'name':
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->name ?? '-');
+                                break;
+                            case 'email':
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->email ?? '-');
+                                break;
+                            case 'kompi':
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->kompi ?? '-');
+                                break;
+                            case 'jurusan':
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->jurusan ?? '-');
+                                break;
+                            case 'prodi':
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->prodi ?? '-');
+                                break;
+                            case 'date':
+                                $val = $item->date ? \Carbon\Carbon::parse($item->date)->format('d/m/Y') : '-';
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
+                                break;
+                            case 'check_in':
+                                $val = $item->check_in ? \Carbon\Carbon::parse($item->check_in)->format('H:i') : '-';
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
+                                break;
+                            case 'check_out':
+                                $val = $item->check_out ? \Carbon\Carbon::parse($item->check_out)->format('H:i') : '-';
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
+                                break;
+                            case 'status':
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $statusText);
+                                break;
+                            case 'camera_id':
+                                $sheet->setCellValueByColumnAndRow($col, $currentRow, $item->camera_id ?? '-');
+                                break;
+                        }
+                        $col++;
+                    }
+                    $no++;
+                    $currentRow++;
+                }
+                $dataEndRow = $currentRow - 1;
+
+                // Style Header Tabel (Dark Blue)
+                $headerRange = "A{$headerRow}:{$lastCol}{$headerRow}";
+                $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+                $sheet->getStyle($headerRange)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF1E3A8A');
+                $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle($headerRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+                $sheet->getRowDimension($headerRow)->setRowHeight(20);
+
+                // Border seluruh tabel (header + data)
+                $tableRange = "A{$headerRow}:{$lastCol}{$dataEndRow}";
+                $sheet->getStyle($tableRange)->applyFromArray([
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                            'color' => ['argb' => 'FF000000'],
+                        ],
                     ],
-                ],
-            ]);
+                ]);
 
-            // Alignment
-            $sheet->getStyle("A{$dataStartRow}:A{$dataEndRow}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $dataRange = "B{$dataStartRow}:{$lastCol}{$dataEndRow}";
-            $sheet->getStyle($dataRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+                // Alignment
+                $sheet->getStyle("A{$dataStartRow}:A{$dataEndRow}")->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+                $dataRange = "B{$dataStartRow}:{$lastCol}{$dataEndRow}";
+                $sheet->getStyle($dataRange)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+            }
         }
 
         // Auto-size columns
@@ -2284,26 +2423,11 @@ class AdminController extends Controller
             ->setFooter(0.15);
 
         $sheet->setShowGridlines(true);
-        $sheet->getHeaderFooter()->setOddHeader('&C&BMonitoring Absensi Mahasiswa');
+        $sheet->getHeaderFooter()->setOddHeader('&C&B' . $titleHeader);
         $sheet->getHeaderFooter()->setOddFooter('&RHalaman &P dari &N');
 
-        $lastDataRow = $currentRow - 1;
+        $lastDataRow = max(1, $currentRow - 1);
         $sheet->getPageSetup()->setPrintArea("A1:{$lastCol}{$lastDataRow}");
-
-        $excelWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
-        $excelFileName = 'monitoring_absensi_' . date('Y-m-d_His') . '.xlsx';
-
-        return response()->stream(
-            function () use ($excelWriter) {
-                $excelWriter->save('php://output');
-            },
-            200,
-            [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition' => 'attachment;filename="' . $excelFileName . '"',
-                'Cache-Control' => 'max-age=0',
-            ]
-        );
     }
 
     // ─── QR CODE ─────────────────────────────────────────────────────────────

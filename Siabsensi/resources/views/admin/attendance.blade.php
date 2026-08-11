@@ -341,6 +341,11 @@
     </div>
 
     <form method="GET" action="{{ route('admin.attendance.export') }}" target="_blank">
+      <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; color: #1e40af; display: flex; align-items: center; gap: 10px;">
+        <i class="fas fa-file-excel" style="font-size: 18px; color: #2563eb; flex-shrink:0;"></i>
+        <span>Pilih opsi jalur di bawah (ceklis). Setiap jalur yang dicentang akan otomatis dibuatkan <b>Sheet tersendiri</b> di dalam file Excel.</span>
+      </div>
+
       {{-- Section 1: Filter --}}
       <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
         <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: var(--text-muted);">1. Filter Data Absensi</h4>
@@ -353,15 +358,26 @@
             <label class="form-label" style="font-size:12px;">Sampai Tanggal</label>
             <input type="date" name="end" class="form-input" value="{{ $end }}" required style="padding:7px 10px;">
           </div>
-          <div>
-            <label class="form-label" style="font-size:12px;">Status Absensi</label>
-            <select name="status" class="form-input" style="padding:7px 10px;">
-              <option value="all" {{ $filter === 'all' ? 'selected' : '' }}>Semua Status</option>
-              <option value="hadir" {{ in_array($filter, ['hadir','present']) ? 'selected' : '' }}>Hadir</option>
-              <option value="izin" {{ $filter === 'izin' ? 'selected' : '' }}>Izin</option>
-              <option value="sakit" {{ $filter === 'sakit' ? 'selected' : '' }}>Sakit</option>
-              <option value="alpha" {{ $filter === 'alpha' ? 'selected' : '' }}>Alpha (Belum Absen)</option>
-            </select>
+          <div style="grid-column: 1 / -1; margin-top: 4px;">
+            <label class="form-label" style="font-size:12px; font-weight:600; margin-bottom:6px; display:block;">Status Absensi (Ceklis Status yang Diinginkan)</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 14px; background: var(--bg-lighter); padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px;">
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none; color:var(--text);">
+                <input type="checkbox" name="statuses[]" value="hadir" {{ ($filter === 'all' || in_array($filter, ['hadir','present'])) ? 'checked' : '' }} style="accent-color: var(--primary);">
+                <span>Hadir</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none; color:var(--text);">
+                <input type="checkbox" name="statuses[]" value="izin" {{ ($filter === 'all' || $filter === 'izin') ? 'checked' : '' }} style="accent-color: var(--primary);">
+                <span>Izin</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none; color:var(--text);">
+                <input type="checkbox" name="statuses[]" value="sakit" {{ ($filter === 'all' || $filter === 'sakit') ? 'checked' : '' }} style="accent-color: var(--primary);">
+                <span>Sakit</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none; color:var(--text);">
+                <input type="checkbox" name="statuses[]" value="alpha" {{ ($filter === 'all' || $filter === 'alpha') ? 'checked' : '' }} style="accent-color: var(--primary);">
+                <span>Alpha (Belum Absen)</span>
+              </label>
+            </div>
           </div>
           <div>
             <label class="form-label" style="font-size:12px;">Kompi</label>
@@ -393,10 +409,29 @@
         </div>
       </div>
 
-      {{-- Section 2: Field Selection --}}
+      {{-- Section 2: Choice of Jalur / Sheet --}}
+      <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+        <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: var(--text-muted);">2. Pilih Jalur / Kategori Sheet (Ceklis yang Diinginkan)</h4>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; background: var(--bg-lighter); padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight: 600; cursor:pointer; user-select:none; color: var(--text);">
+            <input type="checkbox" name="sheets[]" value="mandiri" checked style="width:16px; height:16px; accent-color: var(--primary);">
+            <span>Jalur Mandiri (Sheet 1)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight: 600; cursor:pointer; user-select:none; color: var(--text);">
+            <input type="checkbox" name="sheets[]" value="reguler" checked style="width:16px; height:16px; accent-color: var(--primary);">
+            <span>Jalur Reguler (Sheet 2)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight: 600; cursor:pointer; user-select:none; color: var(--text);">
+            <input type="checkbox" name="sheets[]" value="kompi_14" checked style="width:16px; height:16px; accent-color: var(--primary);">
+            <span>Kompi 14 / Mahasiswa Ngulang (Sheet 3)</span>
+          </label>
+        </div>
+      </div>
+
+      {{-- Section 3: Field Selection --}}
       <div style="margin-bottom: 24px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <h4 style="margin:0; font-size:14px; font-weight:600; color:var(--text-muted);">2. Pilih Kolom Data yang Ditampilkan</h4>
+          <h4 style="margin:0; font-size:14px; font-weight:600; color:var(--text-muted);">3. Pilih Kolom Data yang Ditampilkan</h4>
           <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; user-select:none;">
             <input type="checkbox" id="export-check-all" checked onchange="toggleAllExportFields(this)">
             <span style="font-weight:600; color:var(--primary);">Pilih Semua Kolom</span>
