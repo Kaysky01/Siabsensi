@@ -12,6 +12,7 @@ use App\Models\Kegiatan;
 use App\Models\KehadiranSubmission;
 use App\Models\Mahasiswa;
 use App\Models\Prodi;
+use App\Models\SystemConfig;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -42,6 +43,7 @@ class AdminController extends Controller
         $pendingKehadiranCount = KehadiranSubmission::where('status', 'pending')->count();
         $pendingIzinCount = IzinSubmission::where('status', 'pending')->count();
         $totalPending = $pendingKehadiranCount + $pendingIzinCount;
+        $isMaintenanceMode = SystemConfig::isMaintenanceMode();
 
         // Recent attendances
         $recent = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
@@ -71,8 +73,24 @@ class AdminController extends Controller
 
         return view('admin.dashboard', compact(
             'totalMahasiswa', 'presentToday', 'absent', 'stillIn', 'pct',
-            'recent', 'trend', 'byKompi', 'maxKompi', 'pendingKehadiranCount', 'pendingIzinCount', 'totalPending'
+            'recent', 'trend', 'byKompi', 'maxKompi', 'pendingKehadiranCount', 'pendingIzinCount', 'totalPending', 'isMaintenanceMode'
         ));
+    }
+
+    /**
+     * Toggle System Maintenance Mode
+     */
+    public function toggleMaintenanceMode(Request $request)
+    {
+        $current = SystemConfig::isMaintenanceMode();
+        $newStatus = !$current;
+        SystemConfig::setMaintenanceMode($newStatus);
+
+        $statusText = $newStatus 
+            ? 'diaktifkan. Akses untuk role non-admin dialihkan ke halaman pemeliharaan.' 
+            : 'dinonaktifkan. Seluruh role dapat kembali menggunakan sistem.';
+
+        return back()->with('success', "Mode Maintenance berhasil {$statusText}");
     }
 
     // ─── ATTENDANCE ───────────────────────────────────────────────────────────

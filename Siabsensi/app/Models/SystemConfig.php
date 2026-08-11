@@ -74,6 +74,27 @@ class SystemConfig extends Model
     }
 
     /**
+     * Get maintenance mode status
+     */
+    public static function isMaintenanceMode(): bool
+    {
+        $val = self::get('maintenance_mode', 'false');
+        return $val === 'true' || $val === '1' || $val === true;
+    }
+
+    /**
+     * Set maintenance mode status
+     */
+    public static function setMaintenanceMode(bool $active): void
+    {
+        self::set(
+            'maintenance_mode',
+            $active ? 'true' : 'false',
+            'Status Maintenance Mode Sistem (hanya admin yang dapat akses)'
+        );
+    }
+
+    /**
      * Clear all config cache
      */
     public static function clearCache(): void

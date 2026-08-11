@@ -41,6 +41,11 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Maintenance Mode Page
+Route::get('/maintenance', function () {
+    return view('errors.maintenance');
+})->name('maintenance');
+
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 Route::get('/login', [AuthController::class, 'login'])->name('login');
 Route::post('/login', [AuthController::class, 'auth'])->name('auth')->middleware('login.ratelimit');
@@ -115,9 +120,9 @@ Route::middleware(['auth', 'role:timdis'])->prefix('timdis')->group(function () 
 });
 
 // ?????? ADMIN PAGES (Server-Side Rendered) ??????
-Route::middleware(['auth', 'role:admin,timdis,garda,acara'])->prefix('admin')->group(function () {
-    // View Pages
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'dashboard_admin'])->name('admin.dashboard');
+    Route::post('/maintenance-mode/toggle', [AdminController::class, 'toggleMaintenanceMode'])->name('admin.maintenance.toggle');
     Route::get('/attendance', [AdminController::class, 'attendance'])->name('admin.attendance');
     
     // Master Data

@@ -27,6 +27,37 @@
     </div>
   </div>
 
+  <!-- Maintenance Mode Control Widget -->
+  <div class="maintenance-control-card {{ isset($isMaintenanceMode) && $isMaintenanceMode ? 'mode-active' : 'mode-inactive' }}">
+    <div class="maint-icon-box">
+      <span class="material-symbols-outlined">{{ isset($isMaintenanceMode) && $isMaintenanceMode ? 'warning' : 'admin_panel_settings' }}</span>
+    </div>
+    <div class="maint-info">
+      <div class="maint-title">
+        Status Maintenance Mode: 
+        <strong class="{{ isset($isMaintenanceMode) && $isMaintenanceMode ? 'text-red' : 'text-green' }}">
+          {{ isset($isMaintenanceMode) && $isMaintenanceMode ? 'AKTIF (Sistem Terkunci Khusus Admin)' : 'NONAKTIF (Sistem Normal)' }}
+        </strong>
+      </div>
+      <div class="maint-desc">
+        @if(isset($isMaintenanceMode) && $isMaintenanceMode)
+          Seluruh role selain Admin (Mahasiswa, Garda, Timdis, Acara) saat ini dialihkan ke halaman Maintenance dan tidak dapat login.
+        @else
+          Sistem berjalan normal. Seluruh role dapat melakukan login dan mengakses fitur sesuai hak akses.
+        @endif
+      </div>
+    </div>
+    <div class="maint-action">
+      <form action="{{ route('admin.maintenance.toggle') }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin {{ isset($isMaintenanceMode) && $isMaintenanceMode ? 'MENONAKTIFKAN' : 'MENGAKTIFKAN' }} Maintenance Mode?')">
+        @csrf
+        <button type="submit" class="btn {{ isset($isMaintenanceMode) && $isMaintenanceMode ? 'btn-maint-off' : 'btn-maint-on' }}">
+          <span class="material-symbols-outlined">{{ isset($isMaintenanceMode) && $isMaintenanceMode ? 'power_settings_new' : 'build' }}</span>
+          {{ isset($isMaintenanceMode) && $isMaintenanceMode ? 'Matikan Maintenance Mode' : 'Aktifkan Maintenance Mode' }}
+        </button>
+      </form>
+    </div>
+  </div>
+
   <!-- Pending Submissions Alert Box (If Any) -->
   @if(isset($totalPending) && $totalPending > 0)
     <div class="pending-alert-box">
@@ -1021,6 +1052,94 @@
 
   .admin-quick-grid {
     grid-template-columns: 1fr;
+  }
+}
+/* Maintenance Mode Widget */
+.maintenance-control-card {
+  border-radius: 14px;
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.2s ease;
+  margin-bottom: 8px;
+}
+
+.maintenance-control-card.mode-active {
+  background: #fef2f2;
+  border: 2px solid #ef4444;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+}
+
+.maintenance-control-card.mode-inactive {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.maint-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mode-active .maint-icon-box { background: #fee2e2; color: #dc2626; }
+.mode-inactive .maint-icon-box { background: #dbeafe; color: #2563eb; }
+
+.maint-info { flex: 1; }
+.maint-title { font-size: 15px; font-weight: 800; color: #0f172a; }
+.text-red { color: #dc2626; }
+.text-green { color: #16a34a; }
+.maint-desc { font-size: 13px; color: #64748b; margin-top: 2px; }
+
+.btn-maint-on {
+  background: #dc2626;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+  transition: all 0.2s ease;
+}
+
+.btn-maint-on:hover { background: #b91c1c; transform: translateY(-2px); }
+
+.btn-maint-off {
+  background: #16a34a;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2);
+  transition: all 0.2s ease;
+}
+
+.btn-maint-off:hover { background: #15803d; transform: translateY(-2px); }
+
+@media (max-width: 768px) {
+  .maintenance-control-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .maint-action {
+    width: 100%;
+  }
+  .btn-maint-on, .btn-maint-off {
+    width: 100%;
+    justify-content: center;
   }
 }
 </style>

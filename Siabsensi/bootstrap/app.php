@@ -20,9 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sangat penting untuk hosting: Percayai SSL/Proxy agar sesi tidak terputus
         $middleware->trustProxies(at: '*');
 
-        // Security Headers: Tambahkan header keamanan ke SEMUA response
-        // Ini middleware global, bukan hanya web group, agar mencakup semua route.
+        // Security Headers & Maintenance Mode: Tambahkan header keamanan & pengecekan maintenance mode
         $middleware->append(SecurityHeaders::class);
+        $middleware->append(\App\Http\Middleware\CheckMaintenanceMode::class);
         
         // Add request logging
         $middleware->web(\App\Http\Middleware\LogRequests::class);
