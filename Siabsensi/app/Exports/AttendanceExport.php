@@ -150,17 +150,23 @@ class AttendanceExport implements FromQuery, WithColumnWidths, WithHeadings, Wit
     {
         $data = [++$this->rowNumber];
 
-        $statusText = ucfirst($row->status ?? 'alpha');
-        if ($row->status === 'izin') {
+        $rawStatus = strtolower($row->status ?? 'alpha');
+        $isManual = !empty($row->absen_by) || $rawStatus === 'manual';
+
+        if ($rawStatus === 'izin') {
             $statusText = 'Izin';
-        } elseif ($row->status === 'sakit') {
+        } elseif ($rawStatus === 'sakit') {
             $statusText = 'Sakit';
+        } elseif ($rawStatus === 'alpha') {
+            $statusText = 'Alpha (Belum Absen)';
+        } elseif ($isManual) {
+            $statusText = $row->check_out ? 'Lengkap (Absen Manual)' : 'Hadir (Absen Manual)';
         } elseif ($row->check_out) {
             $statusText = 'Lengkap';
         } elseif ($row->check_in) {
             $statusText = 'Hadir';
-        } elseif ($row->status === 'alpha') {
-            $statusText = 'Alpha (Belum Absen)';
+        } else {
+            $statusText = 'Hadir';
         }
 
         foreach ($this->exportFields as $field) {

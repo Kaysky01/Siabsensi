@@ -2516,8 +2516,7 @@ class AdminController extends Controller
                     $sheet->setCellValueByColumnAndRow(1, $currentRow, $no);
 
                     $rawStatus = strtolower($item->status ?? 'alpha');
-                    $isHadirStatus = in_array($rawStatus, ['hadir', 'present', 'manual', 'terlambat', 'lengkap']);
-                    $isManualAtt = $isHadirStatus && (empty($item->check_in) || !empty($item->absen_by) || empty($item->camera_id));
+                    $isManualAtt = !empty($item->absen_by) || $rawStatus === 'manual';
 
                     if ($rawStatus === 'izin') {
                         $statusText = 'Izin';
@@ -2532,7 +2531,7 @@ class AdminController extends Controller
                     } elseif ($item->check_in) {
                         $statusText = 'Hadir';
                     } else {
-                        $statusText = 'Hadir (Absen Manual)';
+                        $statusText = 'Hadir';
                     }
 
                     $col = 2;
