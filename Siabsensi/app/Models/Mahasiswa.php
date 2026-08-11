@@ -59,6 +59,69 @@ class Mahasiswa extends Model
         return $this->hasMany(AttendanceSesi::class, 'mahasiswa_id', 'id');
     }
 
+    public function getStatusBadgeData(): array
+    {
+        $statusLower = strtolower($this->status ?? 'alpha');
+
+        if ($statusLower === 'izin') {
+            return [
+                'label' => 'Izin',
+                'bg' => '#dbeafe',
+                'color' => '#1d4ed8',
+                'border' => '#bfdbfe',
+                'dot' => '#3b82f6',
+            ];
+        }
+
+        if ($statusLower === 'sakit') {
+            return [
+                'label' => 'Sakit',
+                'bg' => '#fef9c3',
+                'color' => '#a16207',
+                'border' => '#fef08a',
+                'dot' => '#eab308',
+            ];
+        }
+
+        if ($statusLower === 'alpha') {
+            return [
+                'label' => 'Alpha',
+                'bg' => '#fee2e2',
+                'color' => '#b91c1c',
+                'border' => '#fecaca',
+                'dot' => '#ef4444',
+            ];
+        }
+
+        if ($this->check_in && $this->check_out) {
+            return [
+                'label' => 'Hadir & Keluar',
+                'bg' => '#d1fae5',
+                'color' => '#047857',
+                'border' => '#a7f3d0',
+                'dot' => '#10b981',
+            ];
+        }
+
+        if ($this->check_in) {
+            return [
+                'label' => 'Hadir (Masuk)',
+                'bg' => '#d1fae5',
+                'color' => '#047857',
+                'border' => '#a7f3d0',
+                'dot' => '#10b981',
+            ];
+        }
+
+        return [
+            'label' => 'Alpha',
+            'bg' => '#fee2e2',
+            'color' => '#b91c1c',
+            'border' => '#fecaca',
+            'dot' => '#ef4444',
+        ];
+    }
+
     public function izinSubmissions()
     {
         return $this->hasMany(IzinSubmission::class, 'mahasiswa_id', 'id');
