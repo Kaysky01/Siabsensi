@@ -20,12 +20,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sangat penting untuk hosting: Percayai SSL/Proxy agar sesi tidak terputus
         $middleware->trustProxies(at: '*');
 
-        // Security Headers & Maintenance Mode: Tambahkan header keamanan & pengecekan maintenance mode
+        // Security Headers: Tambahkan header keamanan ke SEMUA response
         $middleware->append(SecurityHeaders::class);
-        $middleware->append(\App\Http\Middleware\CheckMaintenanceMode::class);
         
-        // Add request logging
+        // Add request logging & maintenance mode check (Harus di middleware group 'web' agar Auth Session sudah terbaca)
         $middleware->web(\App\Http\Middleware\LogRequests::class);
+        $middleware->web(\App\Http\Middleware\CheckMaintenanceMode::class);
 
         // 1. Redirect untuk Guest (Belum Login) jika mencoba akses halaman yang diproteksi
         $middleware->redirectGuestsTo('/login');

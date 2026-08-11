@@ -78,15 +78,13 @@ class AuthController extends Controller
             /** @var User $user */
             $user = Auth::user();
 
-            // Pengecekan Maintenance Mode: Tolak login untuk role non-admin
+            // Pengecekan Maintenance Mode: Arahkan role non-admin ke halaman maintenance
             if (\App\Models\SystemConfig::isMaintenanceMode() && $user->role !== 'admin') {
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
 
-                return back()->withErrors([
-                    'username' => 'Sistem sedang dalam Pemeliharaan (Maintenance Mode). Hanya Administrator yang dapat login.',
-                ])->onlyInput('username');
+                return redirect()->route('maintenance');
             }
 
             if (! $user->is_active) {
@@ -152,9 +150,7 @@ class AuthController extends Controller
                     $request->session()->invalidate();
                     $request->session()->regenerateToken();
 
-                    return back()->withErrors([
-                        'username' => 'Sistem sedang dalam Pemeliharaan (Maintenance Mode). Hanya Administrator yang dapat login.',
-                    ])->onlyInput('username');
+                    return redirect()->route('maintenance');
                 }
 
                 if (! $userByNim->is_active) {

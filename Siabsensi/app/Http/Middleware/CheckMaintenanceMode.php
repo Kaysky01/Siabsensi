@@ -19,7 +19,7 @@ class CheckMaintenanceMode
 
             // 1. Jika user sudah login:
             if ($user) {
-                // Role 'admin' Bebas Akses Seluruh Fitur Sistem
+                // Role 'admin' BEBAS akses seluruh fitur sistem
                 if ($user->role === 'admin') {
                     return $next($request);
                 }
@@ -28,11 +28,11 @@ class CheckMaintenanceMode
                 if ($request->expectsJson()) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Sistem sedang dalam mode pemeliharaan (Maintenance). Akses dibatasi khusus Admin.',
+                        'message' => 'Sistem sedang dalam mode pemeliharaan (Maintenance Mode). Akses dibatasi khusus Admin.',
                     ], 503);
                 }
 
-                // Izinkan akses rute maintenance dan logout untuk non-admin
+                // Izinkan rute maintenance dan logout untuk non-admin
                 if ($request->routeIs('maintenance') || $request->routeIs('logout')) {
                     return $next($request);
                 }
@@ -41,13 +41,12 @@ class CheckMaintenanceMode
             }
 
             // 2. Jika user belum login (Guest):
-            // Izinkan rute login, proses auth, logout, maintenance, & api hardware
-            $allowedRoutes = ['maintenance', 'login', 'auth', 'logout'];
-            if ($request->routeIs($allowedRoutes) || $request->is('api/*') || $request->is('file-bukti/*')) {
+            // Izinkan rute root (/), login, auth, logout, maintenance, & api hardware
+            if ($request->is('/') || $request->routeIs(['maintenance', 'login', 'auth', 'logout']) || $request->is('api/*') || $request->is('file-bukti/*')) {
                 return $next($request);
             }
 
-            // Rute web lainnya dialihkan ke halaman maintenance
+            // Rute web terproteksi lainnya dialihkan ke maintenance
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false,
