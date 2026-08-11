@@ -343,10 +343,27 @@ class MahasiswaController extends Controller
         ]);
 
         try {
+            $mhsId = Auth::user()->mahasiswa_id;
+            $targetDate = \Carbon\Carbon::parse($request->date)->format('Y-m-d');
+
+            $existingIzin = \App\Models\IzinSubmission::where('mahasiswa_id', $mhsId)
+                ->whereDate('date', $targetDate)
+                ->whereIn('status', ['pending', 'approved'])
+                ->first();
+
+            $existingKehadiran = \App\Models\KehadiranSubmission::where('mahasiswa_id', $mhsId)
+                ->whereDate('date', $targetDate)
+                ->whereIn('status', ['pending', 'approved'])
+                ->first();
+
+            if ($existingIzin || $existingKehadiran) {
+                return back()->with('error', 'Anda sudah memiliki pengajuan (Izin / Kehadiran) untuk tanggal ' . \Carbon\Carbon::parse($targetDate)->format('d/m/Y') . '. Tidak dapat mengirim pengajuan ganda.')->withInput();
+            }
+
             $path = $request->file('bukti')->store('izin_bukti', 'public');
 
             \App\Models\IzinSubmission::create([
-                'mahasiswa_id' => Auth::user()->mahasiswa_id,
+                'mahasiswa_id' => $mhsId,
                 'submission_type' => $request->type,
                 'date' => $request->date,
                 'keterangan' => $request->reason,
@@ -356,7 +373,7 @@ class MahasiswaController extends Controller
 
             return back()->with('success', 'Pengajuan ' . $request->type . ' berhasil dikirim.');
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal mengirim pengajuan. Silakan coba lagi.')->withInput();
+            return back()->with('error', 'Gagal mengirim pengajuan: ' . $e->getMessage())->withInput();
         }
     }
 
@@ -402,10 +419,27 @@ public function submitKehadiran(Request $request)
         ]);
 
         try {
+            $mhsId = Auth::user()->mahasiswa_id;
+            $targetDate = \Carbon\Carbon::parse($request->date)->format('Y-m-d');
+
+            $existingIzin = \App\Models\IzinSubmission::where('mahasiswa_id', $mhsId)
+                ->whereDate('date', $targetDate)
+                ->whereIn('status', ['pending', 'approved'])
+                ->first();
+
+            $existingKehadiran = \App\Models\KehadiranSubmission::where('mahasiswa_id', $mhsId)
+                ->whereDate('date', $targetDate)
+                ->whereIn('status', ['pending', 'approved'])
+                ->first();
+
+            if ($existingIzin || $existingKehadiran) {
+                return back()->with('error', 'Anda sudah memiliki pengajuan (Izin / Kehadiran) untuk tanggal ' . \Carbon\Carbon::parse($targetDate)->format('d/m/Y') . '. Tidak dapat mengirim pengajuan ganda.')->withInput();
+            }
+
             $path = $request->file('bukti')->store('kehadiran_bukti', 'public');
 
             \App\Models\KehadiranSubmission::create([
-                'mahasiswa_id' => Auth::user()->mahasiswa_id,
+                'mahasiswa_id' => $mhsId,
                 'date' => $request->date,
                 'check_in_time' => '08:00:00',
                 'check_out_time' => '16:00:00',

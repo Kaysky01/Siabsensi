@@ -89,19 +89,24 @@
             @endif
           </td>
           <td>
-            @if($s->status === 'pending')
-            <div style="display:flex;gap:4px">
-              <button type="button" class="btn btn-ghost btn-sm" style="color:var(--success)" title="Setujui" onclick="confirmVerify('{{ $s->id }}', 'approve')"><span class="material-symbols-outlined" style="font-size:16px">check</span></button>
-              <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" title="Tolak" onclick="confirmVerify('{{ $s->id }}', 'reject')"><span class="material-symbols-outlined" style="font-size:16px">close</span></button>
+            <div style="display:flex;gap:4px;align-items:center">
+              @if($s->status === 'pending')
+                <button type="button" class="btn btn-ghost btn-sm" style="color:var(--success)" title="Setujui" onclick="confirmVerify('{{ $s->id }}', 'approve')"><span class="material-symbols-outlined" style="font-size:16px">check</span></button>
+                <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" title="Tolak" onclick="confirmVerify('{{ $s->id }}', 'reject')"><span class="material-symbols-outlined" style="font-size:16px">close</span></button>
+              @else
+                <span style="font-size:12px;color:var(--text-muted);margin-right:4px">{{ $s->verified_by ?? '-' }}</span>
+                <button type="button" class="btn btn-ghost btn-sm" style="color:#D97706" title="Batalkan Verifikasi" onclick="confirmVerify('{{ $s->id }}', 'cancel')">
+                  <span class="material-symbols-outlined" style="font-size:16px">history</span>
+                </button>
+              @endif
+              <form method="POST" action="{{ route('admin.izin.destroy', $s->id) }}" style="display:inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus pengajuan izin ini secara permanen?')">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)" title="Hapus Pengajuan">
+                  <span class="material-symbols-outlined" style="font-size:16px">delete</span>
+                </button>
+              </form>
             </div>
-            @else
-            <div style="display:flex;gap:8px;align-items:center">
-              <span style="font-size:12px;color:var(--text-muted)">{{ $s->verified_by ?? '-' }}</span>
-              <button type="button" class="btn btn-ghost btn-sm" style="color:#D97706" title="Batalkan Verifikasi" onclick="confirmVerify('{{ $s->id }}', 'cancel')">
-                <span class="material-symbols-outlined" style="font-size:16px">history</span>
-              </button>
-            </div>
-            @endif
           </td>
         </tr>
         @empty

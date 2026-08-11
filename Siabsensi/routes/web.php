@@ -155,8 +155,10 @@ Route::middleware(['auth', 'role:admin,timdis,garda,acara'])->prefix('admin')->g
     Route::post('/sertifikat/bulk-toggle', [AdminController::class, 'bulkToggleSertifikatLock'])->name('admin.sertifikat.bulk-toggle');
     Route::get('/izin', [AdminController::class, 'izin'])->name('admin.izin');
     Route::post('/izin/verify', [AdminController::class, 'verifyIzin'])->name('admin.izin.verify');
+    Route::delete('/izin/{id}', [AdminController::class, 'deleteIzinSubmission'])->name('admin.izin.destroy');
     Route::get('/kehadiran', [AdminController::class, 'kehadiran'])->name('admin.kehadiran');
     Route::post('/kehadiran/verify', [AdminController::class, 'verifyKehadiran'])->name('admin.kehadiran.verify');
+    Route::delete('/kehadiran/{id}', [AdminController::class, 'deleteKehadiranSubmission'])->name('admin.kehadiran.destroy');
 
     Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
     Route::get('/settings', [AdminController::class, 'settings'])->name('admin.settings');

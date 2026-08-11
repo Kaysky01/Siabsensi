@@ -90,19 +90,24 @@
             @endif
           </td>
           <td>
-            @if($s->status === 'pending')
-            <div style="display:flex;gap:4px">
-              <button type="button" class="btn btn-ghost btn-sm" style="color:var(--success)" title="Setujui" onclick="confirmVerify('{{ $s->id }}', 'approve')"><span class="material-symbols-outlined" style="font-size:16px">check</span></button>
-              <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" title="Tolak" onclick="confirmVerify('{{ $s->id }}', 'reject')"><span class="material-symbols-outlined" style="font-size:16px">close</span></button>
+            <div style="display:flex;gap:4px;align-items:center">
+              @if($s->status === 'pending')
+                <button type="button" class="btn btn-ghost btn-sm" style="color:var(--success)" title="Setujui" onclick="confirmVerify('{{ $s->id }}', 'approve', '{{ $s->check_in_time ?? '06:00' }}', '{{ $s->check_out_time ?? '17:00' }}')"><span class="material-symbols-outlined" style="font-size:16px">check</span></button>
+                <button type="button" class="btn btn-ghost btn-sm" style="color:var(--danger)" title="Tolak" onclick="confirmVerify('{{ $s->id }}', 'reject')"><span class="material-symbols-outlined" style="font-size:16px">close</span></button>
+              @else
+                <span style="font-size:12px;color:var(--text-muted);margin-right:4px">{{ $s->verified_by ?? '-' }}</span>
+                <button type="button" class="btn btn-ghost btn-sm" style="color:#D97706" title="Batalkan Verifikasi" onclick="confirmVerify('{{ $s->id }}', 'cancel')">
+                  <span class="material-symbols-outlined" style="font-size:16px">history</span>
+                </button>
+              @endif
+              <form method="POST" action="{{ route('admin.kehadiran.destroy', $s->id) }}" style="display:inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus pengajuan ini secara permanen?')">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)" title="Hapus Pengajuan">
+                  <span class="material-symbols-outlined" style="font-size:16px">delete</span>
+                </button>
+              </form>
             </div>
-            @else
-            <div style="display:flex;gap:8px;align-items:center">
-              <span style="font-size:12px;color:var(--text-muted)">{{ $s->verified_by ?? '-' }}</span>
-              <button type="button" class="btn btn-ghost btn-sm" style="color:#D97706" title="Batalkan Verifikasi" onclick="confirmVerify('{{ $s->id }}', 'cancel')">
-                <span class="material-symbols-outlined" style="font-size:16px">history</span>
-              </button>
-            </div>
-            @endif
           </td>
         </tr>
         @empty
@@ -213,6 +218,22 @@
       <input type="hidden" name="submission_id" id="verify-id">
       <input type="hidden" name="action" id="verify-action">
       
+      <div id="approve-time-container" style="display:none;margin-bottom:20px;text-align:left">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="form-label" style="font-size:12px">Waktu Masuk</label>
+            <input type="time" name="check_in_time" id="verify-check-in" class="form-input" value="06:00">
+          </div>
+          <div>
+            <label class="form-label" style="font-size:12px">Waktu Keluar</label>
+            <input type="time" name="check_out_time" id="verify-check-out" class="form-input" value="17:00">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+          *Dapat disesuaikan sesuai jam kedatangan / kepulangan mahasiswa
+        </div>
+      </div>
+
       <div id="rejection-reason-container" style="display:none;margin-bottom:20px;text-align:left">
         <label class="form-label">Alasan Penolakan (Opsional)</label>
         <textarea name="rejection_reason" class="form-input" rows="3" placeholder="Masukkan alasan penolakan..."></textarea>
@@ -268,9 +289,16 @@
     document.getElementById('modal-bukti').classList.add('show');
   }
 
-  function confirmVerify(id, action) {
+  function confirmVerify(id, action, defaultIn, defaultOut) {
     document.getElementById('verify-id').value = id;
     document.getElementById('verify-action').value = action;
+    
+    var timeContainer = document.getElementById('approve-time-container');
+    var inInput = document.getElementById('verify-check-in');
+    var outInput = document.getElementById('verify-check-out');
+
+    if (defaultIn) inInput.value = defaultIn.substring(0, 5);
+    if (defaultOut) outInput.value = defaultOut.substring(0, 5);
     
     var icon = document.querySelector('#verify-icon');
     var iconSpan = icon.querySelector('span');
@@ -284,10 +312,11 @@
       icon.style.color = 'var(--success)';
       iconSpan.textContent = 'check_circle';
       title.textContent = 'Setujui Kehadiran?';
-      desc.textContent = 'Mahasiswa akan dicatat hadir pada jam yang diajukan.';
+      desc.textContent = 'Tentukan jam masuk dan keluar untuk dicatat sebagai Kehadiran Manual.';
       submitBtn.textContent = 'Ya, Setujui';
       submitBtn.style.background = 'var(--success)';
       submitBtn.style.borderColor = 'var(--success)';
+      timeContainer.style.display = 'block';
       reasonContainer.style.display = 'none';
       reasonContainer.querySelector('textarea').required = false;
     } else if (action === 'reject') {
@@ -299,6 +328,7 @@
       submitBtn.textContent = 'Ya, Tolak';
       submitBtn.style.background = 'var(--danger)';
       submitBtn.style.borderColor = 'var(--danger)';
+      timeContainer.style.display = 'none';
       reasonContainer.style.display = 'block';
       reasonContainer.querySelector('textarea').required = false;
     } else if (action === 'cancel') {
@@ -310,6 +340,7 @@
       submitBtn.textContent = 'Ya, Batalkan';
       submitBtn.style.background = '#D97706';
       submitBtn.style.borderColor = '#D97706';
+      timeContainer.style.display = 'none';
       reasonContainer.style.display = 'none';
       reasonContainer.querySelector('textarea').required = false;
     }

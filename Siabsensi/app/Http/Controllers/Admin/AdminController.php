@@ -1834,18 +1834,62 @@ class AdminController extends Controller
 
         if ($validated['action'] === 'approve') {
             $dateOnly = Carbon::parse($submission->date)->format('Y-m-d');
+            $inTime = $request->input('check_in_time', $submission->check_in_time ?? '06:00:00');
+            $outTime = $request->input('check_out_time', $submission->check_out_time ?? '17:00:00');
+
+            if (strlen($inTime) === 5) { $inTime .= ':00'; }
+            if ($outTime && strlen($outTime) === 5) { $outTime .= ':00'; }
+
             Attendance::updateOrCreate(
                 ['mahasiswa_id' => $submission->mahasiswa_id, 'date' => $dateOnly],
                 [
-                    'check_in' => $dateOnly . ' ' . $submission->check_in_time,
-                    'check_out' => $submission->check_out_time ? $dateOnly . ' ' . $submission->check_out_time : null,
+                    'check_in' => $dateOnly . ' ' . $inTime,
+                    'check_out' => $outTime ? $dateOnly . ' ' . $outTime : null,
                     'status' => 'present',
+                    'absen_by' => Auth::user()->username,
                 ]
             );
         }
 
         $msg = $validated['action'] === 'approve' ? 'Kehadiran disetujui.' : 'Kehadiran ditolak.';
         return redirect()->route('admin.kehadiran')->with('success', $msg);
+    }
+
+    public function deleteKehadiranSubmission($id)
+    {
+        $submission = KehadiranSubmission::findOrFail($id);
+
+        if ($submission->bukti_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($submission->bukti_path);
+        }
+
+        $dateOnly = Carbon::parse($submission->date)->format('Y-m-d');
+        Attendance::where('mahasiswa_id', $submission->mahasiswa_id)
+            ->where('date', $dateOnly)
+            ->delete();
+
+        $submission->delete();
+
+        return redirect()->back()->with('success', 'Pengajuan kehadiran berhasil dihapus oleh Admin.');
+    }
+
+    public function deleteIzinSubmission($id)
+    {
+        $submission = IzinSubmission::findOrFail($id);
+
+        if ($submission->bukti_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($submission->bukti_path);
+        }
+
+        $dateOnly = Carbon::parse($submission->date)->format('Y-m-d');
+        Attendance::where('mahasiswa_id', $submission->mahasiswa_id)
+            ->where('date', $dateOnly)
+            ->where('status', $submission->submission_type)
+            ->delete();
+
+        $submission->delete();
+
+        return redirect()->back()->with('success', 'Pengajuan izin berhasil dihapus oleh Admin.');
     }
 
     // ─── USERS MANAGEMENT ────────────────────────────────────────────────────
@@ -2312,17 +2356,24 @@ class AdminController extends Controller
                 foreach ($groupItems as $item) {
                     $sheet->setCellValueByColumnAndRow(1, $currentRow, $no);
 
-                    $statusText = ucfirst($item->status ?? 'alpha');
-                    if ($item->status === 'izin') {
+                    $rawStatus = strtolower($item->status ?? 'alpha');
+                    $isHadirStatus = in_array($rawStatus, ['hadir', 'present', 'manual', 'terlambat', 'lengkap']);
+                    $isManualAtt = $isHadirStatus && (empty($item->check_in) || !empty($item->absen_by) || empty($item->camera_id));
+
+                    if ($rawStatus === 'izin') {
                         $statusText = 'Izin';
-                    } elseif ($item->status === 'sakit') {
+                    } elseif ($rawStatus === 'sakit') {
                         $statusText = 'Sakit';
+                    } elseif ($rawStatus === 'alpha') {
+                        $statusText = 'Alpha (Belum Absen)';
+                    } elseif ($isManualAtt) {
+                        $statusText = $item->check_out ? 'Lengkap (Absen Manual)' : 'Hadir (Absen Manual)';
                     } elseif ($item->check_out) {
                         $statusText = 'Lengkap';
                     } elseif ($item->check_in) {
                         $statusText = 'Hadir';
-                    } elseif ($item->status === 'alpha') {
-                        $statusText = 'Alpha (Belum Absen)';
+                    } else {
+                        $statusText = 'Hadir (Absen Manual)';
                     }
 
                     $col = 2;
@@ -2352,11 +2403,21 @@ class AdminController extends Controller
                                 $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
                                 break;
                             case 'check_in':
-                                $val = $item->check_in ? \Carbon\Carbon::parse($item->check_in)->format('H:i') : '-';
+                                if ($item->check_in) {
+                                    $val = \Carbon\Carbon::parse($item->check_in)->format('H:i');
+                                } elseif ($isManualAtt) {
+                                    $val = 'Manual';
+                                } else {
+                                    $val = '-';
+                                }
                                 $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
                                 break;
                             case 'check_out':
-                                $val = $item->check_out ? \Carbon\Carbon::parse($item->check_out)->format('H:i') : '-';
+                                if ($item->check_out) {
+                                    $val = \Carbon\Carbon::parse($item->check_out)->format('H:i');
+                                } else {
+                                    $val = '-';
+                                }
                                 $sheet->setCellValueByColumnAndRow($col, $currentRow, $val);
                                 break;
                             case 'status':

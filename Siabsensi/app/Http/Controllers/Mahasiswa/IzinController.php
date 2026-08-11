@@ -34,6 +34,26 @@ class IzinController extends Controller
             'bukti' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240|mimetypes:image/jpeg,image/png,application/pdf',
         ]);
 
+        $mhsId = $request->mahasiswa_id;
+        $targetDate = \Carbon\Carbon::parse($request->date)->format('Y-m-d');
+
+        $existingIzin = \App\Models\IzinSubmission::where('mahasiswa_id', $mhsId)
+            ->whereDate('date', $targetDate)
+            ->whereIn('status', ['pending', 'approved'])
+            ->first();
+
+        $existingKehadiran = \App\Models\KehadiranSubmission::where('mahasiswa_id', $mhsId)
+            ->whereDate('date', $targetDate)
+            ->whereIn('status', ['pending', 'approved'])
+            ->first();
+
+        if ($existingIzin || $existingKehadiran) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah memiliki pengajuan untuk tanggal ini. Silakan tunggu verifikasi.',
+            ], 422);
+        }
+
         // Simpan file bukti ke folder storage/app/public/bukti
         $path = $request->file('bukti')->store('izin/bukti', 'public');
 
