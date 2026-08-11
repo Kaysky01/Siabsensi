@@ -64,8 +64,11 @@ class KompiSayaController extends Controller
         $sudahAbsenMasukTodayCount = count(array_unique($dailyCheckInsToday));
         $belumAbsenMasukTodayCount = max(0, $totalMahasiswa - $sudahAbsenMasukTodayCount);
 
-        // 4. Total Session Attendances Summary
+        // 4. Total Session Attendances Summary (Fallback to daily Attendance table if AttendanceSesi is empty)
         $sessionAttendances = AttendanceSesi::whereIn('mahasiswa_id', $allMahasiswaIds)->get();
+        if ($sessionAttendances->isEmpty()) {
+            $sessionAttendances = Attendance::whereIn('mahasiswa_id', $allMahasiswaIds)->get();
+        }
 
         $totalSesiHadir = 0;
         $totalSesiAlpha = 0;
@@ -73,10 +76,11 @@ class KompiSayaController extends Controller
         $totalSesiSakit = 0;
 
         foreach ($sessionAttendances as $sa) {
-            if (in_array($sa->status, ['present', 'hadir'])) $totalSesiHadir++;
-            elseif ($sa->status === 'alpha') $totalSesiAlpha++;
-            elseif ($sa->status === 'izin') $totalSesiIzin++;
-            elseif ($sa->status === 'sakit') $totalSesiSakit++;
+            $st = strtolower($sa->status ?? 'alpha');
+            if (in_array($st, ['present', 'hadir', 'lengkap', 'manual'])) $totalSesiHadir++;
+            elseif ($st === 'alpha') $totalSesiAlpha++;
+            elseif ($st === 'izin') $totalSesiIzin++;
+            elseif ($st === 'sakit') $totalSesiSakit++;
         }
 
         // 5. Query Mahasiswa for Paginated List
