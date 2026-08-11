@@ -35,9 +35,9 @@ class MahasiswaController extends Controller
             ->where('tanggal', '<=', Carbon::today())
             ->count();
 
-        $totalHadir = $mahasiswa->attendances()->whereIn('status', ['hadir', 'present'])->count();
+        $totalHadir = $mahasiswa->attendances()->whereIn('status', ['hadir', 'present', 'lengkap', 'manual'])->count();
         $hadirBulanIni = $mahasiswa->attendances()
-            ->whereIn('status', ['hadir', 'present'])
+            ->whereIn('status', ['hadir', 'present', 'lengkap', 'manual'])
             ->whereMonth('created_at', Carbon::now()->month)
             ->whereYear('created_at', Carbon::now()->year)
             ->count();
@@ -46,6 +46,40 @@ class MahasiswaController extends Controller
         
         $persentase = $totalJadwal > 0 ? round(($totalHadir / $totalJadwal) * 100) : 0;
 
+        // Hitung rata-rata durasi kehadiran sesungguhnya
+        $completedAttendances = $mahasiswa->attendances()
+            ->whereNotNull('check_in')
+            ->whereNotNull('check_out')
+            ->get();
+
+        $rataRataDurasi = '-';
+        if ($completedAttendances->count() > 0) {
+            $totalMinutes = 0;
+            $validCount = 0;
+            foreach ($completedAttendances as $att) {
+                $in = Carbon::parse($att->check_in);
+                $out = Carbon::parse($att->check_out);
+                if ($out->greaterThan($in)) {
+                    $totalMinutes += $out->diffInMinutes($in);
+                    $validCount++;
+                }
+            }
+            if ($validCount > 0) {
+                $avgMinutes = round($totalMinutes / $validCount);
+                $hours = floor($avgMinutes / 60);
+                $mins = $avgMinutes % 60;
+                if ($hours > 0 && $mins > 0) {
+                    $rataRataDurasi = "{$hours} Jam {$mins} Mnt";
+                } elseif ($hours > 0) {
+                    $rataRataDurasi = "{$hours} Jam";
+                } else {
+                    $rataRataDurasi = "{$mins} Mnt";
+                }
+            }
+        }
+
+        $certStats = $mahasiswa->getCertificateStats();
+
         $stats = [
             'totalJadwal' => $totalJadwal,
             'totalHadir' => $totalHadir,
@@ -53,9 +87,10 @@ class MahasiswaController extends Controller
             'totalIzin' => $totalIzin,
             'tidakHadir' => $totalAlpha,
             'persentaseKehadiran' => $persentase,
-            'rataRataDurasi' => '8 jam',
+            'rataRataDurasi' => $rataRataDurasi,
             'streakTerpanjang' => 0,
             'terlambat' => 0,
+            'certStats' => $certStats,
         ];
 
         // Recent Activity
@@ -64,17 +99,34 @@ class MahasiswaController extends Controller
             ->take(5)
             ->get()
             ->map(function ($item) {
-                $type = in_array($item->status, ['present', 'hadir']) ? 'checkin' : 'info';
-                $title = in_array($item->status, ['present', 'hadir']) ? 'Kehadiran' : 'Status: ' . ucfirst($item->status);
+                $statusLower = strtolower($item->status);
+                $isManual = !empty($item->absen_by) || $statusLower === 'manual';
+                $type = in_array($statusLower, ['present', 'hadir', 'lengkap', 'manual']) || $isManual ? 'checkin' : ($statusLower === 'izin' || $statusLower === 'sakit' ? 'izin' : 'info');
+                
+                $title = in_array($statusLower, ['present', 'hadir', 'lengkap', 'manual']) || $isManual 
+                    ? ($isManual ? 'Kehadiran PKKMB (Absen Manual)' : 'Kehadiran PKKMB') 
+                    : 'Status: ' . ucfirst($item->status);
+                
                 $desc = 'Tercatat pada tanggal ' . Carbon::parse($item->date)->format('d M Y');
                 if ($item->check_in) {
-                    $desc .= ' pukul ' . date('H:i', strtotime($item->check_in));
+                    $desc .= ' (Masuk: ' . date('H:i', strtotime($item->check_in));
+                    if ($item->check_out) {
+                        $desc .= ' • Keluar: ' . date('H:i', strtotime($item->check_out));
+                    }
+                    $desc .= ')';
                 }
+                if ($isManual) {
+                    $desc .= ' • Verified Manual ' . ($item->absen_by ? 'oleh ' . $item->absen_by : '');
+                }
+                
+                $diff = Carbon::parse($item->updated_at ?? $item->created_at)->diffForHumans();
+
                 return (object)[
                     'type' => $type,
                     'title' => $title,
                     'description' => $desc,
-                    'timestamp' => Carbon::parse($item->updated_at)->diffForHumans(),
+                    'timestamp' => $diff,
+                    'status' => $item->status,
                 ];
             });
 

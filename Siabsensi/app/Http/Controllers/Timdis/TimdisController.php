@@ -46,6 +46,20 @@ class TimdisController extends Controller
             ->count();
             
         $pct = $totalMahasiswa > 0 ? round(($presentToday / $totalMahasiswa) * 100, 1) : 0;
+
+        $pendingKehadiranQuery = KehadiranSubmission::join('mahasiswa', 'kehadiran_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('kehadiran_submissions.status', 'pending');
+        $pendingIzinQuery = IzinSubmission::join('mahasiswa', 'izin_submissions.mahasiswa_id', '=', 'mahasiswa.id')
+            ->where('izin_submissions.status', 'pending');
+
+        if ($assignedKompi) {
+            $pendingKehadiranQuery->where('mahasiswa.kompi', $assignedKompi);
+            $pendingIzinQuery->where('mahasiswa.kompi', $assignedKompi);
+        }
+
+        $pendingKehadiranCount = $pendingKehadiranQuery->count();
+        $pendingIzinCount = $pendingIzinQuery->count();
+        $totalPending = $pendingKehadiranCount + $pendingIzinCount;
         
         // Data untuk tabel recent (8 terakhir check-in hari ini)
         $recentQuery = Attendance::with('sesi')
@@ -86,7 +100,8 @@ class TimdisController extends Controller
 
         return view('timdis.dashboard', compact(
             'totalMahasiswa', 'presentToday', 'absent', 'stillIn', 'pct',
-            'recent', 'trend', 'byKompi', 'maxKompi', 'assignedKompi'
+            'recent', 'trend', 'byKompi', 'maxKompi', 'assignedKompi',
+            'pendingKehadiranCount', 'pendingIzinCount', 'totalPending'
         ));
     }
 

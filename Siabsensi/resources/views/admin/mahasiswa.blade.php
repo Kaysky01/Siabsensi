@@ -142,18 +142,23 @@
           </td>
           <td>
             <div style="display:flex;gap:4px">
+              <button onclick="showAttendanceDetailModal('{{ $m->id }}')" class="btn btn-ghost btn-sm" title="Detail Kehadiran Mahasiswa" style="color:var(--primary)">
+                <span class="material-symbols-outlined" style="font-size:16px">visibility</span>
+              </button>
               <button onclick="showQrModal('{{ $m->id }}', '{{ addslashes($m->name) }}')" class="btn btn-ghost btn-sm" title="Lihat QR Code">
                 <span class="material-symbols-outlined" style="font-size:16px">qr_code_2</span>
               </button>
               <button onclick="openEditMhs('{{ $m->id }}', '{{ addslashes($m->name) }}', '{{ $m->kompi }}', '{{ $m->jurusan }}', '{{ $m->prodi }}', '{{ $m->email }}', '{{ $m->no_telp_mahasiswa }}', '{{ $m->no_telp_ortu }}', '{{ $m->tanggal_lahir ? \Carbon\Carbon::parse($m->tanggal_lahir)->format('d/m/Y') : '' }}')" class="btn btn-ghost btn-sm" title="Edit">
                 <span class="material-symbols-outlined" style="font-size:16px">edit</span>
               </button>
+              @if(auth()->user()->role === 'admin')
               <form method="POST" action="{{ route($mahasiswaDestroyRoute, $m->id) }}" onsubmit="return confirm('Hapus mahasiswa {{ $m->name }}?')">
                 @csrf @method('DELETE')
                 <button type="submit" class="btn btn-ghost btn-sm" title="Hapus" style="color:var(--danger)">
                   <span class="material-symbols-outlined" style="font-size:16px">delete</span>
                 </button>
               </form>
+              @endif
             </div>
           </td>
         </tr>
@@ -533,8 +538,58 @@
   </div>
 </div>
 
+<!-- Modal Detail Kehadiran Mahasiswa -->
+<div class="modal-backdrop" id="modal-detail-attendance">
+  <div class="modal" style="max-width:850px;width:100%;max-height:90vh;overflow-y:auto;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:var(--text)" id="att-detail-mhs-name">Detail Kehadiran Mahasiswa</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px" id="att-detail-mhs-sub">Loading...</div>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('modal-detail-attendance').classList.remove('show')" style="padding:4px">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div id="att-detail-loading" style="text-align:center;padding:40px;color:var(--text-muted)">
+      <span class="material-symbols-outlined" style="animation:spin 1s linear infinite;font-size:32px">refresh</span>
+      <div style="margin-top:8px">Memuat Data Kehadiran...</div>
+    </div>
+
+    <div id="att-detail-content" style="display:none">
+      <table class="att-table" style="width:100%">
+        <thead>
+          <tr>
+            <th>Hari / Tanggal</th>
+            <th>Check In</th>
+            <th>Check Out</th>
+            <th>Status</th>
+            <th>Metode / Operator</th>
+            <th>Alasan / Keterangan</th>
+            <th style="width:60px;text-align:center">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="att-detail-tbody">
+          <!-- Filled dynamically via JS -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions" style="margin-top:20px;justify-content:flex-end">
+      <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal-detail-attendance').classList.remove('show')">Tutup</button>
+    </div>
+  </div>
+</div>
+
 <style>
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+.badge-green { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; display:inline-block; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.badge-blue { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; display:inline-block; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.badge-yellow { background: #fef9c3; color: #a16207; border: 1px solid #fef08a; display:inline-block; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.badge-red { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; display:inline-block; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.badge-gray { background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; display:inline-block; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+.time-val { font-family: monospace; font-size: 13px; font-weight: 600; color: var(--text); }
 
 /* Mahasiswa Filter Form Responsive */
 .mahasiswa-filter-form {
@@ -1179,5 +1234,107 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+let currentDetailMhsId = null;
+
+function showAttendanceDetailModal(mhsId) {
+  currentDetailMhsId = mhsId;
+  document.getElementById('modal-detail-attendance').classList.add('show');
+  document.getElementById('att-detail-loading').style.display = 'block';
+  document.getElementById('att-detail-content').style.display = 'none';
+
+  const detailUrl = mahasiswaManagementBaseUrl + '/' + mhsId + '/attendance-detail';
+
+  fetch(detailUrl)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success) {
+        alert(data.message || 'Gagal memuat detail kehadiran.');
+        document.getElementById('modal-detail-attendance').classList.remove('show');
+        return;
+      }
+
+      document.getElementById('att-detail-mhs-name').textContent = data.mahasiswa.name;
+      document.getElementById('att-detail-mhs-sub').textContent = `${data.mahasiswa.id} • ${data.mahasiswa.kompi} • ${data.mahasiswa.prodi}`;
+
+      const tbody = document.getElementById('att-detail-tbody');
+      tbody.innerHTML = '';
+
+      if (data.details.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">Belum ada jadwal / data kehadiran.</td></tr>';
+      } else {
+        data.details.forEach(item => {
+          const tr = document.createElement('tr');
+
+          let actionBtn = '-';
+          if (data.is_admin && item.attendance_id) {
+            actionBtn = `<button onclick="deleteAttendanceRecord('${item.attendance_id}', '${item.title}')" class="btn btn-ghost btn-sm" style="color:var(--danger)" title="Hapus Data Kehadiran Hari Ini">
+              <span class="material-symbols-outlined" style="font-size:16px">delete</span>
+            </button>`;
+          }
+
+          tr.innerHTML = `
+            <td>
+              <div style="font-weight:600">${item.title}</div>
+            </td>
+            <td><span class="time-val">${item.check_in}</span></td>
+            <td><span class="time-val">${item.check_out}</span></td>
+            <td><span class="badge ${item.badge_class}">${item.status_label}</span></td>
+            <td style="font-size:12px;color:var(--text-muted)">
+              <div>${item.method}</div>
+              ${item.absen_by && item.absen_by !== '-' ? `<div style="font-size:11px;color:var(--text-secondary)">by: ${item.absen_by}</div>` : ''}
+            </td>
+            <td style="font-size:12px;color:var(--text);max-width:200px;word-break:break-word">${item.keterangan || '-'}</td>
+            <td style="text-align:center">${actionBtn}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      document.getElementById('att-detail-loading').style.display = 'none';
+      document.getElementById('att-detail-content').style.display = 'block';
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Terjadi kesalahan saat memuat detail kehadiran.');
+      document.getElementById('modal-detail-attendance').classList.remove('show');
+    });
+}
+
+function deleteAttendanceRecord(attendanceId, dayTitle) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus data kehadiran mahasiswa pada ${dayTitle}?`)) {
+    return;
+  }
+
+  const deleteUrl = "{{ url('/admin/attendance-record') }}/" + attendanceId;
+
+  fetch(deleteUrl, {
+    method: 'DELETE',
+    headers: {
+      'X-CSRF-TOKEN': '{{ csrf_token() }}',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Berhasil!',
+          text: data.message,
+          timer: 1500,
+          showConfirmButton: false
+        });
+        showAttendanceDetailModal(currentDetailMhsId);
+      } else {
+        alert(data.message || 'Gagal menghapus data kehadiran.');
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert('Terjadi kesalahan saat menghapus data kehadiran.');
+    });
+}
 </script>
 @endsection

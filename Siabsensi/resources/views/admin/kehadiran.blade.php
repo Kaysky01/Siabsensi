@@ -72,7 +72,7 @@
           <td style="font-size:13px">{{ \Carbon\Carbon::parse($s->date)->format('d M Y') }}</td>
           <td><span class="time-val">{{ $s->check_in_time ?? '-' }}</span></td>
           <td><span class="time-val">{{ $s->check_out_time ?? '-' }}</span></td>
-          <td style="font-size:13px;max-width:200px">{{ Str::limit($s->reason, 50) }}</td>
+          <td style="font-size:13px;max-width:200px">{{ Str::limit($s->keterangan ?? $s->reason ?? '-', 50) }}</td>
           <td>
             @if($s->bukti_path)
             <button type="button" class="btn btn-ghost btn-sm" style="color:var(--primary);padding:4px 8px" title="Lihat Bukti" onclick="showBukti('{{ asset('file-bukti/' . $s->bukti_path) }}', '{{ Str::endsWith($s->bukti_path, ['.jpg', '.jpeg', '.png']) ? 'image' : 'pdf' }}')">

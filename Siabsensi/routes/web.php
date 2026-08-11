@@ -102,6 +102,7 @@ Route::middleware(['auth', 'role:timdis'])->prefix('timdis')->group(function () 
 
     // Mahasiswa Management
     Route::get('/mahasiswa', [AdminController::class, 'mahasiswa'])->name('timdis.mahasiswa');
+    Route::get('/mahasiswa/{id}/attendance-detail', [AdminController::class, 'getAttendanceDetail'])->name('timdis.mahasiswa.attendance-detail');
     Route::post('/mahasiswa/export/load', [AdminController::class, 'loadExportStudents'])->name('timdis.mahasiswa.export.load');
     Route::post('/mahasiswa/export/process', [AdminController::class, 'processExportMahasiswa'])->name('timdis.mahasiswa.export.process');
     Route::post('/mahasiswa', [AdminController::class, 'storeMahasiswa'])->name('timdis.mahasiswa.store');
@@ -136,6 +137,8 @@ Route::middleware(['auth', 'role:admin,timdis,garda,acara'])->prefix('admin')->g
 
     // Mahasiswa
     Route::get('/mahasiswa', [AdminController::class, 'mahasiswa'])->name('admin.mahasiswa');
+    Route::get('/mahasiswa/{id}/attendance-detail', [AdminController::class, 'getAttendanceDetail'])->name('admin.mahasiswa.attendance-detail');
+    Route::delete('/attendance-record/{id}', [AdminController::class, 'deleteAttendanceRecord'])->name('admin.attendance.record.destroy');
     Route::post('/mahasiswa/export/load', [AdminController::class, 'loadExportStudents'])->name('admin.mahasiswa.export.load');
     Route::post('/mahasiswa/export/process', [AdminController::class, 'processExportMahasiswa'])->name('admin.mahasiswa.export.process');
     Route::get('/mahasiswa/import/template', [AdminController::class, 'downloadTemplateCSV'])->name('admin.mahasiswa.import.template');

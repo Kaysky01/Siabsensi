@@ -39,6 +39,10 @@ class AdminController extends Controller
         $absent = max(0, $totalMahasiswa - $presentToday);
         $pct = $totalMahasiswa > 0 ? round(($presentToday / $totalMahasiswa) * 100) : 0;
 
+        $pendingKehadiranCount = KehadiranSubmission::where('status', 'pending')->count();
+        $pendingIzinCount = IzinSubmission::where('status', 'pending')->count();
+        $totalPending = $pendingKehadiranCount + $pendingIzinCount;
+
         // Recent attendances
         $recent = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
             ->whereDate("$table.date", $today)
@@ -67,7 +71,7 @@ class AdminController extends Controller
 
         return view('admin.dashboard', compact(
             'totalMahasiswa', 'presentToday', 'absent', 'stillIn', 'pct',
-            'recent', 'trend', 'byKompi', 'maxKompi'
+            'recent', 'trend', 'byKompi', 'maxKompi', 'pendingKehadiranCount', 'pendingIzinCount', 'totalPending'
         ));
     }
 
@@ -267,6 +271,138 @@ class AdminController extends Controller
             'allKegiatan',
             'managementRoutePrefix'
         ));
+    }
+
+    public function getAttendanceDetail(Request $request, $id)
+    {
+        $mahasiswa = Mahasiswa::findOrFail($id);
+        $schedules = \App\Models\PkkmbSchedule::orderBy('tanggal', 'asc')->get();
+
+        $attendances = Attendance::where('mahasiswa_id', $id)
+            ->get()
+            ->keyBy(function ($item) {
+                return Carbon::parse($item->date)->format('Y-m-d');
+            });
+
+        $kehadiranSubs = KehadiranSubmission::where('mahasiswa_id', $id)
+            ->get()
+            ->keyBy(function ($item) {
+                return Carbon::parse($item->date)->format('Y-m-d');
+            });
+
+        $izinSubs = IzinSubmission::where('mahasiswa_id', $id)
+            ->get()
+            ->keyBy(function ($item) {
+                return Carbon::parse($item->date)->format('Y-m-d');
+            });
+
+        $details = [];
+        foreach ($schedules as $sched) {
+            $tgl = Carbon::parse($sched->tanggal)->format('Y-m-d');
+            $att = $attendances->get($tgl);
+            $khdSub = $kehadiranSubs->get($tgl);
+            $iznSub = $izinSubs->get($tgl);
+
+            $inTime = '-';
+            $outTime = '-';
+            $status = 'alpha';
+            $statusLabel = 'Alpha (Belum Absen)';
+            $badgeClass = 'badge-red';
+            $method = '-';
+            $absenBy = '-';
+            $attendanceId = null;
+
+            // Determine Alasan / Keterangan submission
+            $keterangan = '-';
+            if ($iznSub && !empty($iznSub->keterangan)) {
+                $keterangan = '[' . strtoupper($iznSub->submission_type) . '] ' . $iznSub->keterangan;
+            } elseif ($khdSub && !empty($khdSub->keterangan)) {
+                $keterangan = '[Absen Manual] ' . $khdSub->keterangan;
+            } elseif ($att && !empty($att->notes)) {
+                $keterangan = $att->notes;
+            }
+
+            if ($att) {
+                $attendanceId = $att->id;
+                $status = strtolower($att->status ?? 'alpha');
+                $inTime = $att->check_in ? Carbon::parse($att->check_in)->format('H:i:s') : '-';
+                $outTime = $att->check_out ? Carbon::parse($att->check_out)->format('H:i:s') : '-';
+                $absenBy = $att->absen_by ?? ($att->camera_id ? 'Sistem Camera (' . $att->camera_id . ')' : '-');
+
+                if (in_array($status, ['hadir', 'present', 'lengkap', 'manual'])) {
+                    if ($att->check_in && $att->check_out) {
+                        $statusLabel = 'Lengkap (Hadir & Keluar)';
+                        $badgeClass = 'badge-green';
+                    } elseif ($att->check_in) {
+                        $statusLabel = 'Hadir (Masuk)';
+                        $badgeClass = 'badge-green';
+                    } else {
+                        $statusLabel = 'Hadir (Manual)';
+                        $badgeClass = 'badge-green';
+                    }
+                    $method = $att->absen_by ? 'Absen Manual' : ($att->camera_id ? 'Scan Kamera' : 'Sistem');
+                } elseif ($status === 'izin') {
+                    $statusLabel = 'Izin';
+                    $badgeClass = 'badge-blue';
+                    $method = 'Pengajuan Izin';
+                } elseif ($status === 'sakit') {
+                    $statusLabel = 'Sakit';
+                    $badgeClass = 'badge-yellow';
+                    $method = 'Pengajuan Sakit';
+                } else {
+                    $statusLabel = 'Alpha';
+                    $badgeClass = 'badge-red';
+                }
+            } else {
+                if (Carbon::parse($tgl)->isFuture()) {
+                    $statusLabel = 'Belum Dimulai';
+                    $badgeClass = 'badge-gray';
+                }
+            }
+
+            $details[] = [
+                'attendance_id' => $attendanceId,
+                'hari_ke' => $sched->hari_ke,
+                'title' => "Hari ke-{$sched->hari_ke} (" . Carbon::parse($sched->tanggal)->format('d M Y') . ")",
+                'tanggal' => Carbon::parse($sched->tanggal)->format('d M Y'),
+                'check_in' => $inTime,
+                'check_out' => $outTime,
+                'status' => $status,
+                'status_label' => $statusLabel,
+                'badge_class' => $badgeClass,
+                'method' => $method,
+                'absen_by' => $absenBy,
+                'keterangan' => $keterangan,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'mahasiswa' => [
+                'id' => $mahasiswa->id,
+                'name' => $mahasiswa->name,
+                'kompi' => $mahasiswa->kompi,
+                'jurusan' => $mahasiswa->jurusan ?? '-',
+                'prodi' => $mahasiswa->prodi ?? '-',
+            ],
+            'details' => $details,
+            'is_admin' => Auth::check() && Auth::user()->role === 'admin',
+        ]);
+    }
+
+    public function deleteAttendanceRecord($id)
+    {
+        if (!Auth::check() || Auth::user()->role !== 'admin') {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat menghapus data kehadiran.'], 403);
+        }
+
+        $att = Attendance::findOrFail($id);
+        $att->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data kehadiran pada hari tersebut berhasil dihapus.',
+        ]);
     }
 
     private function parseFormattedDate(?string $value): ?string
@@ -1737,7 +1873,11 @@ class AdminController extends Controller
         if ($validated['action'] === 'approve') {
             Attendance::updateOrCreate(
                 ['mahasiswa_id' => $submission->mahasiswa_id, 'date' => $submission->date],
-                ['status' => $submission->submission_type]
+                [
+                    'status' => $submission->submission_type,
+                    'absen_by' => Auth::user()->username,
+                    'notes' => $submission->keterangan ?? ucfirst($submission->submission_type) . ' Disetujui',
+                ]
             );
         }
 
@@ -1847,6 +1987,7 @@ class AdminController extends Controller
                     'check_out' => $outTime ? $dateOnly . ' ' . $outTime : null,
                     'status' => 'present',
                     'absen_by' => Auth::user()->username,
+                    'notes' => $submission->keterangan ?? 'Absen Manual Disetujui',
                 ]
             );
         }

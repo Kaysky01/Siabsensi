@@ -97,7 +97,11 @@ class VerificationController extends Controller
         if ($validated['action'] === 'approve') {
             Attendance::updateOrCreate(
                 ['mahasiswa_id' => $submission->mahasiswa_id, 'date' => $submission->date],
-                ['status' => $submission->submission_type]
+                [
+                    'status' => $submission->submission_type,
+                    'absen_by' => $user->username,
+                    'notes' => $submission->keterangan ?? ucfirst($submission->submission_type) . ' Disetujui',
+                ]
             );
         }
 
@@ -196,6 +200,8 @@ class VerificationController extends Controller
                     'check_in' => $dateOnly . ' ' . $submission->check_in_time,
                     'check_out' => $submission->check_out_time ? $dateOnly . ' ' . $submission->check_out_time : null,
                     'status' => 'present',
+                    'absen_by' => $user->username,
+                    'notes' => $submission->keterangan ?? 'Absen Manual Disetujui',
                 ]
             );
         }
