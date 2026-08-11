@@ -70,7 +70,12 @@ class SertifikatController extends Controller
         }
         $attendanceCount = $mahasiswa->attendances()
             ->whereBetween('date', [$startDate, $endDate])
-            ->whereIn('status', ['present', 'izin', 'hadir'])
+            ->where(function($q) {
+                $q->where(function($sub) {
+                    $sub->whereNotNull('check_in')
+                        ->whereNotNull('check_out');
+                })->orWhereIn('status', ['izin', 'sakit']);
+            })
             ->count();
 
         $izinCount = $mahasiswa->attendances()
@@ -178,7 +183,12 @@ class SertifikatController extends Controller
         }
         $attendanceCount = $mahasiswa->attendances()
             ->whereBetween('date', [$startDate, $endDate])
-            ->whereIn('status', ['present', 'izin', 'hadir'])
+            ->where(function($q) {
+                $q->where(function($sub) {
+                    $sub->whereNotNull('check_in')
+                        ->whereNotNull('check_out');
+                })->orWhereIn('status', ['izin', 'sakit']);
+            })
             ->count();
 
         $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;
@@ -269,7 +279,12 @@ class SertifikatController extends Controller
             }
             $attendanceCount = $mahasiswa->attendances()
                 ->whereBetween('date', [$startDate, $endDate])
-                ->whereIn('status', ['present', 'izin', 'hadir'])
+                ->where(function($q) {
+                    $q->where(function($sub) {
+                        $sub->whereNotNull('check_in')
+                            ->whereNotNull('check_out');
+                    })->orWhereIn('status', ['izin', 'sakit']);
+                })
                 ->count();
 
             $persentase = $totalDays > 0 ? round(($attendanceCount / $totalDays) * 100, 2) : 0;

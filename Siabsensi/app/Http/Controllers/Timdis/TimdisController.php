@@ -68,7 +68,7 @@ class TimdisController extends Controller
         if ($assignedKompi) {
             $recentQuery->where('mahasiswa.kompi', $assignedKompi);
         }
-        $recent = $recentQuery->orderBy('attendance.check_in', 'desc')
+        $recent = $recentQuery->orderByRaw("GREATEST(COALESCE(attendance.check_out, '1970-01-01'), COALESCE(attendance.check_in, '1970-01-01')) DESC")
             ->select('attendance.*', 'mahasiswa.name', 'mahasiswa.kompi', 'mahasiswa.photo_path')
             ->take(8)
             ->get();
@@ -95,7 +95,11 @@ class TimdisController extends Controller
         if ($assignedKompi) {
             $byKompiQuery->where('kompi', $assignedKompi);
         }
-        $byKompi = $byKompiQuery->groupBy('kompi')->get();
+        $byKompi = $byKompiQuery->groupBy('kompi')->get()
+            ->sortBy(function ($item) {
+                return (int) preg_replace('/[^0-9]/', '', $item->kompi ?? '');
+            }, SORT_NUMERIC)
+            ->values();
         $maxKompi = $byKompi->max('count') ?: 1;
 
         return view('timdis.dashboard', compact(

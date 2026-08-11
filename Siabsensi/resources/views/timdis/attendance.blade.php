@@ -176,14 +176,12 @@
           <td><span class="time-val">{{ $att->check_out ? \Carbon\Carbon::parse($att->check_out)->format('H:i') : '-' }}</span></td>
           <td>
             @php 
-              $sc = match($att->status ?? 'alpha') { 
-                'present','hadir' => 'badge-green', 
-                'izin' => 'badge-blue', 
-                'sakit' => 'badge-yellow', 
-                default => 'badge-red' 
-              }; 
+              $badge = $att->getStatusBadgeData();
             @endphp
-            <span class="badge {{ $sc }}">{{ strtoupper($att->status ?? 'ALPHA') }}</span>
+            <span class="badge" style="padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;background:{{ $badge['bg'] }};color:{{ $badge['color'] }};border:1px solid {{ $badge['border'] }};white-space:nowrap">
+              <span style="width:7px;height:7px;border-radius:50%;background:{{ $badge['dot'] }};display:inline-block"></span>
+              {{ $badge['label'] }}
+            </span>
           </td>
           <td>
             @if(in_array($att->status ?? 'alpha', ['alpha', 'izin', 'sakit']))

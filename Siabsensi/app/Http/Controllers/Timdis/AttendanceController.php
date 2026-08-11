@@ -75,7 +75,7 @@ class AttendanceController extends Controller
             $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereBetween("$table.date", [$start, $end])
                 ->orderBy("$table.date", 'desc')
-                ->orderBy("$table.check_in", 'desc')
+                ->orderByRaw("GREATEST(COALESCE($table.check_out, '1970-01-01'), COALESCE($table.check_in, '1970-01-01')) DESC")
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path");
             
             if ($assignedKompi) {
@@ -108,7 +108,7 @@ class AttendanceController extends Controller
             $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereBetween("$table.date", [$start, $end])
                 ->orderBy("$table.date", 'desc')
-                ->orderBy("$table.check_in", 'desc')
+                ->orderByRaw("GREATEST(COALESCE($table.check_out, '1970-01-01'), COALESCE($table.check_in, '1970-01-01')) DESC")
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path");
             
             if ($assignedKompi) {
@@ -133,7 +133,7 @@ class AttendanceController extends Controller
         }
 
         // Get filter options
-        $kompiOptions = \App\Models\Kompi::pluck('nama')->sort()->values();
+        $kompiOptions = \App\Models\Kompi::pluck('nama')->sortBy(function ($name) { return (int) preg_replace('/[^0-9]/', '', $name ?? ''); })->values();
         $jurusanOptions = \App\Models\Jurusan::pluck('nama')->sort()->values();
 
         return view('timdis.attendance', compact('attendances', 'start', 'end', 'filter', 'search', 'kompi', 'jurusan', 'kompiOptions', 'jurusanOptions'));

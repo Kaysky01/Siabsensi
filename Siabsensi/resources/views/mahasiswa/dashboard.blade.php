@@ -212,7 +212,7 @@
       </div>
       <div class="progress-footer">
         <span>Target Kelulusan: <strong>80%</strong></span>
-        @if(isset($stats['certStats']) && $stats['certStats']['can_get'])
+        @if(isset($stats['certStats']) && ($stats['certStats']['can_get'] ?? false))
           <span class="cert-status-tag tag-unlocked" title="Sertifikat Terbuka & Dapat Diunduh">
             <span class="material-symbols-outlined icon-sm">lock_open</span> Sertifikat Terbuka
           </span>
@@ -224,14 +224,14 @@
       </div>
 
       <!-- Detail Keterangan Lock/Unlock Sertifikat -->
-      @if(isset($stats['certStats']) && !$stats['certStats']['can_get'])
+      @if(isset($stats['certStats']) && !($stats['certStats']['can_get'] ?? false))
         <div class="cert-lock-info">
           <span class="material-symbols-outlined icon-sm">info</span>
           <div>
             <strong>Status Sertifikat:</strong> {{ $stats['certStats']['reason'] ?? 'Belum mencapai batas minimal kelulusan 80%' }}
           </div>
         </div>
-      @elseif(isset($stats['certStats']) && $stats['certStats']['can_get'])
+      @elseif(isset($stats['certStats']) && ($stats['certStats']['can_get'] ?? false))
         <div class="cert-unlock-info">
           <span class="material-symbols-outlined icon-sm">verified</span>
           <div>
@@ -301,13 +301,13 @@
         </a>
 
         <a href="{{ route('mahasiswa.sertifikat') }}" class="quick-nav-card">
-          <div class="nav-card-icon {{ isset($stats['certStats']) && $stats['certStats']['can_get'] ? 'icon-emerald' : 'icon-rose' }}">
-            <span class="material-symbols-outlined">{{ isset($stats['certStats']) && $stats['certStats']['can_get'] ? 'workspace_premium' : 'lock' }}</span>
+          <div class="nav-card-icon {{ isset($stats['certStats']) && ($stats['certStats']['can_get'] ?? false) ? 'icon-emerald' : 'icon-rose' }}">
+            <span class="material-symbols-outlined">{{ isset($stats['certStats']) && ($stats['certStats']['can_get'] ?? false) ? 'workspace_premium' : 'lock' }}</span>
           </div>
           <div class="nav-card-info">
             <div class="nav-card-title">Sertifikat PKKMB</div>
             <div class="nav-card-desc">
-              @if(isset($stats['certStats']) && $stats['certStats']['can_get'])
+              @if(isset($stats['certStats']) && ($stats['certStats']['can_get'] ?? false))
                 <span style="color:#16a34a;font-weight:700">🔓 Terbuka</span> — Siap Diunduh
               @else
                 <span style="color:#e11d48;font-weight:700">🔒 Terkunci</span> — Belum Lulus
@@ -364,13 +364,13 @@
 /* Welcome Banner */
 .welcome-banner {
   background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #3b82f6 100%);
-  border-radius: 16px;
-  padding: 24px 28px;
+  border-radius: 14px;
+  padding: 16px 22px;
   color: #ffffff;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 8px 20px -5px rgba(37, 99, 235, 0.25);
   position: relative;
   overflow: hidden;
 }
@@ -390,41 +390,41 @@
 .welcome-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(8px);
-  padding: 4px 12px;
+  padding: 3px 10px;
   border-radius: 20px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .status-dot-pulse {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   background: #4ade80;
   border-radius: 50%;
-  box-shadow: 0 0 8px #4ade80;
+  box-shadow: 0 0 6px #4ade80;
 }
 
 .welcome-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 800;
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
   color: #ffffff;
 }
 
 .welcome-sub {
-  font-size: 13px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.85);
   margin: 0;
 }
 
 .kompi-tag {
   background: rgba(255, 255, 255, 0.25);
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 6px;
   font-weight: 700;
 }
@@ -433,34 +433,35 @@
   background: #ffffff;
   color: #1e40af;
   font-weight: 700;
-  padding: 10px 18px;
-  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   text-decoration: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
   transition: all 0.2s ease;
 }
 
 .btn-qr-action:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.18);
   background: #f8fafc;
 }
 
 /* Today Status Card */
 .today-status-card {
-  border-radius: 14px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
 .status-box {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 18px 22px;
-  border-radius: 14px;
+  gap: 14px;
+  padding: 12px 18px;
+  border-radius: 12px;
   border: 1px solid transparent;
 }
 
@@ -490,9 +491,9 @@
 }
 
 .status-icon-wrapper {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -509,14 +510,14 @@
 }
 
 .status-label {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: #0f172a;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .status-details {
-  font-size: 13px;
+  font-size: 12px;
   color: #475569;
   display: flex;
   align-items: center;
@@ -927,7 +928,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   RESPONSIVE MOBILE STYLES
+   RESPONSIVE MOBILE STYLES (ULTRA OPTIMIZED FOR FULLSCREEN MOBILE)
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 992px) {
   .stats-overview-grid {
@@ -939,6 +940,10 @@
 }
 
 @media (max-width: 768px) {
+  .mhs-dashboard-wrapper {
+    gap: 16px;
+    padding: 0 2px;
+  }
   .metrics-grid {
     grid-template-columns: 1fr;
   }
@@ -948,16 +953,29 @@
   .welcome-banner {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
-    padding: 20px;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 12px;
   }
 
   .welcome-banner::after {
     display: none;
   }
 
+  .welcome-badge {
+    padding: 2px 8px;
+    font-size: 10px;
+    margin-bottom: 4px;
+  }
+
   .welcome-title {
-    font-size: 20px;
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  .welcome-sub {
+    font-size: 11px;
+    line-height: 1.4;
   }
 
   .welcome-actions {
@@ -967,17 +985,46 @@
   .btn-qr-action {
     width: 100%;
     justify-content: center;
+    padding: 9px 14px;
+    font-size: 12px;
+    border-radius: 8px;
   }
 
   .status-box {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 16px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+
+  .status-icon-wrapper {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  .status-info {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .status-label {
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  .status-details {
+    font-size: 11px;
   }
 
   .status-badge-tag {
-    align-self: flex-start;
+    align-self: auto;
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
   }
 
   .status-actions {
@@ -990,24 +1037,35 @@
     width: 100%;
     text-align: center;
     justify-content: center;
-    box-sizing: border-radius;
+    padding: 8px 12px;
+    font-size: 12px;
   }
 
   .stats-overview-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 12px;
   }
 
   .stat-card-modern {
-    padding: 14px;
+    padding: 14px 12px;
+    border-radius: 12px;
+  }
+
+  .card-icon {
+    width: 34px;
+    height: 34px;
   }
 
   .card-value {
-    font-size: 22px;
+    font-size: 24px;
   }
 
   .card-title {
     font-size: 12px;
+  }
+
+  .card-desc {
+    font-size: 10px;
   }
 
   .card-trend {
@@ -1016,13 +1074,47 @@
   }
 
   .quick-nav-items {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .quick-nav-card {
+    padding: 12px 10px;
+    gap: 8px;
+    flex-direction: column;
+    text-align: center;
+    align-items: center;
+  }
+
+  .nav-card-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .nav-card-title {
+    font-size: 12px;
+  }
+
+  .nav-card-desc {
+    font-size: 10px;
   }
 
   .timeline-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
+  }
+
+  .metric-card {
+    padding: 16px;
+  }
+
+  .metric-title {
+    font-size: 14px;
+  }
+
+  .duration-value {
+    font-size: 24px;
   }
 }
 </style>

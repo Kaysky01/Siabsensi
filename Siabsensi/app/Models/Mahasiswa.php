@@ -233,13 +233,15 @@ class Mahasiswa extends Model
                 return Carbon::parse($d)->format('Y-m-d');
             })->toArray();
 
-            // Count days student has checked in (Absen Masuk Harian) on active PKKMB schedule dates
+            // Count days student has completed attendance (Hadir Lengkap: check_in & check_out) or Izin/Sakit
             $hadirDays = $this->attendances()
                 ->daily()
                 ->whereIn('date', $pkkmbDates)
                 ->where(function($q) {
-                    $q->whereNotNull('check_in')
-                      ->orWhereIn('status', ['present', 'hadir']);
+                    $q->where(function($sub) {
+                        $sub->whereNotNull('check_in')
+                            ->whereNotNull('check_out');
+                    })->orWhereIn('status', ['izin', 'sakit']);
                 })
                 ->distinct('date')
                 ->count('date');

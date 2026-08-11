@@ -1027,6 +1027,11 @@ class LaravelSyncService:
                     status_val = att.get('status') or ('hadir' if check_in else 'alpha')
                     
                     if existing:
+                        # Proteksi: Jika data lokal atau server berstatus 'sakit'/'izin', jangan ganti ke 'hadir' kecuali ada check_in & check_out lengkap
+                        existing_status = (existing.get('status') or '').lower()
+                        if (existing_status in ['sakit', 'izin'] or status_raw in ['sakit', 'izin']) and not (check_in and check_out):
+                            status_val = status_raw if status_raw in ['sakit', 'izin'] else existing_status
+                        
                         final_check_in = check_in if check_in else self._format_datetime_for_mysql(existing['check_in'])
                         final_check_out = check_out if check_out else self._format_datetime_for_mysql(existing['check_out'])
                         cursor.execute("""

@@ -35,9 +35,19 @@ class MahasiswaController extends Controller
             ->where('tanggal', '<=', Carbon::today())
             ->count();
 
-        $totalHadir = $mahasiswa->attendances()->whereIn('status', ['hadir', 'present', 'lengkap', 'manual'])->count();
+        $totalHadir = $mahasiswa->attendances()
+            ->whereNotNull('check_in')
+            ->whereNotNull('check_out')
+            ->count();
+            
+        $totalMasihMasuk = $mahasiswa->attendances()
+            ->whereNotNull('check_in')
+            ->whereNull('check_out')
+            ->count();
+
         $hadirBulanIni = $mahasiswa->attendances()
-            ->whereIn('status', ['hadir', 'present', 'lengkap', 'manual'])
+            ->whereNotNull('check_in')
+            ->whereNotNull('check_out')
             ->whereMonth('created_at', Carbon::now()->month)
             ->whereYear('created_at', Carbon::now()->year)
             ->count();
@@ -83,6 +93,7 @@ class MahasiswaController extends Controller
         $stats = [
             'totalJadwal' => $totalJadwal,
             'totalHadir' => $totalHadir,
+            'totalMasihMasuk' => $totalMasihMasuk,
             'hadirBulanIni' => $hadirBulanIni,
             'totalIzin' => $totalIzin,
             'tidakHadir' => $totalAlpha,
@@ -93,9 +104,9 @@ class MahasiswaController extends Controller
             'certStats' => $certStats,
         ];
 
-        // Recent Activity
+        // Recent Activity (Urutkan berdasarkan aktivitas terbaru: check-out, check-in, atau updated_at)
         $recentActivities = $mahasiswa->attendances()
-            ->orderBy('date', 'desc')
+            ->orderByRaw("GREATEST(COALESCE(check_out, '1970-01-01'), COALESCE(check_in, '1970-01-01')) DESC")
             ->take(5)
             ->get()
             ->map(function ($item) {
@@ -318,7 +329,9 @@ class MahasiswaController extends Controller
             $query->where('status', $request->status);
         }
         
-        $riwayat = $query->orderBy('date', 'desc')->get();
+        $riwayat = $query->orderBy('date', 'desc')
+            ->orderByRaw("GREATEST(COALESCE(check_out, '1970-01-01'), COALESCE(check_in, '1970-01-01')) DESC")
+            ->get();
         return view('mahasiswa.riwayat', compact('mahasiswa', 'riwayat'));
     }
 

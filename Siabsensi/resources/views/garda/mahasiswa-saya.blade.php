@@ -79,7 +79,7 @@
                     if ($att->check_in && !$att->check_out) {
                       $color = '#1f2937'; $label = 'Masuk (belum keluar)';
                     } else {
-                      $color = '#10b981'; $label = 'Hadir';
+                      $color = '#10b981'; $label = 'Lengkap / Hadir';
                     }
                   } elseif ($status === 'izin') {
                     $color = '#3b82f6'; $label = 'Izin';
@@ -112,12 +112,12 @@
   {{-- Legenda warna titik --}}
   <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text-muted);align-items:center;padding:10px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm)">
     <span style="font-weight:600;color:var(--text)">Keterangan:</span>
-    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#10b981;display:inline-block"></span>Hadir</span>
-    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#1f2937;display:inline-block"></span>Masuk (blm keluar)</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#10b981;display:inline-block"></span>Lengkap / Hadir</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#1f2937;display:inline-block"></span>Masuk (belum keluar)</span>
     <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#ef4444;display:inline-block"></span>Alpha</span>
     <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#3b82f6;display:inline-block"></span>Izin</span>
     <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#eab308;display:inline-block"></span>Sakit</span>
-    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#d1d5db;display:inline-block"></span>Belum (jadwal mendatang)</span>
+    <span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#d1d5db;display:inline-block"></span>Belum ada</span>
   </div>
 </section>
 

@@ -169,14 +169,29 @@ class TimeValidator:
                     'message': f'Check-in berhasil (TELAT {late_minutes} menit)'
                 }
             
-            # Too late - after grace period
-            return {
-                'allowed': False,
-                'is_late': False,
-                'late_duration': 0,
-                'reason': 'too_late',
-                'message': f'Absen masuk sudah ditutup. Batas akhir jam {grace_end_time.strftime("%H:%M")}'
-            }
+            # Too late for morning check-in - check if schedule overall is still active before checkout_grace_end_time
+            check_out_end = self.parse_time(schedule['check_out_end'])
+            check_out_end_dt = datetime.combine(current_time.date(), check_out_end)
+            check_out_end_dt = convert_to_app_timezone(check_out_end_dt.replace(tzinfo=current_time.tzinfo))
+            checkout_grace_end_dt = check_out_end_dt + timedelta(minutes=grace_period_minutes)
+            checkout_grace_end_time = checkout_grace_end_dt.time()
+
+            if current_time_only <= checkout_grace_end_time:
+                return {
+                    'allowed': False,
+                    'is_late': False,
+                    'late_duration': 0,
+                    'reason': 'not_checked_in',
+                    'message': f'Mahasiswa belum melakukan absensi masuk pagi ini (Batas check-in pagi jam {grace_end_time.strftime("%H:%M")})'
+                }
+            else:
+                return {
+                    'allowed': False,
+                    'is_late': False,
+                    'late_duration': 0,
+                    'reason': 'too_late',
+                    'message': f'Absensi hari ini sudah ditutup. Batas akhir jam {checkout_grace_end_time.strftime("%H:%M")}'
+                }
             
         except Exception as e:
             logger.error(f"Error validating check-in: {e}", exc_info=True)
@@ -213,9 +228,16 @@ class TimeValidator:
             check_out_end = self.parse_time(schedule['check_out_end'])
             
             current_time_only = current_time.time()
+            grace_period_minutes = self.get_grace_period_minutes()
+
+            # Calculate check-out grace end time (timezone-aware)
+            check_out_end_dt = datetime.combine(current_time.date(), check_out_end)
+            check_out_end_dt = convert_to_app_timezone(check_out_end_dt.replace(tzinfo=current_time.tzinfo))
+            checkout_grace_end_dt = check_out_end_dt + timedelta(minutes=grace_period_minutes)
+            checkout_grace_end_time = checkout_grace_end_dt.time()
             
             logger.info(f"[CHECK-OUT VALIDATION] Current: {current_time_only} ({get_timezone_name()}), "
-                       f"Start: {check_out_start}, End: {check_out_end}")
+                       f"Start: {check_out_start}, End: {check_out_end}, Checkout Grace End: {checkout_grace_end_time}")
             
             # Too early - before check_out_start
             if current_time_only < check_out_start:
@@ -225,19 +247,19 @@ class TimeValidator:
                     'message': f'Belum waktunya check-out. Check-out mulai jam {check_out_start.strftime("%H:%M")}'
                 }
             
-            # Valid window - between check_out_start and check_out_end
-            if check_out_start <= current_time_only <= check_out_end:
+            # Valid window - between check_out_start and checkout_grace_end_time (including grace period)
+            if check_out_start <= current_time_only <= checkout_grace_end_time:
                 return {
                     'allowed': True,
                     'reason': 'valid',
                     'message': 'Check-out berhasil'
                 }
             
-            # Too late - after check_out_end
+            # Too late - after checkout_grace_end_time
             return {
                 'allowed': False,
                 'reason': 'too_late',
-                'message': f'Waktu check-out sudah ditutup. Batas akhir jam {check_out_end.strftime("%H:%M")}'
+                'message': f'Waktu check-out sudah ditutup. Batas akhir jam {checkout_grace_end_time.strftime("%H:%M")}'
             }
             
         except Exception as e:

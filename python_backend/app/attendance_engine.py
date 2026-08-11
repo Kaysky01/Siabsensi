@@ -364,10 +364,19 @@ class AttendanceProcessor:
         logger.info(f"[{mahasiswa_id}] DAILY MODE - Validating against schedule")
         today = date.today().isoformat()
         row = self.db._execute(
-            "SELECT check_in, check_out FROM attendance WHERE mahasiswa_id=%s AND date=%s AND kegiatan_id IS NULL AND sesi_id IS NULL",
+            "SELECT check_in, check_out, status FROM attendance WHERE mahasiswa_id=%s AND date=%s AND kegiatan_id IS NULL AND sesi_id IS NULL",
             (mahasiswa_id, today),
             fetch_one=True
         )
+        
+        # If student already has a special status today (sakit, izin, alpha)
+        if row and row.get('status') in ['sakit', 'izin', 'alpha']:
+            status_val = row.get('status')
+            logger.info(f"[{mahasiswa_id}] Mahasiswa has special status: {status_val}")
+            return ('special_status', {
+                'reason': status_val,
+                'message': f'Mahasiswa terdaftar {status_val.upper()} hari ini'
+            })
         
         # Get today's schedule - MUST check if exists first
         schedule = self.db.get_today_schedule()

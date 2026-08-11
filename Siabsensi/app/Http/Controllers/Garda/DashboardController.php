@@ -35,6 +35,22 @@ class DashboardController extends Controller
             ->distinct()
             ->count('attendance.mahasiswa_id');
 
+        $lengkapToday = Attendance::join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+            ->whereDate('attendance.date', $today)
+            ->where('mahasiswa.kompi', $kompi)
+            ->whereNotNull('attendance.check_in')
+            ->whereNotNull('attendance.check_out')
+            ->distinct()
+            ->count('attendance.mahasiswa_id');
+
+        $masukBelumKeluarToday = Attendance::join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
+            ->whereDate('attendance.date', $today)
+            ->where('mahasiswa.kompi', $kompi)
+            ->whereNotNull('attendance.check_in')
+            ->whereNull('attendance.check_out')
+            ->distinct()
+            ->count('attendance.mahasiswa_id');
+
         $izinToday = Attendance::join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
             ->whereDate('attendance.date', $today)
             ->where('mahasiswa.kompi', $kompi)
@@ -49,7 +65,7 @@ class DashboardController extends Controller
             ->join('mahasiswa', 'attendance.mahasiswa_id', '=', 'mahasiswa.id')
             ->whereDate('attendance.date', $today)
             ->where('mahasiswa.kompi', $kompi)
-            ->orderBy('attendance.check_in', 'desc')
+            ->orderByRaw("GREATEST(COALESCE(attendance.check_out, '1970-01-01'), COALESCE(attendance.check_in, '1970-01-01')) DESC")
             ->select('attendance.*', 'mahasiswa.name', 'mahasiswa.photo_path')
             ->take(8)
             ->get();
@@ -107,6 +123,8 @@ class DashboardController extends Controller
             'kompi',
             'totalMahasiswa',
             'presentToday',
+            'lengkapToday',
+            'masukBelumKeluarToday',
             'izinToday',
             'absentToday',
             'presentPct',

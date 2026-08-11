@@ -445,6 +445,23 @@ def record_attendance():
             # === DATABASE MODE: Write directly to Local MySQL ===
             action, validation = processor._determine_action(actual_mahasiswa_id, kegiatan_id)
             
+            if action == 'special_status':
+                st = validation.get('reason', 'sakit').upper()
+                return jsonify({
+                    'success': True,
+                    'message': f'Mahasiswa terdaftar {st} hari ini',
+                    'result': {'status': validation.get('reason', 'sakit')},
+                    'mahasiswa': {
+                        'id': mahasiswa['id'],
+                        'name': mahasiswa['name'],
+                        'kompi': mahasiswa['kompi']
+                    },
+                    'show_alert': True,
+                    'alert_type': 'info',
+                    'alert_title': f'TERDAFTAR {st}',
+                    'alert_text': f'{mahasiswa["name"]} sudah terdaftar {st} hari ini.'
+                })
+            
             # 1. Handle Rejections (when validation exists and allowed is False)
             if action in ['check_in', 'check_out'] and not validation.get('allowed', False):
                 reason = validation.get('reason', 'unknown')
@@ -476,10 +493,16 @@ def record_attendance():
                             'alert_title': 'Absen Masuk Belum Dibuka',
                             'alert_text': f'{message}\n\n{mahasiswa.get("name")} belum bisa absen saat ini.'
                         })
+                elif reason == 'not_checked_in':
+                    alert_config.update({
+                        'alert_type': 'warning',
+                        'alert_title': 'Pagi Belum Absen',
+                        'alert_text': f'{mahasiswa.get("name")} belum melakukan absensi masuk pagi hari ini.\n\n{message}'
+                    })
                 elif reason == 'too_late':
                     alert_config.update({
                         'alert_title': 'Absensi Ditutup',
-                        'alert_text': f'Waktu absensi sudah ditutup.\n\n{mahasiswa.get("name")} tidak dapat melakukan absensi lagi.'
+                        'alert_text': f'Waktu absensi hari ini sudah ditutup.\n\n{mahasiswa.get("name")} tidak dapat melakukan absensi lagi.'
                     })
                 
                 return jsonify({
@@ -660,10 +683,16 @@ def record_attendance():
                             'alert_title': 'Absen Masuk Belum Dibuka',
                             'alert_text': f'{message}\n\n{mahasiswa.get("name")} belum bisa absen saat ini.'
                         })
+                elif reason == 'not_checked_in':
+                    alert_config.update({
+                        'alert_type': 'warning',
+                        'alert_title': 'Pagi Belum Absen',
+                        'alert_text': f'{mahasiswa.get("name")} belum melakukan absensi masuk pagi hari ini.\n\n{message}'
+                    })
                 elif reason == 'too_late':
                     alert_config.update({
                         'alert_title': 'Absensi Ditutup',
-                        'alert_text': f'Waktu absensi sudah ditutup.\n\n{mahasiswa.get("name")} tidak dapat melakukan absensi lagi.'
+                        'alert_text': f'Waktu absensi hari ini sudah ditutup.\n\n{mahasiswa.get("name")} tidak dapat melakukan absensi lagi.'
                     })
                 
                 return jsonify({
@@ -836,7 +865,7 @@ def get_today_attendance():
                 FROM attendance a
                 LEFT JOIN mahasiswa m ON a.mahasiswa_id = m.id
                 WHERE a.kegiatan_id = %s AND a.date = %s
-                ORDER BY a.check_in DESC
+                ORDER BY a.id DESC
             """, (kegiatan_id, target_date), fetch_all=True)
         else:
             rows = db._execute("""
@@ -848,7 +877,7 @@ def get_today_attendance():
                 FROM attendance a
                 LEFT JOIN mahasiswa m ON a.mahasiswa_id = m.id
                 WHERE a.date = %s AND a.kegiatan_id IS NULL
-                ORDER BY a.check_in DESC
+                ORDER BY a.id DESC
             """, (target_date,), fetch_all=True)
 
         def fmt_time(val):

@@ -52,7 +52,7 @@ class RiwayatController extends Controller
             }
         }
 
-        $riwayat = $query->orderBy('attendance.check_in', 'desc')
+        $riwayat = $query->orderByRaw("GREATEST(COALESCE(attendance.check_out, '1970-01-01'), COALESCE(attendance.check_in, '1970-01-01')) DESC")
             ->paginate(20)
             ->withQueryString();
 

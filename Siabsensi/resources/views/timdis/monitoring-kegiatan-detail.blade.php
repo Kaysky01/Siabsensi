@@ -85,15 +85,13 @@
           <td><span class="time-val">{{ $att->check_in_time ? substr($att->check_in_time, 0, 5) : '-' }}</span></td>
           <td><span class="time-val">{{ $att->check_out_time ? substr($att->check_out_time, 0, 5) : '-' }}</span></td>
           <td>
-            @php
-              $statusClass = match($att->status) {
-                  'present', 'hadir' => 'badge-green',
-                  'izin' => 'badge-blue',
-                  'sakit' => 'badge-yellow',
-                  default => 'badge-red'
-              };
+            @php 
+              $badge = $att->getStatusBadgeData();
             @endphp
-            <span class="badge {{ $statusClass }}">{{ strtoupper($att->status) }}</span>
+            <span class="badge" style="padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;background:{{ $badge['bg'] }};color:{{ $badge['color'] }};border:1px solid {{ $badge['border'] }};white-space:nowrap">
+              <span style="width:7px;height:7px;border-radius:50%;background:{{ $badge['dot'] }};display:inline-block"></span>
+              {{ $badge['label'] }}
+            </span>
           </td>
         </tr>
         @empty

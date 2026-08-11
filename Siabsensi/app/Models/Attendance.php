@@ -85,6 +85,89 @@ class Attendance extends Model
     }
 
     /**
+     * Helper to check if attendance is complete (both check_in and check_out present)
+     */
+    public function isLengkap(): bool
+    {
+        return !empty($this->check_in) && !empty($this->check_out);
+    }
+
+    /**
+     * Helper to check if student is still in location (check_in present, check_out null)
+     */
+    public function isMasihDiLokasi(): bool
+    {
+        return !empty($this->check_in) && empty($this->check_out);
+    }
+
+    /**
+     * Get exact status badge styling and text based on standard color chart
+     */
+    public function getStatusBadgeData(): array
+    {
+        $statusLower = strtolower($this->status ?? 'alpha');
+
+        if ($statusLower === 'izin') {
+            return [
+                'label' => 'Izin',
+                'bg' => '#dbeafe',
+                'color' => '#1d4ed8',
+                'border' => '#bfdbfe',
+                'dot' => '#3b82f6',
+            ];
+        }
+
+        if ($statusLower === 'sakit') {
+            return [
+                'label' => 'Sakit',
+                'bg' => '#fef9c3',
+                'color' => '#a16207',
+                'border' => '#fef08a',
+                'dot' => '#eab308',
+            ];
+        }
+
+        if ($statusLower === 'alpha') {
+            return [
+                'label' => 'Alpha',
+                'bg' => '#fee2e2',
+                'color' => '#b91c1c',
+                'border' => '#fecaca',
+                'dot' => '#ef4444',
+            ];
+        }
+
+        // If status is present / hadir / manual
+        if ($this->isLengkap()) {
+            return [
+                'label' => 'Lengkap / Hadir',
+                'bg' => '#dcfce7',
+                'color' => '#15803d',
+                'border' => '#bbf7d0',
+                'dot' => '#10b981',
+            ];
+        }
+
+        if ($this->isMasihDiLokasi()) {
+            return [
+                'label' => 'Masuk (belum keluar)',
+                'bg' => '#1e293b',
+                'color' => '#ffffff',
+                'border' => '#0f172a',
+                'dot' => '#1f2937',
+            ];
+        }
+
+        return [
+            'label' => 'Belum ada',
+            'bg' => '#f1f5f9',
+            'color' => '#64748b',
+            'border' => '#e2e8f0',
+            'dot' => '#94a3b8',
+        ];
+    }
+
+    /**
      * Check if this attendance is late and not overridden
      */
     public function isEffectivelyLate(): bool

@@ -305,18 +305,90 @@ function startQRDetection(videoElement) {
 let _attendancePopupTimeout = null;
 
 function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
-    const isMasuk = type === 'masuk';
-    const gradientColor = isMasuk
-        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-        : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
-    const glowColor = isMasuk ? 'rgba(16, 185, 129, 0.25)' : 'rgba(59, 130, 246, 0.25)';
-    const iconHtml = isMasuk
-        ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`
-        : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>`;
-    const labelText = isMasuk ? 'ABSENSI MASUK TERKONFIRMASI' : 'ABSENSI KELUAR TERKONFIRMASI';
-    const labelColor = isMasuk ? '#047857' : '#1d4ed8';
-    const bgBadge = isMasuk ? '#ecfdf5' : '#eff6ff';
-    const borderBadge = isMasuk ? '#a7f3d0' : '#bfdbfe';
+    let gradientColor, glowColor, iconHtml, labelText, labelColor, bgBadge, borderBadge, subMsgHtml;
+
+    if (type === 'masuk') {
+        gradientColor = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        glowColor = 'rgba(16, 185, 129, 0.3)';
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`;
+        labelText = 'ABSENSI MASUK TERKONFIRMASI';
+        labelColor = '#047857';
+        bgBadge = '#ecfdf5';
+        borderBadge = '#a7f3d0';
+        subMsgHtml = '';
+    } else if (type === 'keluar') {
+        gradientColor = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
+        glowColor = 'rgba(59, 130, 246, 0.3)';
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>`;
+        labelText = 'ABSENSI KELUAR TERKONFIRMASI';
+        labelColor = '#1d4ed8';
+        bgBadge = '#eff6ff';
+        borderBadge = '#bfdbfe';
+        subMsgHtml = '';
+    } else if (type === 'already_checked_in') {
+        gradientColor = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        glowColor = 'rgba(16, 185, 129, 0.3)';
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`;
+        labelText = 'SUDAH ABSEN MASUK';
+        labelColor = '#047857';
+        bgBadge = '#ecfdf5';
+        borderBadge = '#a7f3d0';
+        subMsgHtml = `
+            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:12px;color:#065f46;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <span class="material-symbols-outlined" style="font-size:20px;color:#059669;">check_circle</span>
+                Mahasiswa ini sudah terdaftar absen masuk hari ini.
+            </div>`;
+    } else if (type === 'pagi_belum_absen' || type === 'not_checked_in') {
+        gradientColor = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+        glowColor = 'rgba(245, 158, 11, 0.35)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">warning</span>`;
+        labelText = '⚠️ PAGI BELUM ABSEN';
+        labelColor = '#b45309';
+        bgBadge = '#fffbeb';
+        borderBadge = '#fde68a';
+        subMsgHtml = `
+            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#fef3c7;border:1.5px solid #fde68a;border-radius:12px;color:#92400e;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <span class="material-symbols-outlined" style="font-size:20px;color:#d97706;">info</span>
+                Belum melakukan absensi masuk pagi ini!
+            </div>`;
+    } else if (type === 'cooldown') {
+        gradientColor = 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)';
+        glowColor = 'rgba(234, 179, 8, 0.3)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">timer</span>`;
+        labelText = 'MASIH DALAM MASA COOLDOWN';
+        labelColor = '#a16207';
+        bgBadge = '#fefce8';
+        borderBadge = '#fef08a';
+        subMsgHtml = `
+            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#fef9c3;border:1.5px solid #fef08a;border-radius:12px;color:#854d0e;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <span class="material-symbols-outlined" style="font-size:20px;color:#ca8a04;">hourglass_empty</span>
+                Mahasiswa masih dalam jeda waktu tunggu sebelum boleh check-out.
+            </div>`;
+    } else if (['sakit', 'izin', 'alpha', 'special_status'].includes(type)) {
+        let stUpper = (type || 'SAKIT').toUpperCase();
+        gradientColor = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
+        glowColor = 'rgba(59, 130, 246, 0.35)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">assignment_turned_in</span>`;
+        labelText = `TERDAFTAR ${stUpper}`;
+        labelColor = '#1d4ed8';
+        bgBadge = '#eff6ff';
+        borderBadge = '#bfdbfe';
+        subMsgHtml = `
+            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;color:#1e40af;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <span class="material-symbols-outlined" style="font-size:20px;color:#2563eb;">info</span>
+                Mahasiswa ini sudah terdaftar status ${stUpper} hari ini.
+            </div>`;
+    } else {
+        gradientColor = 'linear-gradient(135deg, #64748b 0%, #334155 100%)';
+        glowColor = 'rgba(100, 116, 139, 0.3)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">info</span>`;
+        labelText = 'INFORMASI ABSENSI';
+        labelColor = '#334155';
+        bgBadge = '#f8fafc';
+        borderBadge = '#e2e8f0';
+        subMsgHtml = '';
+    }
+
     const displayName = mahasiswaName || 'Mahasiswa';
     const displayTime = timeStr || new Date().toLocaleTimeString('id-ID');
     const displayKompi = (kompi && kompi !== 'Local') ? kompi : '';
@@ -365,27 +437,29 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
                         background:${bgBadge};color:${labelColor};border:1px solid ${borderBadge};
                         padding:6px 20px;border-radius:999px;font-size:13px;font-weight:800;
                         letter-spacing:1.5px;text-transform:uppercase;margin-bottom:16px;">
-                ✓ ${labelText}
+                ${labelText}
             </div>
 
             <!-- Mahasiswa Name -->
-            <div style="font-size:30px;font-weight:800;color:#0f172a;margin-bottom:10px;line-height:1.25;word-break:break-word;width:100%;">
+            <div style="font-size:28px;font-weight:800;color:#0f172a;margin-bottom:10px;line-height:1.25;word-break:break-word;width:100%;">
                 ${displayName}
             </div>
 
             <!-- Kompi Badge -->
             ${displayKompi ? `
-                <div style="font-size:14px;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;padding:5px 18px;border-radius:8px;margin-bottom:20px;display:inline-flex;align-items:center;gap:6px;">
+                <div style="font-size:14px;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;padding:5px 18px;border-radius:8px;margin-bottom:16px;display:inline-flex;align-items:center;gap:6px;">
                     <span class="material-symbols-outlined" style="font-size:18px;color:${labelColor};">shield</span>
                     ${displayKompi}
                 </div>
-            ` : '<div style="margin-bottom:16px;"></div>'}
+            ` : '<div style="margin-bottom:12px;"></div>'}
 
             <!-- Time Box -->
             <div style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:${bgBadge};padding:12px 24px;border-radius:14px;border:1.5px solid ${borderBadge};">
                 <span class="material-symbols-outlined" style="font-size:24px;color:${labelColor};">schedule</span>
                 <span style="font-family:'IBM Plex Mono', monospace, sans-serif;font-size:24px;font-weight:800;color:${labelColor};letter-spacing:1px;">${displayTime}</span>
             </div>
+
+            ${subMsgHtml}
         </div>`;
 
 
@@ -398,7 +472,7 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
         setTimeout(() => { if (el.parentNode) el.remove(); }, 200);
     }
 
-    _attendancePopupTimeout = setTimeout(closePopup, 3500);
+    _attendancePopupTimeout = setTimeout(closePopup, 3800);
 
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) { clearTimeout(_attendancePopupTimeout); closePopup(); }
@@ -426,14 +500,13 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
         });
 
         const data = await res.json();
+        const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
+        const kompi = data.mahasiswa ? data.mahasiswa.kompi : '';
+        const timeStr = data.result ? data.result.time : new Date().toLocaleTimeString('id-ID');
 
         if (res.ok && data.success) {
             // === SIMPAN KE LOCAL UNTUK SYNC NANTI ===
             saveToLocalSync(data);
-
-            const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
-            const kompi = data.mahasiswa ? data.mahasiswa.kompi : '';
-            const timeStr = data.result ? data.result.time : null;
 
             if (data.result && data.result.status === 'checked_in') {
                 // ✅ BERHASIL MASUK - Popup besar
@@ -461,37 +534,46 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
                 playBeep();
                 showAttendancePopup('keluar', mahasiswaName, kompi, timeStr);
 
+            } else if (data.result && (data.result.status === 'not_checked_in' || data.reason === 'not_checked_in')) {
+                // ⚠️ PAGI BELUM ABSEN (Tanpa suara)
+                showAttendancePopup('pagi_belum_absen', mahasiswaName, kompi, timeStr);
+
             } else if (data.result) {
-                // Status lain: cooldown, already_checked_in, dll → hanya toast (jika tidak ada alert)
-                if (!data.show_alert) {
-                    if (data.result.status === 'already_checked_in') {
-                        showToast(`${mahasiswaName} sudah absen masuk hari ini.`, '#f59e0b');
-                    } else if (data.result.status === 'cooldown') {
-                        showToast(`${mahasiswaName} masih dalam waktu jeda (cooldown).`, '#f59e0b');
-                    } else if (data.result.status === 'already_checked_out') {
-                        showToast(`${mahasiswaName} sudah absen pulang hari ini.`, '#f59e0b');
-                    } else if (data.result.status === 'not_checked_in') {
-                        showToast(`${mahasiswaName} belum absen masuk!`, '#ef4444');
+                if (data.result.status === 'already_checked_in') {
+                    // ⚠️ SUDAH ABSEN MASUK (Tanpa suara)
+                    showAttendancePopup('already_checked_in', mahasiswaName, kompi, timeStr);
+                } else if (data.result.status === 'cooldown') {
+                    showAttendancePopup('cooldown', mahasiswaName, kompi, timeStr);
+                } else if (['sakit', 'izin', 'alpha'].includes(data.result.status)) {
+                    showAttendancePopup(data.result.status, mahasiswaName, kompi, timeStr);
+                } else if (data.result.status === 'already_checked_out') {
+                    showToast(`${mahasiswaName} sudah absen pulang hari ini.`, '#f59e0b');
+                } else if (data.show_alert) {
+                    if (data.alert_title && (data.alert_title.includes('Belum Absen') || data.alert_title.includes('pagi'))) {
+                        showAttendancePopup('pagi_belum_absen', mahasiswaName, kompi, timeStr);
+                    } else if (data.alert_title && data.alert_title.includes('Sudah Absen Masuk')) {
+                        showAttendancePopup('already_checked_in', mahasiswaName, kompi, timeStr);
+                    } else {
+                        Swal.fire({
+                            title: data.alert_title || 'Perhatian',
+                            text: data.alert_text || data.message,
+                            icon: data.alert_type || 'info',
+                            confirmButtonColor: data.alert_type === 'error' ? '#ef4444' : (data.alert_type === 'warning' ? '#f59e0b' : '#3b82f6'),
+                            timer: 4000,
+                            timerProgressBar: true
+                        });
                     }
-                } else {
-                    // Tampilkan alert dari server
-                    Swal.fire({
-                        title: data.alert_title || 'Perhatian',
-                        text: data.alert_text || data.message,
-                        icon: data.alert_type || 'info',
-                        confirmButtonColor: data.alert_type === 'error' ? '#ef4444' : (data.alert_type === 'warning' ? '#f59e0b' : '#3b82f6'),
-                        timer: 4000,
-                        timerProgressBar: true
-                    });
                 }
             }
 
         } else {
-            // Error responses (404, 403, 500, etc.)
+            // Error / Rejection responses (404, 403, 400, etc.)
             const msg = data.message || `Error ${res.status}`;
             console.warn('[Attendance]', msg);
 
-            if (data.show_alert && typeof Swal !== 'undefined') {
+            if (data.reason === 'not_checked_in' || data.result?.status === 'not_checked_in' || (data.alert_title && data.alert_title.includes('Belum Absen'))) {
+                showAttendancePopup('pagi_belum_absen', mahasiswaName, kompi, timeStr);
+            } else if (data.show_alert && typeof Swal !== 'undefined') {
                 Swal.fire({
                     title: data.alert_title || 'Perhatian',
                     text: data.alert_text || data.message,
@@ -500,7 +582,7 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
                     timer: 4000,
                     timerProgressBar: true
                 });
-            } else if (!data.show_alert) {
+            } else {
                 showToast(msg, res.status >= 500 ? '#ef4444' : '#f97316');
             }
         }

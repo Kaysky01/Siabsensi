@@ -45,10 +45,10 @@ class AdminController extends Controller
         $totalPending = $pendingKehadiranCount + $pendingIzinCount;
         $isMaintenanceMode = SystemConfig::isMaintenanceMode();
 
-        // Recent attendances
+        // Recent attendances (Urutkan berdasarkan aktivitas terbaru: check-out atau check-in)
         $recent = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
             ->whereDate("$table.date", $today)
-            ->orderBy("$table.check_in", 'desc')
+            ->orderByRaw("GREATEST(COALESCE($table.check_out, '1970-01-01'), COALESCE($table.check_in, '1970-01-01')) DESC")
             ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.photo_path")
             ->take(8)
             ->get();
@@ -61,13 +61,17 @@ class AdminController extends Controller
             $trend[] = ['date' => $date->format('d/m'), 'count' => $count];
         }
 
-        // By kompi
+        // By kompi (diurutkan secara natural berdasarkan angka kompi 1, 2, 3... 14)
         $byKompi = DB::table($table)
             ->join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
             ->whereDate("$table.date", $today)
             ->select("$mhsTable.kompi", DB::raw("count(DISTINCT $table.mahasiswa_id) as count"))
             ->groupBy("$mhsTable.kompi")
-            ->get();
+            ->get()
+            ->sortBy(function ($item) {
+                return (int) preg_replace('/[^0-9]/', '', $item->kompi ?? '');
+            }, SORT_NUMERIC)
+            ->values();
 
         $maxKompi = $byKompi->max('count') ?: 1;
 
@@ -148,7 +152,7 @@ class AdminController extends Controller
             $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereBetween("$table.date", [$start, $end])
                 ->orderBy("$table.date", 'desc')
-                ->orderBy("$table.check_in", 'desc')
+                ->orderByRaw("GREATEST(COALESCE($table.check_out, '1970-01-01'), COALESCE($table.check_in, '1970-01-01')) DESC")
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path");
             
             // Filter by status
@@ -177,7 +181,7 @@ class AdminController extends Controller
             $query = Attendance::join($mhsTable, "$table.mahasiswa_id", '=', "$mhsTable.id")
                 ->whereBetween("$table.date", [$start, $end])
                 ->orderBy("$table.date", 'desc')
-                ->orderBy("$table.check_in", 'desc')
+                ->orderByRaw("GREATEST(COALESCE($table.check_out, '1970-01-01'), COALESCE($table.check_in, '1970-01-01')) DESC")
                 ->select("$table.*", "$mhsTable.name", "$mhsTable.kompi", "$mhsTable.jurusan", "$mhsTable.photo_path");
             
             // Apply filters

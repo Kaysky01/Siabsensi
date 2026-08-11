@@ -301,13 +301,13 @@
             <table class="att-table">
               <thead>
                 <tr>
-                  <th>No</th>
-                  <th>Tanggal</th>
-                  <th>Hari</th>
-                  <th>Jam Masuk</th>
-                  <th>Jam Keluar</th>
-                  <th>Durasi</th>
-                  <th>Status</th>
+                  <th style="white-space:nowrap">No</th>
+                  <th style="white-space:nowrap">Tanggal</th>
+                  <th style="white-space:nowrap">Hari</th>
+                  <th style="white-space:nowrap">Jam Masuk</th>
+                  <th style="white-space:nowrap">Jam Keluar</th>
+                  <th style="white-space:nowrap">Durasi</th>
+                  <th style="white-space:nowrap">Status Kehadiran</th>
                 </tr>
               </thead>
               <tbody id="riwayat-table-body">

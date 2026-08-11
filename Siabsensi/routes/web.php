@@ -400,28 +400,36 @@ Route::post('/api/sync', function (Request $request) {
             $checkOut = isset($record['check_out']) ? Carbon::parse($record['check_out'])->toDateTimeString() : null;
 
             if ($attendance) {
-                $updateData = [
-                    'status' => 'hadir',
-                ];
-                if ($checkIn) {
-                    $updateData['check_in'] = $attendance->check_in ?? $checkIn;
-                }
-                if ($checkOut) {
-                    $updateData['check_out'] = $checkOut;
-                }
-                
-                // Add late info - prioritize from Python backend, fallback to Laravel calculation
-                if (!$kegiatanId) {
-                    if (isset($record['is_late'])) {
-                        $updateData['is_late'] = $record['is_late'];
-                        $updateData['late_duration'] = $record['late_duration'] ?? 0;
-                    } elseif (isset($isLate) && isset($lateDuration)) {
-                        $updateData['is_late'] = $isLate;
-                        $updateData['late_duration'] = $lateDuration;
+                // HANYA timpa status 'sakit' atau 'izin' JIKA data sync memuat jam check-in DAN check-out LENGKAP
+                if (in_array($attendance->status, ['sakit', 'izin']) && !($checkIn && $checkOut)) {
+                    Log::info("Preserving status {$attendance->status} for mahasiswa {$mahasiswaId} (Not a complete attendance scan)");
+                } else {
+                    $updateData = [];
+                    if ($checkIn) {
+                        $updateData['status'] = 'hadir';
+                        // Pertahankan jam check-in terawal jika sudah ada
+                        $updateData['check_in'] = $attendance->check_in ? min($attendance->check_in, $checkIn) : $checkIn;
+                    }
+                    if ($checkOut) {
+                        $updateData['status'] = 'hadir';
+                        $updateData['check_out'] = $checkOut;
+                    }
+                    
+                    // Add late info - prioritize from Python backend, fallback to Laravel calculation
+                    if (!$kegiatanId) {
+                        if (isset($record['is_late'])) {
+                            $updateData['is_late'] = $record['is_late'];
+                            $updateData['late_duration'] = $record['late_duration'] ?? 0;
+                        } elseif (isset($isLate) && isset($lateDuration)) {
+                            $updateData['is_late'] = $isLate;
+                            $updateData['late_duration'] = $lateDuration;
+                        }
+                    }
+                    
+                    if (!empty($updateData)) {
+                        $attendance->update($updateData);
                     }
                 }
-                
-                $attendance->update($updateData);
             } else if ($checkIn || $checkOut) {
                 $createData = [
                     'mahasiswa_id' => $mahasiswaId,

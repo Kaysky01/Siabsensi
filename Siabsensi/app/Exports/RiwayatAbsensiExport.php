@@ -40,7 +40,7 @@ class RiwayatAbsensiExport implements FromCollection, WithColumnWidths, WithHead
             $attendance->date ? date('d/m/Y', strtotime($attendance->date)) : '-',
             $attendance->check_in ? date('H:i', strtotime($attendance->check_in)) : '-',
             $attendance->check_out ? date('H:i', strtotime($attendance->check_out)) : '-',
-            ucfirst($attendance->status),
+            $attendance->getStatusBadgeData()['label'],
         ];
     }
 
