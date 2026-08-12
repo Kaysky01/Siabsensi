@@ -266,7 +266,7 @@ class SyncController extends Controller
 
                 if (!empty($hariHadir) || !empty($hariIzinSakit)) {
                     $resultData[] = [
-                        'npm'             => (string) $npm,
+                        'no_pendaftaran'  => (string) $npm,
                         'nama'            => $firstMhs->name,
                         'hari_hadir'      => $hariHadir,
                         'hari_izin_sakit' => $hariIzinSakit,
