@@ -14,6 +14,7 @@ class KehadiranController extends Controller
     {
         $submissions = KehadiranSubmission::where('mahasiswa_id', $id)
             ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
             ->get();
 
         return response()->json([

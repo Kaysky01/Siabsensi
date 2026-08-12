@@ -1817,7 +1817,8 @@ class AdminController extends Controller
 
         $query = IzinSubmission::join($mhsTable, "$izinTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kompi")
-            ->orderBy("$izinTable.created_at", 'desc');
+            ->orderBy("$izinTable.created_at", 'desc')
+            ->orderBy("$izinTable.id", 'desc');
 
         if ($user->role === 'garda' && $user->assigned_kompi) {
             $query->where("$mhsTable.kompi", $user->assigned_kompi);
@@ -1918,7 +1919,8 @@ class AdminController extends Controller
 
         $query = KehadiranSubmission::join($mhsTable, "$khdTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kompi")
-            ->orderBy("$khdTable.created_at", 'desc');
+            ->orderBy("$khdTable.created_at", 'desc')
+            ->orderBy("$khdTable.id", 'desc');
 
         if ($user->role === 'garda' && $user->assigned_kompi) {
             $query->where("$mhsTable.kompi", $user->assigned_kompi);
@@ -2058,7 +2060,13 @@ class AdminController extends Controller
     // ─── USERS MANAGEMENT ────────────────────────────────────────────────────
     public function users(Request $request)
     {
-        $query = User::where('role', '!=', 'mahasiswa');
+        $query = User::query();
+
+        if ($request->filled('role')) {
+            $query->where('role', $request->role);
+        } else {
+            $query->where('role', '!=', 'mahasiswa');
+        }
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -2067,11 +2075,8 @@ class AdminController extends Controller
                     ->orWhere('full_name', 'like', "%$search%");
             });
         }
-        if ($request->filled('role')) {
-            $query->where('role', $request->role);
-        }
-        if ($request->has('status') && $request->status !== '') {
-            $query->where('is_active', $request->status);
+        if ($request->has('status') && $request->status !== null && $request->status !== '') {
+            $query->where('is_active', (int) $request->status);
         }
 
         $usersList = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
@@ -2082,7 +2087,7 @@ class AdminController extends Controller
         $statsGarda = User::where('role', 'garda')->count();
         $statsAcara = User::where('role', 'acara')->count();
         $statsMahasiswa = User::where('role', 'mahasiswa')->count();
-        $statsTotal = User::count();
+        $statsTotal = User::where('role', '!=', 'mahasiswa')->count();
 
         return view('admin.users', compact('usersList', 'kompiOptions', 'statsAdmin', 'statsTimdis', 'statsGarda', 'statsAcara', 'statsMahasiswa', 'statsTotal'));
     }

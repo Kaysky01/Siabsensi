@@ -383,7 +383,7 @@ class MahasiswaController extends Controller
     public function izin()
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
-        $riwayatIzin = $mahasiswa->izinSubmissions()->orderBy('created_at', 'desc')->get();
+        $riwayatIzin = $mahasiswa->izinSubmissions()->orderBy('created_at', 'desc')->orderBy('id', 'desc')->get();
         $schedules = PkkmbSchedule::where('is_active', true)->orderBy('hari_ke')->orderBy('tanggal')->get();
         return view('mahasiswa.izin', compact('mahasiswa', 'riwayatIzin', 'schedules'));
     }
@@ -466,7 +466,7 @@ class MahasiswaController extends Controller
     public function kehadiran()
     {
         $mahasiswa = Mahasiswa::find(Auth::user()->mahasiswa_id);
-        $riwayatKehadiran = $mahasiswa->kehadiranSubmissions()->orderBy('created_at', 'desc')->get();
+        $riwayatKehadiran = $mahasiswa->kehadiranSubmissions()->orderBy('created_at', 'desc')->orderBy('id', 'desc')->get();
         $schedules = PkkmbSchedule::where('is_active', true)->orderBy('hari_ke')->orderBy('tanggal')->get();
         return view('mahasiswa.kehadiran', compact('mahasiswa', 'riwayatKehadiran', 'schedules'));
     }

@@ -29,7 +29,8 @@ class VerificationController extends Controller
         $query = IzinSubmission::join($mhsTable, "$izinTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kompi")
             ->where("$mhsTable.kompi", $user->assigned_kompi)
-            ->orderBy("$izinTable.created_at", 'desc');
+            ->orderBy("$izinTable.created_at", 'desc')
+            ->orderBy("$izinTable.id", 'desc');
 
         if ($filterStatus) {
             $query->where("$izinTable.status", $filterStatus);
@@ -126,7 +127,8 @@ class VerificationController extends Controller
         $query = KehadiranSubmission::join($mhsTable, "$khdTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kompi")
             ->where("$mhsTable.kompi", $user->assigned_kompi)
-            ->orderBy("$khdTable.created_at", 'desc');
+            ->orderBy("$khdTable.created_at", 'desc')
+            ->orderBy("$khdTable.id", 'desc');
 
         if ($filterStatus) {
             $query->where("$khdTable.status", $filterStatus);

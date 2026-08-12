@@ -122,7 +122,8 @@ class TimdisController extends Controller
 
         $query = IzinSubmission::join($mhsTable, "$izinTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$izinTable.*", "$mhsTable.name", "$mhsTable.kompi")
-            ->orderBy("$izinTable.created_at", 'desc');
+            ->orderBy("$izinTable.created_at", 'desc')
+            ->orderBy("$izinTable.id", 'desc');
 
         if ($assignedKompi) {
             $query->where("$mhsTable.kompi", $assignedKompi);
@@ -224,7 +225,8 @@ class TimdisController extends Controller
 
         $query = KehadiranSubmission::join($mhsTable, "$khdTable.mahasiswa_id", '=', "$mhsTable.id")
             ->select("$khdTable.*", "$mhsTable.name", "$mhsTable.kompi")
-            ->orderBy("$khdTable.created_at", 'desc');
+            ->orderBy("$khdTable.created_at", 'desc')
+            ->orderBy("$khdTable.id", 'desc');
 
         if ($assignedKompi) {
             $query->where("$mhsTable.kompi", $assignedKompi);
