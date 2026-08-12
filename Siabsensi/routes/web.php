@@ -22,7 +22,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
 use App\Http\Controllers\Timdis\TimdisController;
 
@@ -316,217 +315,147 @@ Route::options('/api/sync', function () {
 Route::post('/api/sync', function (Request $request) {
     try {
         $data = $request->input('data', []);
-        if (empty($data)) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Synced 0 records',
-                'synced_count' => 0,
-                'rejected_count' => 0,
-                'rejection_reasons' => []
-            ])->header('Access-Control-Allow-Origin', '*')
-              ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-              ->header('Access-Control-Allow-Headers', 'Content-Type, Accept');
-        }
-
-        // 1. Pre-fetch all students in bulk to eliminate N+1 queries
-        $mahasiswaIdMap = [];
-        $mahasiswaQrMap = [];
-        $incomingIds = [];
-
-        foreach ($data as $r) {
-            if (isset($r['mahasiswa_id'])) {
-                $rawId = preg_replace('/[^a-zA-Z0-9\-_]/', '', $r['mahasiswa_id']);
-                $incomingIds[] = $rawId;
-                $cleanId = preg_replace('/^(QR-|-)/i', '', $rawId);
-                if ($cleanId !== $rawId) {
-                    $incomingIds[] = $cleanId;
-                }
-            }
-        }
-        $incomingIds = array_values(array_unique(array_filter($incomingIds)));
-
-        if (!empty($incomingIds)) {
-            $mhsCollection = Mahasiswa::whereIn('id', $incomingIds)
-                ->orWhereIn('qr_code_id', $incomingIds)
-                ->get(['id', 'name', 'qr_code_id']);
-
-            foreach ($mhsCollection as $mhs) {
-                $mahasiswaIdMap[(string)$mhs->id] = $mhs;
-                if ($mhs->qr_code_id) {
-                    $mahasiswaQrMap[(string)$mhs->qr_code_id] = $mhs;
-                }
-            }
-        }
-
-        // 2. Pre-fetch active schedules mapped by date Y-m-d
-        $schedules = \App\Models\PkkmbSchedule::where('is_active', 1)->get();
-        $scheduleMap = [];
-        foreach ($schedules as $sched) {
-            $dateKey = Carbon::parse($sched->tanggal)->format('Y-m-d');
-            $scheduleMap[$dateKey] = $sched;
-        }
-
-        // 3. Pre-fetch active kegiatan mapped by id
-        $kegiatanMap = \App\Models\Kegiatan::all(['id', 'nama', 'tanggal_pelaksanaan'])->keyBy('id');
-
-        // 4. Pre-fetch existing attendance records for students in this batch
-        $matchedMahasiswaIds = array_unique(array_merge(
-            array_keys($mahasiswaIdMap),
-            array_map(fn($m) => $m->id, array_values($mahasiswaQrMap))
-        ));
-
-        $existingAttendanceMap = [];
-        if (!empty($matchedMahasiswaIds)) {
-            $existingAtts = Attendance::whereIn('mahasiswa_id', $matchedMahasiswaIds)->get();
-            foreach ($existingAtts as $att) {
-                $kId = $att->kegiatan_id ?? 'daily';
-                $key = $att->mahasiswa_id . '_' . $kId . '_' . $att->date;
-                $existingAttendanceMap[$key] = $att;
-            }
-        }
-
         $syncedCount = 0;
         $rejectedCount = 0;
         $rejectionReasons = [];
-
-        DB::transaction(function () use (
-            $data,
-            $mahasiswaIdMap,
-            $mahasiswaQrMap,
-            $scheduleMap,
-            $kegiatanMap,
-            &$existingAttendanceMap,
-            &$syncedCount,
-            &$rejectedCount,
-            &$rejectionReasons
-        ) {
-            $today = Carbon::today()->format('Y-m-d');
-
-            foreach ($data as $record) {
-                if (!isset($record['mahasiswa_id'])) continue;
-
-                $qrOrId = preg_replace('/[^a-zA-Z0-9\-_]/', '', $record['mahasiswa_id']);
-                
-                // Fast in-memory lookup
-                $mahasiswa = $mahasiswaIdMap[$qrOrId] 
-                    ?? ($mahasiswaQrMap[$qrOrId] ?? null);
-
-                if (!$mahasiswa) {
-                    $cleanId = preg_replace('/^(QR-|-)/i', '', $qrOrId);
-                    $mahasiswa = $mahasiswaIdMap[$cleanId] 
-                        ?? ($mahasiswaQrMap[$cleanId] ?? null);
-                }
-
-                if (!$mahasiswa) {
-                    $rejectedCount++;
-                    $rejectionReasons[] = "Mahasiswa tidak ditemukan: {$qrOrId}";
-                    continue;
-                }
-
-                $mahasiswaId = $mahasiswa->id;
-                $kegiatanId = $record['kegiatan_id'] ?? null;
-
-                if ($kegiatanId && !isset($kegiatanMap[$kegiatanId])) {
+        
+        foreach ($data as $record) {
+            if (!isset($record['mahasiswa_id'])) continue;
+            
+            // Bersihkan semua karakter yang bukan alphanumeric, strip, dan underscore
+            $qrOrId = preg_replace('/[^a-zA-Z0-9\-_]/', '', $record['mahasiswa_id']);
+            
+            $mahasiswa = Mahasiswa::where('qr_code_id', $qrOrId)->orWhere('id', $qrOrId)->first();
+            
+            if (!$mahasiswa) {
+                // Coba bersihkan awalan 'QR-' atau '-'
+                $cleanId = preg_replace('/^(QR-|-)/i', '', $qrOrId);
+                $mahasiswa = Mahasiswa::where('id', $cleanId)->orWhere('qr_code_id', $cleanId)->first();
+            }
+            if (!$mahasiswa) {
+                $rejectedCount++;
+                $rejectionReasons[] = "Mahasiswa tidak ditemukan: {$qrOrId}";
+                continue;
+            }
+            
+            $mahasiswaId = $mahasiswa->id;
+            
+            $kegiatanId = $record['kegiatan_id'] ?? null;
+            
+            // Validate kegiatan_id if provided
+            if ($kegiatanId) {
+                $kegiatan = \App\Models\Kegiatan::find($kegiatanId);
+                if (!$kegiatan) {
                     $rejectedCount++;
                     $rejectionReasons[] = "Kegiatan ID {$kegiatanId} tidak ditemukan (Mahasiswa: {$mahasiswa->name})";
+                    Log::warning("Attendance sync rejected - Kegiatan not found", [
+                        'mahasiswa_id' => $mahasiswaId,
+                        'mahasiswa_name' => $mahasiswa->name,
+                        'kegiatan_id' => $kegiatanId
+                    ]);
                     continue;
                 }
-
-                // Determine attendance date correctly
-                if ($kegiatanId) {
-                    $kegiatan = $kegiatanMap[$kegiatanId];
+            }
+            
+            $kegiatanDate = Carbon::today()->format('Y-m-d');
+            
+            // For kegiatan-based attendance, bypass schedule validation
+            if ($kegiatanId) {
+                $kegiatan = \App\Models\Kegiatan::find($kegiatanId);
+                if ($kegiatan) {
                     $kegiatanDate = Carbon::parse($kegiatan->tanggal_pelaksanaan)->format('Y-m-d');
-                } else {
-                    if (!empty($record['date'])) {
-                        $kegiatanDate = Carbon::parse($record['date'])->format('Y-m-d');
-                    } elseif (!empty($record['check_in'])) {
-                        $kegiatanDate = Carbon::parse($record['check_in'])->format('Y-m-d');
-                    } elseif (!empty($record['check_out'])) {
-                        $kegiatanDate = Carbon::parse($record['check_out'])->format('Y-m-d');
-                    } else {
-                        $kegiatanDate = $today;
-                    }
                 }
-
-                $checkIn = isset($record['check_in']) ? Carbon::parse($record['check_in'])->toDateTimeString() : null;
-                $checkOut = isset($record['check_out']) ? Carbon::parse($record['check_out'])->toDateTimeString() : null;
-
-                // Calculate late status if not supplied
+                
+                $attendance = Attendance::where('mahasiswa_id', $mahasiswaId)
+                    ->where('kegiatan_id', $kegiatanId)
+                    ->first();
+            } else {
+                // For daily attendance
+                $today = Carbon::today()->format('Y-m-d');
+                $schedule = \App\Models\PkkmbSchedule::where('tanggal', $today)
+                    ->where('is_active', 1)
+                    ->first();
+                
+                $checkInObj = isset($record['check_in']) ? Carbon::parse($record['check_in']) : null;
                 $isLate = false;
                 $lateDuration = 0;
-                if (!$kegiatanId && $checkIn) {
-                    $sched = $scheduleMap[$kegiatanDate] ?? ($scheduleMap[$today] ?? null);
-                    if ($sched) {
-                        $checkInObj = Carbon::parse($checkIn);
-                        $checkInTime = $checkInObj->format('H:i:s');
-                        $checkInEnd = Carbon::parse($sched->check_in_end)->format('H:i:s');
-                        if ($checkInTime > $checkInEnd) {
-                            $isLate = true;
-                            $start = Carbon::parse($checkInEnd);
-                            $lateDuration = $start->diffInMinutes($checkInObj);
-                        }
+                
+                if ($checkInObj && $schedule) {
+                    $checkInTime = $checkInObj->format('H:i:s');
+                    $checkInEnd = Carbon::parse($schedule->check_in_end)->format('H:i:s');
+                    if ($checkInTime > $checkInEnd) {
+                        $isLate = true;
+                        $start = Carbon::parse($checkInEnd);
+                        $lateDuration = $start->diffInMinutes($checkInObj);
                     }
                 }
+                
+                $attendance = Attendance::daily()
+                    ->where('mahasiswa_id', $mahasiswaId)
+                    ->where('date', $kegiatanDate)
+                    ->first();
+            }
 
-                $attKey = $mahasiswaId . '_' . ($kegiatanId ?? 'daily') . '_' . $kegiatanDate;
-                $attendance = $existingAttendanceMap[$attKey] ?? null;
+            $checkIn = isset($record['check_in']) ? Carbon::parse($record['check_in'])->toDateTimeString() : null;
+            $checkOut = isset($record['check_out']) ? Carbon::parse($record['check_out'])->toDateTimeString() : null;
 
-                if ($attendance) {
-                    // Preserve manual permissions ('sakit' / 'izin') unless complete check-in & check-out scans exist
-                    if (in_array($attendance->status, ['sakit', 'izin']) && !($checkIn && $checkOut)) {
-                        // Preserved
-                    } else {
-                        $updateData = [];
-                        if ($checkIn) {
-                            $updateData['status'] = 'hadir';
-                            $updateData['check_in'] = $attendance->check_in ? min($attendance->check_in, $checkIn) : $checkIn;
-                        }
-                        if ($checkOut) {
-                            $updateData['status'] = 'hadir';
-                            $updateData['check_out'] = $checkOut;
-                        }
-
-                        if (!$kegiatanId) {
-                            if (isset($record['is_late'])) {
-                                $updateData['is_late'] = $record['is_late'];
-                                $updateData['late_duration'] = $record['late_duration'] ?? 0;
-                            } elseif ($isLate) {
-                                $updateData['is_late'] = true;
-                                $updateData['late_duration'] = $lateDuration;
-                            }
-                        }
-
-                        if (!empty($updateData)) {
-                            $attendance->update($updateData);
-                        }
+            if ($attendance) {
+                // HANYA timpa status 'sakit' atau 'izin' JIKA data sync memuat jam check-in DAN check-out LENGKAP
+                if (in_array($attendance->status, ['sakit', 'izin']) && !($checkIn && $checkOut)) {
+                    Log::info("Preserving status {$attendance->status} for mahasiswa {$mahasiswaId} (Not a complete attendance scan)");
+                } else {
+                    $updateData = [];
+                    if ($checkIn) {
+                        $updateData['status'] = 'hadir';
+                        // Pertahankan jam check-in terawal jika sudah ada
+                        $updateData['check_in'] = $attendance->check_in ? min($attendance->check_in, $checkIn) : $checkIn;
                     }
-                } else if ($checkIn || $checkOut) {
-                    $createData = [
-                        'mahasiswa_id' => $mahasiswaId,
-                        'kegiatan_id'  => $kegiatanId,
-                        'date'         => $kegiatanDate,
-                        'check_in'     => $checkIn ?? Carbon::now()->toDateTimeString(),
-                        'check_out'    => $checkOut,
-                        'status'       => 'hadir',
-                    ];
-
+                    if ($checkOut) {
+                        $updateData['status'] = 'hadir';
+                        $updateData['check_out'] = $checkOut;
+                    }
+                    
+                    // Add late info - prioritize from Python backend, fallback to Laravel calculation
                     if (!$kegiatanId) {
                         if (isset($record['is_late'])) {
-                            $createData['is_late'] = $record['is_late'];
-                            $createData['late_duration'] = $record['late_duration'] ?? 0;
-                        } else {
-                            $createData['is_late'] = $isLate;
-                            $createData['late_duration'] = $lateDuration;
+                            $updateData['is_late'] = $record['is_late'];
+                            $updateData['late_duration'] = $record['late_duration'] ?? 0;
+                        } elseif (isset($isLate) && isset($lateDuration)) {
+                            $updateData['is_late'] = $isLate;
+                            $updateData['late_duration'] = $lateDuration;
                         }
                     }
-
-                    $newAtt = Attendance::create($createData);
-                    $existingAttendanceMap[$attKey] = $newAtt;
+                    
+                    if (!empty($updateData)) {
+                        $attendance->update($updateData);
+                    }
                 }
-
-                $syncedCount++;
+            } else if ($checkIn || $checkOut) {
+                $createData = [
+                    'mahasiswa_id' => $mahasiswaId,
+                    'kegiatan_id' => $kegiatanId,
+                    'date' => $kegiatanDate,
+                    'check_in' => $checkIn ?? Carbon::now()->toDateTimeString(),
+                    'check_out' => $checkOut,
+                    'status' => 'hadir',
+                ];
+                
+                // Add late info - prioritize from Python backend, fallback to Laravel calculation
+                if (!$kegiatanId) {
+                    if (isset($record['is_late'])) {
+                        $createData['is_late'] = $record['is_late'];
+                        $createData['late_duration'] = $record['late_duration'] ?? 0;
+                    } elseif (isset($isLate) && isset($lateDuration)) {
+                        $createData['is_late'] = $isLate;
+                        $createData['late_duration'] = $lateDuration;
+                    }
+                }
+                
+                Attendance::create($createData);
             }
-        });
+            $syncedCount++;
+        }
+
 
         $message = "Synced {$syncedCount} records";
         if ($rejectedCount > 0) {
@@ -542,9 +471,7 @@ Route::post('/api/sync', function (Request $request) {
         ])->header('Access-Control-Allow-Origin', '*')
           ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
           ->header('Access-Control-Allow-Headers', 'Content-Type, Accept');
-
     } catch (\Throwable $e) {
-        Log::error("Sync error: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
         return response()->json(['success' => false, 'message' => 'Failed: ' . $e->getMessage()], 500)
             ->header('Access-Control-Allow-Origin', '*')
             ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
