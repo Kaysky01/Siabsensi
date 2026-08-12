@@ -493,9 +493,13 @@ Route::get('/file-bukti/{path}', function ($path) {
     return response()->file($filePath);
 })->where('path', '.*');
 
-// ─── PYTHON SYNC API ROUTES ────────────────────────────────────────────────
-// Routes untuk Python backend menarik data dari Laravel
+// ─── EXTERNAL SYNC API ROUTES (Untuk Web Lain / Landing Page) ─────────────
+Route::get('/api/pkkmb/absensi', [\App\Http\Controllers\Api\SyncController::class, 'pkkmbAbsensi']);
+
+// ─── PYTHON & GENERAL SYNC API ROUTES ──────────────────────────────────────
+// Routes untuk Python backend / external service menarik data dari Laravel
 Route::prefix('api/sync')->group(function () {
+    Route::get('/pkkmb-absensi', [\App\Http\Controllers\Api\SyncController::class, 'pkkmbAbsensi']);
     Route::get('/mahasiswa', [\App\Http\Controllers\Api\SyncController::class, 'mahasiswa']);
     Route::get('/schedules', [\App\Http\Controllers\Api\SyncController::class, 'schedules']);
     Route::get('/kegiatan', [\App\Http\Controllers\Api\SyncController::class, 'kegiatan']);

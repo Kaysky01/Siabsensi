@@ -202,5 +202,89 @@ class SyncController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * API Endpoint untuk ditarik oleh Web Lain (Landing Page)
+     * Mengambil data absensi MABA yang PERNAH HADIR/IZIN/SAKIT dalam format SUPER RINGKAS.
+     */
+    public function pkkmbAbsensi(Request $request)
+    {
+        try {
+            // 1. Ambil seluruh tanggal jadwal PKKMB yang aktif
+            $activeSchedules = PkkmbSchedule::where('is_active', true)
+                ->orderBy('tanggal', 'asc')
+                ->get(['hari_ke', 'tanggal']);
+
+            $dateToHariMap = [];
+            foreach ($activeSchedules as $sched) {
+                $formattedDate = \Carbon\Carbon::parse($sched->tanggal)->format('Y-m-d');
+                $dateToHariMap[$formattedDate] = (int) $sched->hari_ke;
+            }
+
+            $activeDates = array_keys($dateToHariMap);
+
+            // 2. Query HANYA absensi yang statusnya valid (hadir, present, izin, sakit, atau ada check_in)
+            $attendances = \App\Models\Attendance::with('mahasiswa:id,name')
+                ->daily()
+                ->whereIn('date', $activeDates)
+                ->where(function ($q) {
+                    $q->whereIn('status', ['hadir', 'present', 'izin', 'sakit'])
+                      ->orWhereNotNull('check_in');
+                })
+                ->whereHas('mahasiswa', function ($q) {
+                    $q->whereNotNull('id')->where('id', '<>', '');
+                })
+                ->get();
+
+            // 3. Kelompokkan per mahasiswa yang pernah hadir
+            $groupedByMhs = $attendances->groupBy('mahasiswa_id');
+
+            $resultData = [];
+            foreach ($groupedByMhs as $npm => $mhsAtts) {
+                $firstMhs = $mhsAtts->first()->mahasiswa;
+                if (!$firstMhs) continue;
+
+                $hariHadir = [];
+                $hariIzinSakit = [];
+
+                foreach ($mhsAtts as $att) {
+                    $rawStatus = strtolower($att->status ?? '');
+                    $formattedDate = \Carbon\Carbon::parse($att->date)->format('Y-m-d');
+                    $hariKe = $dateToHariMap[$formattedDate] ?? null;
+
+                    if (!$hariKe) continue;
+
+                    if (in_array($rawStatus, ['hadir', 'present']) || !empty($att->check_in)) {
+                        $hariHadir[] = $hariKe;
+                    } elseif (in_array($rawStatus, ['izin', 'sakit'])) {
+                        $hariIzinSakit[] = $hariKe;
+                    }
+                }
+
+                $hariHadir = array_values(array_unique($hariHadir));
+                $hariIzinSakit = array_values(array_unique($hariIzinSakit));
+
+                if (!empty($hariHadir) || !empty($hariIzinSakit)) {
+                    $resultData[] = [
+                        'npm'             => (string) $npm,
+                        'nama'            => $firstMhs->name,
+                        'hari_hadir'      => $hariHadir,
+                        'hari_izin_sakit' => $hariIzinSakit,
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'total'   => count($resultData),
+                'data'    => $resultData,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menarik data absensi PKKMB: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
 
