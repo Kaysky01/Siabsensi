@@ -263,6 +263,8 @@ class SyncController extends Controller
 
                 $hariHadir = array_values(array_unique($hariHadir));
                 $hariIzinSakit = array_values(array_unique($hariIzinSakit));
+                sort($hariHadir);
+                sort($hariIzinSakit);
 
                 if (!empty($hariHadir) || !empty($hariIzinSakit)) {
                     $resultData[] = [
