@@ -229,17 +229,17 @@ function startQRDetection(videoElement) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const lastQrTime = new Map(); // qrData -> timestamp
-    const QR_COOLDOWN_MS = 3000; // 3 detik debounce per QR
+    const QR_COOLDOWN_MS = 1500; // 1.5 detik debounce per QR untuk scanning cepat
 
     async function detectFrame() {
         if (videoElement.paused || videoElement.ended) {
-            setTimeout(detectFrame, 2000);
+            setTimeout(detectFrame, 1000);
             return;
         }
 
         // Check if video has valid dimensions
         if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
-            setTimeout(detectFrame, 2000);
+            setTimeout(detectFrame, 1000);
             return;
         }
 
@@ -255,7 +255,7 @@ function startQRDetection(videoElement) {
 
         // Check if image data is valid
         if (!imageData || imageData === 'data:,') {
-            setTimeout(detectFrame, 2000);
+            setTimeout(detectFrame, 1000);
             return;
         }
 
@@ -277,7 +277,7 @@ function startQRDetection(videoElement) {
                     const now = Date.now();
                     const last = lastQrTime.get(qrData) || 0;
                     if (now - last < QR_COOLDOWN_MS) {
-                        setTimeout(detectFrame, 2000);
+                        setTimeout(detectFrame, 200);
                         return;
                     }
                     lastQrTime.set(qrData, now);
@@ -290,10 +290,9 @@ function startQRDetection(videoElement) {
             console.warn('QR detection error:', err);
         }
 
-        // Dynamic delay: Sesuaikan kecepatan dengan jumlah kamera yang aktif
-        // Jika banyak kamera, beri jeda lebih lama agar CPU Python tidak hang
+        // Dynamic delay: Jeda cepat untuk pemindaian beruntun (rapid batch scanning)
         const activeCount = activeStreams.size > 0 ? activeStreams.size : 1;
-        const dynamicDelay = Math.max(1000, activeCount * 600);
+        const dynamicDelay = Math.max(250, activeCount * 150);
 
         setTimeout(detectFrame, dynamicDelay);
     }
@@ -301,16 +300,16 @@ function startQRDetection(videoElement) {
     detectFrame();
 }
 
-// ===== POPUP ABSENSI BERHASIL =====
+// ===== POPUP ABSENSI BERHASIL (NON-BLOCKING & RAPID FRIENDLY) =====
 let _attendancePopupTimeout = null;
 
-function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
+function showAttendancePopup(type, mahasiswaName, kompi, timeStr, customMessage = '') {
     let gradientColor, glowColor, iconHtml, labelText, labelColor, bgBadge, borderBadge, subMsgHtml;
 
     if (type === 'masuk') {
         gradientColor = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
         glowColor = 'rgba(16, 185, 129, 0.3)';
-        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`;
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:36px;height:36px;"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`;
         labelText = 'ABSENSI MASUK TERKONFIRMASI';
         labelColor = '#047857';
         bgBadge = '#ecfdf5';
@@ -319,7 +318,7 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
     } else if (type === 'keluar') {
         gradientColor = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
         glowColor = 'rgba(59, 130, 246, 0.3)';
-        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>`;
+        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:36px;height:36px;"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>`;
         labelText = 'ABSENSI KELUAR TERKONFIRMASI';
         labelColor = '#1d4ed8';
         bgBadge = '#eff6ff';
@@ -328,159 +327,146 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
     } else if (type === 'already_checked_in') {
         gradientColor = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
         glowColor = 'rgba(16, 185, 129, 0.3)';
-        iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" style="width:48px;height:48px;"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>`;
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:36px;color:white;">task_alt</span>`;
         labelText = 'SUDAH ABSEN MASUK';
         labelColor = '#047857';
         bgBadge = '#ecfdf5';
         borderBadge = '#a7f3d0';
-        subMsgHtml = `
-            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:12px;color:#065f46;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
-                <span class="material-symbols-outlined" style="font-size:20px;color:#059669;">check_circle</span>
-                Mahasiswa ini sudah terdaftar absen masuk hari ini.
-            </div>`;
+        subMsgHtml = `<div style="width:100%;margin-top:6px;padding:6px 10px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;color:#065f46;font-size:12px;font-weight:700;">Mahasiswa ini sudah terdaftar absen masuk hari ini.</div>`;
+    } else if (type === 'already_checked_out') {
+        gradientColor = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
+        glowColor = 'rgba(59, 130, 246, 0.3)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:36px;color:white;">check_circle</span>`;
+        labelText = 'SUDAH ABSEN PULANG';
+        labelColor = '#1d4ed8';
+        bgBadge = '#eff6ff';
+        borderBadge = '#bfdbfe';
+        subMsgHtml = `<div style="width:100%;margin-top:6px;padding:6px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40af;font-size:12px;font-weight:700;">Sudah selesai melakukan absensi masuk & pulang hari ini.</div>`;
     } else if (type === 'pagi_belum_absen' || type === 'not_checked_in') {
         gradientColor = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
         glowColor = 'rgba(245, 158, 11, 0.35)';
-        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">warning</span>`;
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:36px;color:white;">warning</span>`;
         labelText = '⚠️ PAGI BELUM ABSEN';
         labelColor = '#b45309';
         bgBadge = '#fffbeb';
         borderBadge = '#fde68a';
-        subMsgHtml = `
-            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#fef3c7;border:1.5px solid #fde68a;border-radius:12px;color:#92400e;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
-                <span class="material-symbols-outlined" style="font-size:20px;color:#d97706;">info</span>
-                Belum melakukan absensi masuk pagi ini!
-            </div>`;
-    } else if (type === 'cooldown') {
+        subMsgHtml = `<div style="width:100%;margin-top:6px;padding:6px 10px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;color:#92400e;font-size:12px;font-weight:700;">Belum melakukan absensi masuk pagi hari ini!</div>`;
+    } else if (type === 'cooldown' || type === 'too_early') {
         gradientColor = 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)';
         glowColor = 'rgba(234, 179, 8, 0.3)';
-        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">timer</span>`;
-        labelText = 'MASIH DALAM MASA COOLDOWN';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:36px;color:white;">timer</span>`;
+        labelText = 'BELUM WAKTUNYA CHECK-OUT';
         labelColor = '#a16207';
         bgBadge = '#fefce8';
         borderBadge = '#fef08a';
-        subMsgHtml = `
-            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#fef9c3;border:1.5px solid #fef08a;border-radius:12px;color:#854d0e;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
-                <span class="material-symbols-outlined" style="font-size:20px;color:#ca8a04;">hourglass_empty</span>
-                Mahasiswa masih dalam jeda waktu tunggu sebelum boleh check-out.
-            </div>`;
+        subMsgHtml = `<div style="width:100%;margin-top:6px;padding:6px 10px;background:#fef9c3;border:1px solid #fef08a;border-radius:8px;color:#854d0e;font-size:12px;font-weight:700;">${customMessage || 'Mahasiswa masih dalam jeda waktu tunggu sebelum boleh check-out.'}</div>`;
     } else if (['sakit', 'izin', 'alpha', 'special_status'].includes(type)) {
         let stUpper = (type || 'SAKIT').toUpperCase();
-        gradientColor = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
-        glowColor = 'rgba(59, 130, 246, 0.35)';
-        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">assignment_turned_in</span>`;
+        gradientColor = 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)';
+        glowColor = 'rgba(139, 92, 246, 0.35)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:36px;color:white;">assignment_turned_in</span>`;
         labelText = `TERDAFTAR ${stUpper}`;
-        labelColor = '#1d4ed8';
-        bgBadge = '#eff6ff';
-        borderBadge = '#bfdbfe';
-        subMsgHtml = `
-            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;color:#1e40af;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
-                <span class="material-symbols-outlined" style="font-size:20px;color:#2563eb;">info</span>
-                Mahasiswa ini sudah terdaftar status ${stUpper} hari ini.
-            </div>`;
+        labelColor = '#6d28d9';
+        bgBadge = '#f3e8ff';
+        borderBadge = '#d8b4fe';
+        subMsgHtml = `<div style="width:100%;margin-top:6px;padding:6px 10px;background:#f3e8ff;border:1px solid #d8b4fe;border-radius:8px;color:#581c87;font-size:12px;font-weight:700;">Mahasiswa terdaftar status ${stUpper} hari ini.</div>`;
+    } else if (type === 'not_found' || type === 'error') {
+        gradientColor = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+        glowColor = 'rgba(239, 68, 68, 0.35)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:36px;color:white;">cancel</span>`;
+        labelText = '❌ QR CODE TIDAK DIKENALI';
+        labelColor = '#b91c1c';
+        bgBadge = '#fef2f2';
+        borderBadge = '#fca5a5';
+        subMsgHtml = `<div style="width:100%;margin-top:6px;padding:6px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#991b1b;font-size:12px;font-weight:700;">${customMessage || 'QR Code tidak terdaftar di sistem.'}</div>`;
     } else {
-        gradientColor = 'linear-gradient(135deg, #64748b 0%, #334155 100%)';
-        glowColor = 'rgba(100, 116, 139, 0.3)';
-        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">info</span>`;
+        gradientColor = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+        glowColor = 'rgba(245, 158, 11, 0.3)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:36px;color:white;">info</span>`;
         labelText = 'INFORMASI ABSENSI';
-        labelColor = '#334155';
-        bgBadge = '#f8fafc';
-        borderBadge = '#e2e8f0';
-        subMsgHtml = '';
+        labelColor = '#b45309';
+        bgBadge = '#fffbeb';
+        borderBadge = '#fde68a';
+        subMsgHtml = customMessage ? `<div style="width:100%;margin-top:6px;padding:6px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;color:#92400e;font-size:12px;font-weight:700;">${customMessage}</div>` : '';
     }
 
     const displayName = mahasiswaName || 'Mahasiswa';
     const displayTime = timeStr || new Date().toLocaleTimeString('id-ID');
     const displayKompi = (kompi && kompi !== 'Local') ? kompi : '';
 
-    // Hapus popup sebelumnya + batalkan timeout lama
+    // Hapus popup sebelumnya secara cepat tanpa blocking
     const existing = document.getElementById('att-popup-overlay');
     if (existing) existing.remove();
     if (_attendancePopupTimeout) { clearTimeout(_attendancePopupTimeout); _attendancePopupTimeout = null; }
 
-    // Inject CSS animasi ultra-bersih jika belum ada
     if (!document.getElementById('att-popup-style')) {
         const s = document.createElement('style');
         s.id = 'att-popup-style';
         s.textContent = `
-            @keyframes attFadeIn   { from { opacity:0 } to { opacity:1 } }
-            @keyframes attFadeOut  { from { opacity:1; transform:scale(1); } to { opacity:0; transform:scale(0.95); } }
-            @keyframes attPopIn    { 0%{transform:scale(0.7) translateY(10px);opacity:0} 100%{transform:scale(1) translateY(0);opacity:1} }
-            @keyframes attShrink   { from { width:100% } to { width:0% } }
+            @keyframes attSlideDown { from { opacity:0; transform:translate(-50%, -20px) scale(0.95); } to { opacity:1; transform:translate(-50%, 0) scale(1); } }
+            @keyframes attFadeOut   { from { opacity:1; transform:translate(-50%, 0) scale(1); } to { opacity:0; transform:translate(-50%, -15px) scale(0.95); } }
+            @keyframes attProgress  { from { width:100% } to { width:0% } }
         `;
         document.head.appendChild(s);
     }
 
-    // Buat overlay
+    // Dynamic Top Floating Card (Tidak menutupi kamera & tidak memblokir klik/scan berikutnya)
     const overlay = document.createElement('div');
     overlay.id = 'att-popup-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15, 23, 42, 0.75);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;animation:attFadeIn 0.2s ease forwards;';
+    overlay.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;pointer-events:none;width:440px;max-width:92vw;animation:attSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;';
     overlay.innerHTML = `
-        <div style="background:#ffffff;border-radius:24px;padding:36px 32px 32px 32px;width:520px;max-width:90vw;
+        <div style="background:#ffffff;border-radius:16px;padding:16px 20px;
                     display:flex;flex-direction:column;align-items:center;text-align:center;
-                    box-shadow:0 25px 60px -15px rgba(0,0,0,0.35), 0 0 30px ${glowColor};
-                    animation:attPopIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-                    position:relative;overflow:hidden;border:1px solid #e2e8f0;">
+                    box-shadow:0 20px 40px -10px rgba(0,0,0,0.25), 0 0 20px ${glowColor};
+                    position:relative;overflow:hidden;border:1.5px solid ${borderBadge};pointer-events:auto;">
             
-            <!-- Top Progress Line -->
-            <div style="position:absolute;top:0;left:0;height:5px;background:${gradientColor};width:100%;animation:attShrink 3.5s linear forwards;"></div>
+            <!-- Top Progress Bar -->
+            <div style="position:absolute;top:0;left:0;height:4px;background:${gradientColor};width:100%;animation:attProgress 1.6s linear forwards;"></div>
             
-            <!-- Icon Circle -->
-            <div style="display:flex;align-items:center;justify-content:center;
-                        width:84px;height:84px;border-radius:50%;background:${gradientColor};
-                        box-shadow:0 10px 24px ${glowColor};margin-top:8px;margin-bottom:16px;flex-shrink:0;">
-                ${iconHtml}
-            </div>
-
-            <!-- Status Badge -->
-            <div style="display:inline-flex;align-items:center;justify-content:center;gap:6px;
-                        background:${bgBadge};color:${labelColor};border:1px solid ${borderBadge};
-                        padding:6px 20px;border-radius:999px;font-size:13px;font-weight:800;
-                        letter-spacing:1.5px;text-transform:uppercase;margin-bottom:16px;">
-                ${labelText}
-            </div>
-
-            <!-- Mahasiswa Name -->
-            <div style="font-size:28px;font-weight:800;color:#0f172a;margin-bottom:10px;line-height:1.25;word-break:break-word;width:100%;">
-                ${displayName}
-            </div>
-
-            <!-- Kompi Badge -->
-            ${displayKompi ? `
-                <div style="font-size:14px;font-weight:700;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;padding:5px 18px;border-radius:8px;margin-bottom:16px;display:inline-flex;align-items:center;gap:6px;">
-                    <span class="material-symbols-outlined" style="font-size:18px;color:${labelColor};">shield</span>
-                    ${displayKompi}
+            <div style="display:flex;align-items:center;gap:14px;width:100%;text-align:left;">
+                <!-- Icon Circle -->
+                <div style="display:flex;align-items:center;justify-content:center;
+                            width:48px;height:48px;border-radius:50%;background:${gradientColor};
+                            box-shadow:0 4px 12px ${glowColor};flex-shrink:0;">
+                    ${iconHtml}
                 </div>
-            ` : '<div style="margin-bottom:12px;"></div>'}
 
-            <!-- Time Box -->
-            <div style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:${bgBadge};padding:12px 24px;border-radius:14px;border:1.5px solid ${borderBadge};">
-                <span class="material-symbols-outlined" style="font-size:24px;color:${labelColor};">schedule</span>
-                <span style="font-family:'IBM Plex Mono', monospace, sans-serif;font-size:24px;font-weight:800;color:${labelColor};letter-spacing:1px;">${displayTime}</span>
+                <div style="flex:1;min-width:0;">
+                    <!-- Status Badge -->
+                    <div style="display:inline-flex;align-items:center;gap:4px;
+                                background:${bgBadge};color:${labelColor};border:1px solid ${borderBadge};
+                                padding:2px 8px;border-radius:999px;font-size:10px;font-weight:800;
+                                letter-spacing:0.8px;text-transform:uppercase;margin-bottom:2px;">
+                        ${labelText}
+                    </div>
+
+                    <!-- Mahasiswa Name -->
+                    <div style="font-size:17px;font-weight:800;color:#0f172a;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        ${displayName}
+                    </div>
+
+                    <!-- Kompi & Time -->
+                    <div style="font-size:11px;font-weight:600;color:#64748b;margin-top:2px;display:flex;align-items:center;gap:8px;">
+                        ${displayKompi ? `<span>🛡️ ${displayKompi}</span>` : ''}
+                        <span>⏰ ${displayTime}</span>
+                    </div>
+                </div>
             </div>
 
             ${subMsgHtml}
         </div>`;
-
 
     document.body.appendChild(overlay);
 
     function closePopup() {
         const el = document.getElementById('att-popup-overlay');
         if (!el) return;
-        el.style.animation = 'attFadeOut 0.2s ease forwards';
-        setTimeout(() => { if (el.parentNode) el.remove(); }, 200);
+        el.style.animation = 'attFadeOut 0.15s ease forwards';
+        setTimeout(() => { if (el.parentNode) el.remove(); }, 150);
     }
 
-    _attendancePopupTimeout = setTimeout(closePopup, 3800);
-
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) { clearTimeout(_attendancePopupTimeout); closePopup(); }
-    });
+    _attendancePopupTimeout = setTimeout(closePopup, 1600);
 }
-
-
-
 
 // ===== RECORD ATTENDANCE =====
 async function recordAttendance(mahasiswaId, confidence = 0.0, inputType = 'USB-SCANNER', hardwareMs = 0.0) {
@@ -502,7 +488,7 @@ async function recordAttendance(mahasiswaId, confidence = 0.0, inputType = 'USB-
         });
 
         const data = await res.json();
-        const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : 'Mahasiswa';
+        const mahasiswaName = data.mahasiswa ? data.mahasiswa.name : (data.alert_title || 'Mahasiswa');
         const kompi = data.mahasiswa ? data.mahasiswa.kompi : '';
         const timeStr = data.result ? data.result.time : new Date().toLocaleTimeString('id-ID');
 
@@ -511,86 +497,44 @@ async function recordAttendance(mahasiswaId, confidence = 0.0, inputType = 'USB-
             saveToLocalSync(data);
 
             if (data.result && data.result.status === 'checked_in') {
-                // ✅ BERHASIL MASUK - Popup besar
                 playBeep();
                 showAttendancePopup('masuk', mahasiswaName, kompi, timeStr);
-
-                // Jika terlambat, tampilkan alert tambahan setelah popup utama
-                if (data.result.is_late && data.result.late_duration > 0) {
-                    setTimeout(() => {
-                        if (typeof Swal !== 'undefined') {
-                            Swal.fire({
-                                title: '⚠️ Terlambat!',
-                                text: `${mahasiswaName} terlambat ${data.result.late_duration} menit. Absensi masuk tetap dicatat.`,
-                                icon: 'warning',
-                                confirmButtonColor: '#f59e0b',
-                                timer: 4000,
-                                timerProgressBar: true
-                            });
-                        }
-                    }, 3200);
-                }
-
             } else if (data.result && data.result.status === 'checked_out') {
-                // ✅ BERHASIL KELUAR - Popup besar
                 playBeep();
                 showAttendancePopup('keluar', mahasiswaName, kompi, timeStr);
-
-            } else if (data.result && (data.result.status === 'not_checked_in' || data.reason === 'not_checked_in')) {
-                // ⚠️ PAGI BELUM ABSEN (Tanpa suara)
-                showAttendancePopup('pagi_belum_absen', mahasiswaName, kompi, timeStr);
-
-            } else if (data.result) {
-                if (data.result.status === 'already_checked_in') {
-                    // ⚠️ SUDAH ABSEN MASUK (Tanpa suara)
-                    showAttendancePopup('already_checked_in', mahasiswaName, kompi, timeStr);
-                } else if (data.result.status === 'cooldown') {
-                    showAttendancePopup('cooldown', mahasiswaName, kompi, timeStr);
-                } else if (['sakit', 'izin', 'alpha'].includes(data.result.status)) {
-                    showAttendancePopup(data.result.status, mahasiswaName, kompi, timeStr);
-                } else if (data.result.status === 'already_checked_out') {
-                    showToast(`${mahasiswaName} sudah absen pulang hari ini.`, '#f59e0b');
-                } else if (data.show_alert) {
-                    if (data.alert_title && (data.alert_title.includes('Belum Absen') || data.alert_title.includes('pagi'))) {
-                        showAttendancePopup('pagi_belum_absen', mahasiswaName, kompi, timeStr);
-                    } else if (data.alert_title && data.alert_title.includes('Sudah Absen Masuk')) {
-                        showAttendancePopup('already_checked_in', mahasiswaName, kompi, timeStr);
-                    } else {
-                        Swal.fire({
-                            title: data.alert_title || 'Perhatian',
-                            text: data.alert_text || data.message,
-                            icon: data.alert_type || 'info',
-                            confirmButtonColor: data.alert_type === 'error' ? '#ef4444' : (data.alert_type === 'warning' ? '#f59e0b' : '#3b82f6'),
-                            timer: 4000,
-                            timerProgressBar: true
-                        });
-                    }
-                }
+            } else if (data.result && data.result.status === 'already_checked_in') {
+                showAttendancePopup('already_checked_in', mahasiswaName, kompi, timeStr);
+            } else if (data.result && data.result.status === 'already_checked_out') {
+                showAttendancePopup('already_checked_out', mahasiswaName, kompi, timeStr);
+            } else if (data.result && data.result.status === 'cooldown') {
+                showAttendancePopup('cooldown', mahasiswaName, kompi, timeStr, data.alert_text);
+            } else if (data.result && ['sakit', 'izin', 'alpha'].includes(data.result.status)) {
+                showAttendancePopup(data.result.status, mahasiswaName, kompi, timeStr, data.alert_text);
+            } else {
+                showAttendancePopup('masuk', mahasiswaName, kompi, timeStr);
             }
-
         } else {
-            // Error / Rejection responses (404, 403, 400, etc.)
-            const msg = data.message || `Error ${res.status}`;
+            // Rejection / Error responses
+            const msg = data.alert_text || data.message || `Error ${res.status}`;
             console.warn('[Attendance]', msg);
 
             if (data.reason === 'not_checked_in' || data.result?.status === 'not_checked_in' || (data.alert_title && data.alert_title.includes('Belum Absen'))) {
-                showAttendancePopup('pagi_belum_absen', mahasiswaName, kompi, timeStr);
-            } else if (data.show_alert && typeof Swal !== 'undefined') {
-                Swal.fire({
-                    title: data.alert_title || 'Perhatian',
-                    text: data.alert_text || data.message,
-                    icon: data.alert_type || 'info',
-                    confirmButtonColor: data.alert_type === 'error' ? '#ef4444' : (data.alert_type === 'warning' ? '#f59e0b' : '#3b82f6'),
-                    timer: 4000,
-                    timerProgressBar: true
-                });
+                showAttendancePopup('pagi_belum_absen', mahasiswaName, kompi, timeStr, data.alert_text);
+            } else if (data.reason === 'too_early' || (data.alert_title && data.alert_title.includes('Sudah Absen Masuk'))) {
+                showAttendancePopup('too_early', mahasiswaName, kompi, timeStr, data.alert_text);
+            } else if (data.reason === 'no_schedule') {
+                showAttendancePopup('no_schedule', mahasiswaName, kompi, timeStr, 'Tidak ada jadwal absensi hari ini.');
+            } else if (data.reason === 'too_late') {
+                showAttendancePopup('too_late', mahasiswaName, kompi, timeStr, 'Waktu absensi hari ini sudah ditutup.');
+            } else if (res.status === 404 || (data.alert_title && data.alert_title.includes('Tidak Dikenali'))) {
+                showAttendancePopup('not_found', `QR "${mahasiswaId}"`, '', timeStr, 'QR Code tidak terdaftar di sistem.');
             } else {
-                showToast(msg, res.status >= 500 ? '#ef4444' : '#f97316');
+                showAttendancePopup('unknown', mahasiswaName, kompi, timeStr, msg);
             }
         }
     } catch (err) {
         console.warn('Attendance recording error:', err);
-        showToast('Gagal menghubungi server Python', '#ef4444');
+        showAttendancePopup('not_found', 'Error Koneksi', '', '', 'Gagal menghubungi server Python');
     }
 }
 
