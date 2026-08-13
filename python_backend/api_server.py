@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 logger = logging.getLogger(__name__)
 
-from flask import Flask, Response, jsonify, request, render_template
+from flask import Flask, Response, jsonify, request, render_template, send_file
 from flask_cors import CORS
 import cv2
 import numpy as np
@@ -28,6 +28,8 @@ from datetime import datetime
 from app.attendance_engine import create_system, AttendanceProcessor
 from app.database_manager import DatabaseManager
 from app.config_db import MYSQL_CONFIG, YOLO_SETTINGS, RTSP_SETTINGS, reload_settings
+from app.device_info import get_device_info
+from app.scan_logger import ScanSpeedLogger
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
@@ -226,8 +228,62 @@ def status():
         'status': 'running',
         'yolo_model': str(YOLO_SETTINGS.get('model_path')),
         'confidence': YOLO_SETTINGS.get('confidence'),
-        'rtsp_settings': RTSP_SETTINGS
+        'rtsp_settings': RTSP_SETTINGS,
+        'device': get_device_info()
     })
+
+@app.route('/api/python/device-info', methods=['GET'])
+def get_device_info_endpoint():
+    """Get current laptop hardware info (brand, model, hostname, OS)"""
+    return jsonify({
+        'success': True,
+        'device': get_device_info()
+    })
+
+@app.route('/api/python/scan-logs', methods=['GET'])
+def get_scan_logs_endpoint():
+    """Get recent scan speed logs (read-only)"""
+    limit = request.args.get('limit', default=100, type=int)
+    logs = ScanSpeedLogger.get_logs(limit=limit)
+    return jsonify({
+        'success': True,
+        'count': len(logs),
+        'device': get_device_info(),
+        'logs': logs
+    })
+
+@app.route('/api/python/scan-logs/dates', methods=['GET'])
+def get_scan_log_dates_endpoint():
+    """Get list of available daily report dates with scan counts & filenames"""
+    dates = ScanSpeedLogger.get_available_report_dates()
+    return jsonify({
+        'success': True,
+        'dates': dates
+    })
+
+@app.route('/api/python/scan-logs/excel', methods=['GET'])
+def export_scan_logs_excel():
+    """Download scan speed & device performance Excel report for a specific date"""
+    try:
+        target_date = request.args.get('date', default=None, type=str)
+        if not target_date or target_date == 'today':
+            target_date = datetime.now().strftime('%Y-%m-%d')
+
+        file_path = ScanSpeedLogger.generate_excel_report(target_date=target_date)
+        filename = file_path.name
+
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate scan log excel: {e}")
+        return jsonify({
+            'success': False,
+            'message': f"Gagal generate file Excel: {str(e)}"
+        }), 500
 
 @app.route('/api/python/reload-settings', methods=['POST'])
 def reload_settings_endpoint():
@@ -391,8 +447,9 @@ def record_attendance():
     Penulisan ke DB hanya dilakukan saat user menekan 'Sync ke Server'
     yang memanggil Laravel /api/sync endpoint.
     """
+    start_time = time.perf_counter()
     try:
-        data = request.json
+        data = request.json or {}
         qr_code_id = data.get('mahasiswa_id')  # This is actually the QR code ID
         confidence = data.get('confidence', 0.0)
         kegiatan_id = data.get('kegiatan_id', None)
@@ -637,14 +694,22 @@ def record_attendance():
                 }
             }
 
-            # Add warning alert if late
-            if action == 'check_in' and is_late:
-                response_data.update({
-                    'show_alert': True,
-                    'alert_type': 'warning',
-                    'alert_title': '⚠️ Terlambat!',
-                    'alert_text': f'{mahasiswa["name"]} terlambat {late_duration} menit.\n\nAbsensi masuk tetap dicatat.'
-                })
+            # Log scan speed per transaction (Append-Only)
+            try:
+                api_duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                scan_type_str = 'keluar' if action == 'check_out' else 'masuk'
+                ScanSpeedLogger.log_scan(
+                    qr_code_id=str(qr_code_id),
+                    mahasiswa_name=mahasiswa.get('name'),
+                    status='SUCCESS',
+                    scan_type=scan_type_str,
+                    input_type=data.get('input_type', 'USB-SCANNER'),
+                    hardware_ms=data.get('hardware_ms', 0.0),
+                    api_duration_ms=api_duration_ms,
+                    client_ip=request.remote_addr
+                )
+            except Exception as _e_log:
+                logger.error(f"Logging error: {_e_log}")
 
             return jsonify(response_data)
 

@@ -483,7 +483,7 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr) {
 
 
 // ===== RECORD ATTENDANCE =====
-async function recordAttendance(mahasiswaId, confidence = 0.0) {
+async function recordAttendance(mahasiswaId, confidence = 0.0, inputType = 'USB-SCANNER', hardwareMs = 0.0) {
     try {
         const kegiatanSelect = document.getElementById('kegiatan-select');
         const kegiatanId = kegiatanSelect ? kegiatanSelect.value : null;
@@ -495,7 +495,9 @@ async function recordAttendance(mahasiswaId, confidence = 0.0) {
                 mahasiswa_id: mahasiswaId,
                 status: 'hadir',
                 confidence: confidence,
-                kegiatan_id: kegiatanId
+                kegiatan_id: kegiatanId,
+                input_type: inputType,
+                hardware_ms: hardwareMs
             })
         });
 
@@ -1431,6 +1433,8 @@ async function readSerialData() {
     }
 }
 
+let barcodeFirstKeyTime = 0;
+
 document.addEventListener('keydown', function (e) {
     // Abaikan input jika user sedang fokus mengetik di input form atau textarea
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -1442,6 +1446,7 @@ document.addEventListener('keydown', function (e) {
     // Toleransi interval ketikan scanner keyboard emulation diperlonggar (300ms)
     if (currentTime - lastKeyTime > 300) {
         barcodeBuffer = "";
+        barcodeFirstKeyTime = 0;
     }
 
     lastKeyTime = currentTime;
@@ -1449,8 +1454,9 @@ document.addEventListener('keydown', function (e) {
     // Jika Enter ditekan, proses buffer sebagai barcode
     if (e.key === 'Enter') {
         if (barcodeBuffer.length > 0) {
-            console.log("Scanner Keyboard Emulation Mendeteksi:", barcodeBuffer);
-            recordAttendance(barcodeBuffer, 1.0);
+            const hwMs = barcodeFirstKeyTime > 0 ? (currentTime - barcodeFirstKeyTime) : 0;
+            console.log(`Scanner Keyboard Emulation Mendeteksi: ${barcodeBuffer} (Waktu Alat: ${hwMs}ms)`);
+            recordAttendance(barcodeBuffer, 1.0, 'USB-SCANNER', hwMs);
 
             // UI Indicator Update
             const ind = document.getElementById('scanner-indicator');
@@ -1482,11 +1488,15 @@ document.addEventListener('keydown', function (e) {
             }
 
             barcodeBuffer = "";
+            barcodeFirstKeyTime = 0;
             e.preventDefault();
         }
     }
     // Simpan karakter tunggal (huruf/angka/tanda baca)
     else if (e.key.length === 1) {
+        if (barcodeBuffer.length === 0) {
+            barcodeFirstKeyTime = currentTime;
+        }
         barcodeBuffer += e.key;
     }
 });
@@ -1530,3 +1540,87 @@ window.addEventListener('storage', async (e) => {
         }
     }
 });
+
+// ===== MODAL DOWNLOAD REPORT EXCEL PER HARI =====
+async function showDownloadReportModal() {
+    if (typeof Swal === 'undefined') return;
+
+    Swal.fire({
+        title: '📊 Download Report Kecepatan Scan',
+        html: '<div style="padding: 15px; text-align: center; color: #6b7280;">Mengambil daftar file laporan per tanggal...</div>',
+        showConfirmButton: false,
+        showCloseButton: true,
+        width: 620
+    });
+
+    try {
+        const res = await fetch(`${PYTHON_API_URL}/scan-logs/dates`);
+        const data = await res.json();
+
+        if (!data.success || !data.dates || data.dates.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Belum Ada Laporan',
+                text: 'Belum ada data log scan yang tersimpan di sistem.',
+                confirmButtonColor: '#0284c7'
+            });
+            return;
+        }
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+
+        let listHtml = `
+            <div style="text-align: left; font-size: 13px; color: #4b5563; margin-bottom: 15px;">
+                File laporan Excel dibuat <strong>otomatis 1 file per hari</strong>. Setiap file berisi <strong>2 Sheet</strong> (<em>Scan Masuk</em> &amp; <em>Scan Keluar</em>).
+            </div>
+            <div style="max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;">
+        `;
+
+        data.dates.forEach(item => {
+            const isToday = (item.date === todayStr);
+            const todayBadge = isToday ? `<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; margin-left: 6px;">Hari ini</span>` : '';
+
+            listHtml += `
+                <div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 12px; text-align: left; flex: 1;">
+                        <div style="width: 40px; height: 40px; background: #e0f2fe; color: #0284c7; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <span class="material-symbols-outlined" style="font-size: 24px;">description</span>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 14px; color: #1e293b; display: flex; align-items: center;">
+                                ${item.filename} ${todayBadge}
+                            </div>
+                            <div style="font-size: 12px; color: #64748b; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap;">
+                                <span>📅 ${item.label}</span>
+                                <span>• 📊 Total: <strong>${item.total_scans}</strong> scan</span>
+                                <span>(🟢 Masuk: ${item.masuk_count} | 🔴 Keluar: ${item.keluar_count})</span>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="${PYTHON_API_URL}/scan-logs/excel?date=${item.date}" target="_blank" style="padding: 8px 14px; background: #0284c7; color: white; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 4px; white-space: nowrap; transition: all 0.2s ease;">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">download</span> Download
+                    </a>
+                </div>
+            `;
+        });
+
+        listHtml += `</div>`;
+
+        Swal.fire({
+            title: '📊 Download Report Kecepatan Scan',
+            html: listHtml,
+            showConfirmButton: false,
+            showCloseButton: true,
+            width: 640
+        });
+
+    } catch (err) {
+        console.error("Gagal load daftar tanggal log scan:", err);
+        Swal.fire({
+            icon: 'error',
+            title: 'Gagal Memuat Laporan',
+            text: 'Terjadi kesalahan saat mengambil daftar file laporan.',
+            confirmButtonColor: '#ef4444'
+        });
+    }
+}
