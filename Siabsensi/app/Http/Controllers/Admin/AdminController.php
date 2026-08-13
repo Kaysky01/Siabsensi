@@ -2414,7 +2414,41 @@ class AdminController extends Controller
         $spreadsheet->setActiveSheetIndex(0);
 
         $excelWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
-        $excelFileName = 'monitoring_absensi_' . date('Y-m-d_His') . '.xlsx';
+
+        $monthsIndo = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+
+        try {
+            $cStart = Carbon::parse($start);
+            $cEnd = Carbon::parse($end);
+        } catch (\Exception $e) {
+            $cStart = Carbon::today();
+            $cEnd = Carbon::today();
+        }
+
+        $startDay = $cStart->day;
+        $endDay = $cEnd->day;
+        $startMonthStr = $monthsIndo[$cStart->month] ?? $cStart->format('F');
+        $endMonthStr = $monthsIndo[$cEnd->month] ?? $cEnd->format('F');
+        $startYear = $cStart->year;
+        $endYear = $cEnd->year;
+
+        if ($cStart->toDateString() === $cEnd->toDateString()) {
+            $dateRangeStr = "{$startDay} {$startMonthStr}";
+            $excelFileName = "Recap PKKMB {$startYear} {$dateRangeStr}.xlsx";
+        } elseif ($startYear === $endYear && $cStart->month === $cEnd->month) {
+            $dateRangeStr = "{$startDay}-{$endDay} {$startMonthStr}";
+            $excelFileName = "Recap PKKMB {$startYear} {$dateRangeStr}.xlsx";
+        } elseif ($startYear === $endYear) {
+            $dateRangeStr = "{$startDay} {$startMonthStr} - {$endDay} {$endMonthStr}";
+            $excelFileName = "Recap PKKMB {$startYear} {$dateRangeStr}.xlsx";
+        } else {
+            $dateRangeStr = "{$startDay} {$startMonthStr} {$startYear} - {$endDay} {$endMonthStr} {$endYear}";
+            $excelFileName = "Recap PKKMB {$dateRangeStr}.xlsx";
+        }
 
         return response()->stream(
             function () use ($excelWriter) {

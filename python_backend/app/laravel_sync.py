@@ -1129,7 +1129,7 @@ class LaravelSyncService:
             invalid_keywords = [
                 'monitoring', 'absensi', 'live', 'periode', 'dicetak', 'total',
                 'prodi:', 'jalur', 'nomor pendaftaran', 'nama mahasiswa',
-                'status absensi', 'jam masuk', 'jam keluar', 'kamera', 'jadwal'
+                'status absensi', 'jam masuk', 'jam keluar', 'kamera'
             ]
 
             for sheet_name in wb.sheetnames:
