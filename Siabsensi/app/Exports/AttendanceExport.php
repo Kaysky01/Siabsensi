@@ -4,6 +4,7 @@ namespace App\Exports;
 
 use App\Models\Attendance;
 use App\Models\Mahasiswa;
+use App\Models\PkkmbSchedule;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
@@ -26,6 +27,7 @@ class AttendanceExport implements FromQuery, WithColumnWidths, WithHeadings, Wit
     protected $prodi;
     protected $search;
     protected $exportFields;
+    protected $schedules;
 
     private $rowNumber = 0;
 
@@ -37,7 +39,9 @@ class AttendanceExport implements FromQuery, WithColumnWidths, WithHeadings, Wit
         'jurusan' => 'Jurusan',
         'prodi' => 'Prodi',
         'date' => 'Tanggal',
+        'schedule_in' => 'Jadwal Masuk',
         'check_in' => 'Jam Masuk',
+        'schedule_out' => 'Jadwal Keluar',
         'check_out' => 'Jam Keluar',
         'status' => 'Status Absensi',
         'camera_id' => 'Kamera / Device',
@@ -61,8 +65,17 @@ class AttendanceExport implements FromQuery, WithColumnWidths, WithHeadings, Wit
         $this->prodi = $prodi;
         $this->search = $search;
 
+        // Load all active schedules keyed by formatted Y-m-d date
+        try {
+            $this->schedules = PkkmbSchedule::get()->keyBy(function ($s) {
+                return \Carbon\Carbon::parse($s->tanggal)->format('Y-m-d');
+            });
+        } catch (\Throwable $e) {
+            $this->schedules = collect();
+        }
+
         if (empty($exportFields)) {
-            $this->exportFields = ['id', 'name', 'kompi', 'jurusan', 'prodi', 'date', 'check_in', 'check_out', 'status', 'camera_id'];
+            $this->exportFields = ['id', 'name', 'kompi', 'jurusan', 'prodi', 'date', 'schedule_in', 'check_in', 'schedule_out', 'check_out', 'status', 'camera_id'];
         } else {
             $this->exportFields = array_intersect(array_keys($this->fieldLabels), (array) $exportFields);
         }
@@ -150,10 +163,26 @@ class AttendanceExport implements FromQuery, WithColumnWidths, WithHeadings, Wit
     {
         $data = [++$this->rowNumber];
 
-        $statusBadge = $row->getStatusBadgeData();
+        $statusBadge = method_exists($row, 'getStatusBadgeData') ? $row->getStatusBadgeData() : ['label' => ucfirst($row->status ?? 'Alpha')];
         $statusText = $statusBadge['label'];
+
+        $isManual = ($row->absen_by && $row->absen_by !== 'Sistem') || (!empty($row->camera_id) && str_contains(strtolower($row->camera_id), 'manual'));
         if ($isManual) {
             $statusText .= ' (Manual)';
+        }
+
+        $rowDate = $row->date ? date('Y-m-d', strtotime($row->date)) : null;
+        $sched = ($rowDate && isset($this->schedules[$rowDate])) ? $this->schedules[$rowDate] : null;
+
+        $scheduleIn = '-';
+        $scheduleOut = '-';
+        if ($sched) {
+            if ($sched->check_in_start && $sched->check_in_end) {
+                $scheduleIn = date('H:i', strtotime($sched->check_in_start)) . ' - ' . date('H:i', strtotime($sched->check_in_end));
+            }
+            if ($sched->check_out_start && $sched->check_out_end) {
+                $scheduleOut = date('H:i', strtotime($sched->check_out_start)) . ' - ' . date('H:i', strtotime($sched->check_out_end));
+            }
         }
 
         foreach ($this->exportFields as $field) {
@@ -179,8 +208,14 @@ class AttendanceExport implements FromQuery, WithColumnWidths, WithHeadings, Wit
                 case 'date':
                     $data[] = $row->date ? date('d/m/Y', strtotime($row->date)) : '-';
                     break;
+                case 'schedule_in':
+                    $data[] = $scheduleIn;
+                    break;
                 case 'check_in':
                     $data[] = $row->check_in ? date('H:i', strtotime($row->check_in)) : '-';
+                    break;
+                case 'schedule_out':
+                    $data[] = $scheduleOut;
                     break;
                 case 'check_out':
                     $data[] = $row->check_out ? date('H:i', strtotime($row->check_out)) : '-';
@@ -234,7 +269,9 @@ class AttendanceExport implements FromQuery, WithColumnWidths, WithHeadings, Wit
             'jurusan' => 20,
             'prodi' => 20,
             'date' => 14,
+            'schedule_in' => 18,
             'check_in' => 12,
+            'schedule_out' => 18,
             'check_out' => 12,
             'status' => 15,
             'camera_id' => 15,

@@ -1422,13 +1422,33 @@ def sync_all_from_laravel():
                 'message': result.get('message', 'Sinkronisasi gagal'),
                 'results': result
             }), 500
-        
+
     except Exception as e:
         logger.error(f"Sync all error: {e}")
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
+@app.route('/api/python/sync/import-excel-backup', methods=['POST'])
+def import_excel_backup():
+    """Import data Mahasiswa & Absensi dari file Excel backup Laravel (.xlsx) ketika server offline"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'File Excel tidak ditemukan'}), 400
+            
+        file = request.files['file']
+        if not file or file.filename == '':
+            return jsonify({'success': False, 'message': 'Pilih file Excel (.xlsx) yang valid'}), 400
+
+        from app.laravel_sync import LaravelSyncService
+        sync_service = LaravelSyncService()
+        result = sync_service.import_excel_backup_to_local(file)
+
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error importing excel backup: {e}")
+        return jsonify({'success': False, 'message': f'Terjadi kesalahan import: {str(e)}'}), 500
 
 
 @app.route('/api/python/sync/attendance', methods=['POST'])

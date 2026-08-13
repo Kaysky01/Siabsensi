@@ -895,33 +895,38 @@ class LaravelSyncService:
                 'message': f'Error fetching attendance: {str(e)}'
             }
 
-    def _format_datetime_for_mysql(self, val):
+    def _format_datetime_for_mysql(self, val, date_context=None):
         """Format string/ISO/datetime object to MySQL DATETIME format (YYYY-MM-DD HH:MM:SS).
         Otomatis konversi UTC → WIB (UTC+7) jika timestamp mengandung timezone indicator Z atau +00:00."""
         if not val:
             return None
+        val_str = str(val).strip()
+        if not val_str or val_str.lower() in ('none', 'null', '', '-', 'manual', 'usb-scanner', 'web-scanner', 'n/a'):
+            return None
+
+        import re
+        from datetime import datetime, timezone, timedelta
+
+        # Support time-only strings like '06.34', '06:34', '06.34.12', '06:34:12'
+        time_match = re.match(r'^(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?$', val_str)
+        if time_match:
+            hh, mm, ss = int(time_match.group(1)), int(time_match.group(2)), int(time_match.group(3) or 0)
+            date_part = date_context or datetime.now().strftime('%Y-%m-%d')
+            return f"{date_part} {hh:02d}:{mm:02d}:{ss:02d}"
+
         try:
-            val_str = str(val).strip()
-            if not val_str or val_str.lower() in ('none', 'null', ''):
-                return None
             from dateutil import parser as dateparser
-            from datetime import timezone, timedelta
-            dt = dateparser.parse(val_str)
-            # Jika timestamp punya timezone info (misal 'Z' atau '+00:00'), konversi ke WIB
+            dt = dateparser.parse(val_str, dayfirst=True)
             if dt.tzinfo is not None:
                 wib = timezone(timedelta(hours=7))
                 dt = dt.astimezone(wib)
             elif val_str.endswith('Z') or '+00:00' in val_str:
-                # Fallback: jika dateutil tidak parse timezone tapi string jelas UTC
                 from datetime import timezone as tz, timedelta as td
                 dt = dt.replace(tzinfo=tz.utc).astimezone(tz(td(hours=7)))
             return dt.strftime('%Y-%m-%d %H:%M:%S')
         except Exception as e:
             logger.warning(f"Failed to parse datetime '{val}': {e}")
-            val_s = str(val)
-            if len(val_s) >= 19:
-                return val_s[:10] + ' ' + val_s[11:19]
-            return val_s
+            return None
 
     def _format_date_for_mysql(self, date_val, check_in=None):
         """Format date string to MySQL DATE format (YYYY-MM-DD).
@@ -929,10 +934,10 @@ class LaravelSyncService:
         if date_val:
             try:
                 val_str = str(date_val).strip()
-                if val_str and val_str.lower() not in ('none', 'null', ''):
+                if val_str and val_str.lower() not in ('none', 'null', '', '-', 'manual', 'usb-scanner', 'web-scanner', 'n/a'):
                     from dateutil import parser as dateparser
                     from datetime import timezone, timedelta
-                    dt = dateparser.parse(val_str)
+                    dt = dateparser.parse(val_str, dayfirst=True)
                     if dt.tzinfo is not None:
                         wib = timezone(timedelta(hours=7))
                         dt = dt.astimezone(wib)
@@ -941,8 +946,7 @@ class LaravelSyncService:
                         dt = dt.replace(tzinfo=tz.utc).astimezone(tz(td(hours=7)))
                     return dt.strftime('%Y-%m-%d')
             except Exception:
-                if len(str(date_val)) >= 10:
-                    return str(date_val)[:10]
+                pass
         
         if check_in:
             formatted_ci = self._format_datetime_for_mysql(check_in)
@@ -1079,4 +1083,224 @@ class LaravelSyncService:
             'errors': errors,
             'total': len(attendances)
         }
+
+    def import_excel_backup_to_local(self, file_path_or_bytes) -> Dict:
+        """
+        Import data Mahasiswa & Absensi dari file Excel export Laravel (AttendanceExport / MahasiswaExport),
+        termasuk file multi-sheet dan multi-tabel yang dikelompokkan per Prodi.
+        Memasukkan data ke database MySQL lokal & memperbarui backup JSON internal.
+        """
+        import openpyxl
+        import io
+        
+        mhs_inserted, mhs_updated = 0, 0
+        att_inserted, att_updated = 0, 0
+        errors = 0
+        
+        try:
+            # Handle string path, FileStorage, or bytes
+            if hasattr(file_path_or_bytes, 'read'):
+                wb = openpyxl.load_workbook(filename=io.BytesIO(file_path_or_bytes.read()), data_only=True)
+            elif isinstance(file_path_or_bytes, (bytes, bytearray)):
+                wb = openpyxl.load_workbook(filename=io.BytesIO(file_path_or_bytes), data_only=True)
+            else:
+                wb = openpyxl.load_workbook(filename=file_path_or_bytes, data_only=True)
+            
+            conn = self._get_conn()
+            cursor = conn.cursor(dictionary=True)
+            self._ensure_attendance_schema(cursor)
+            
+            # Auto-widen column sizes if needed
+            for alter_sql in [
+                "ALTER TABLE mahasiswa MODIFY COLUMN id VARCHAR(100)",
+                "ALTER TABLE attendance MODIFY COLUMN mahasiswa_id VARCHAR(100)",
+                "ALTER TABLE users MODIFY COLUMN mahasiswa_id VARCHAR(100)"
+            ]:
+                try:
+                    cursor.execute(alter_sql)
+                except Exception:
+                    pass
+
+            try:
+                cursor.execute("SET FOREIGN_KEY_CHECKS=0")
+            except Exception:
+                pass
+            
+            invalid_keywords = [
+                'monitoring', 'absensi', 'live', 'periode', 'dicetak', 'total',
+                'prodi:', 'jalur', 'nomor pendaftaran', 'nama mahasiswa',
+                'status absensi', 'jam masuk', 'jam keluar', 'kamera', 'jadwal'
+            ]
+
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                col_map = {}
+                
+                for row in ws.iter_rows(values_only=True):
+                    if not row or not any(row):
+                        continue
+                    
+                    row_strs = [str(cell).strip() if cell is not None else '' for cell in row]
+                    row_lowers = [s.lower() for s in row_strs]
+                    
+                    # Strict Header Detection: Row must contain 'nama' AND ('pendaftaran' or 'npm' or 'id')
+                    has_nama = any('nama' in s for s in row_lowers)
+                    has_id_col = any('pendaftaran' in s or 'npm' in s or s in ('id', 'no', 'mahasiswa_id') for s in row_lowers)
+
+                    if has_nama and has_id_col:
+                        new_col_map = {}
+                        for idx, s in enumerate(row_lowers):
+                            if 'pendaftaran' in s or 'npm' in s or s in ('id', 'mahasiswa_id'):
+                                new_col_map['id'] = idx
+                            elif 'nama' in s:
+                                new_col_map['name'] = idx
+                            elif 'email' in s:
+                                new_col_map['email'] = idx
+                            elif 'kompi' in s:
+                                new_col_map['kompi'] = idx
+                            elif 'jurusan' in s:
+                                new_col_map['jurusan'] = idx
+                            elif 'prodi' in s:
+                                new_col_map['prodi'] = idx
+                            elif 'tanggal' in s or 'date' in s:
+                                new_col_map['date'] = idx
+                            elif ('masuk' in s or 'check_in' in s or 'check in' in s) and not any(k in s for k in ['tipe', 'metode', 'status', 'kamera']):
+                                new_col_map['check_in'] = idx
+                            elif ('keluar' in s or 'check_out' in s or 'check out' in s) and not any(k in s for k in ['tipe', 'metode', 'status', 'kamera']):
+                                new_col_map['check_out'] = idx
+                            elif 'status' in s and 'scan' not in s:
+                                new_col_map['status'] = idx
+
+                        if 'name' in new_col_map or 'id' in new_col_map:
+                            col_map = new_col_map
+                            continue  # Skip header row itself
+
+                    if not col_map:
+                        continue  # No header established yet for this table section
+
+                    mhs_id = row_strs[col_map['id']] if 'id' in col_map and col_map['id'] < len(row_strs) else ''
+                    mhs_name = row_strs[col_map['name']] if 'name' in col_map and col_map['name'] < len(row_strs) else ''
+
+                    # Skip empty / invalid / non-student rows
+                    if not mhs_id and not mhs_name:
+                        continue
+
+                    # Filter out title banner & sub-header rows
+                    mhs_id_lower = mhs_id.lower()
+                    mhs_name_lower = mhs_name.lower()
+
+                    if any(inv in mhs_id_lower for inv in invalid_keywords) or any(inv in mhs_name_lower for inv in invalid_keywords):
+                        continue
+
+                    if mhs_id_lower in ('no', 'nomor pendaftaran', 'npm', 'id', 'mahasiswa_id') or mhs_name_lower in ('nama mahasiswa', 'nama'):
+                        continue
+
+                    if not mhs_id and mhs_name:
+                        mhs_id = mhs_name
+
+                    # Truncate mhs_id to max 100 characters to prevent any MySQL length error
+                    mhs_id = mhs_id[:100].strip()
+                    mhs_name = mhs_name[:255].strip()
+
+                    email = row_strs[col_map['email']] if 'email' in col_map and col_map['email'] < len(row_strs) else None
+                    kompi = row_strs[col_map['kompi']] if 'kompi' in col_map and col_map['kompi'] < len(row_strs) else None
+                    jurusan = row_strs[col_map['jurusan']] if 'jurusan' in col_map and col_map['jurusan'] < len(row_strs) else None
+                    prodi = row_strs[col_map['prodi']] if 'prodi' in col_map and col_map['prodi'] < len(row_strs) else None
+
+                    if email in ('-', 'nan', 'None', ''): email = None
+                    if kompi in ('-', 'nan', 'None', ''): kompi = None
+                    if jurusan in ('-', 'nan', 'None', ''): jurusan = None
+                    if prodi in ('-', 'nan', 'None', ''): prodi = None
+
+                    # 1. Update/Insert Mahasiswa
+                    cursor.execute("SELECT id FROM mahasiswa WHERE id = %s", (mhs_id,))
+                    existing_mhs = cursor.fetchone()
+
+                    cursor.execute("""
+                        INSERT INTO mahasiswa (
+                            id, name, kompi, jurusan, prodi, email, qr_code_id, is_active
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, 1)
+                        ON DUPLICATE KEY UPDATE
+                            name = VALUES(name),
+                            kompi = COALESCE(VALUES(kompi), kompi),
+                            jurusan = COALESCE(VALUES(jurusan), jurusan),
+                            prodi = COALESCE(VALUES(prodi), prodi),
+                            email = COALESCE(VALUES(email), email)
+                    """, (mhs_id, mhs_name or f"Mahasiswa ({mhs_id})", kompi, jurusan, prodi, email, mhs_id))
+
+                    if existing_mhs:
+                        mhs_updated += 1
+                    else:
+                        mhs_inserted += 1
+
+                    # Auto sync user account
+                    self._sync_user_with_cursor(cursor, {
+                        'id': mhs_id,
+                        'name': mhs_name or f"Mahasiswa ({mhs_id})",
+                        'kompi': kompi,
+                        'is_active': True
+                    })
+
+                    # 2. Extract Attendance data
+                    date_raw = row_strs[col_map['date']] if 'date' in col_map and col_map['date'] < len(row_strs) else None
+                    ci_raw = row_strs[col_map['check_in']] if 'check_in' in col_map and col_map['check_in'] < len(row_strs) else None
+                    co_raw = row_strs[col_map['check_out']] if 'check_out' in col_map and col_map['check_out'] < len(row_strs) else None
+                    status_raw = row_strs[col_map['status']] if 'status' in col_map and col_map['status'] < len(row_strs) else None
+
+                    if date_raw in ('-', 'nan', 'None', ''): date_raw = None
+                    if ci_raw in ('-', 'nan', 'None', ''): ci_raw = None
+                    if co_raw in ('-', 'nan', 'None', ''): co_raw = None
+                    if status_raw in ('-', 'nan', 'None', ''): status_raw = None
+
+                    if date_raw or ci_raw or status_raw:
+                        formatted_date = self._format_date_for_mysql(date_raw, ci_raw)
+                        formatted_ci = self._format_datetime_for_mysql(ci_raw, date_context=formatted_date) if ci_raw else None
+                        formatted_co = self._format_datetime_for_mysql(co_raw, date_context=formatted_date) if co_raw else None
+                        status_clean = (status_raw or 'hadir').lower()
+
+                        cursor.execute("SELECT id FROM attendance WHERE mahasiswa_id = %s AND date = %s", (mhs_id, formatted_date))
+                        existing_att = cursor.fetchone()
+
+                        if existing_att:
+                            cursor.execute("""
+                                UPDATE attendance SET
+                                    check_in = COALESCE(%s, check_in),
+                                    check_out = COALESCE(%s, check_out),
+                                    status = %s,
+                                    is_synced = 1
+                                WHERE id = %s
+                            """, (formatted_ci, formatted_co, status_clean, existing_att['id']))
+                            att_updated += 1
+                        else:
+                            cursor.execute("""
+                                INSERT INTO attendance (
+                                    mahasiswa_id, date, check_in, check_out, status, camera_id, is_synced
+                                ) VALUES (%s, %s, %s, %s, %s, 'IMPORT-EXCEL', 1)
+                            """, (mhs_id, formatted_date, formatted_ci, formatted_co, status_clean))
+                            att_inserted += 1
+
+            conn.commit()
+            try:
+                cursor.execute("SET FOREIGN_KEY_CHECKS=1")
+            except Exception:
+                pass
+            cursor.close()
+            conn.close()
+
+            return {
+                'success': True,
+                'message': f"Import Excel berhasil! Data Mahasiswa (+{mhs_inserted} / ~{mhs_updated}), Absensi (+{att_inserted} / ~{att_updated}).",
+                'stats': {
+                    'mhs_inserted': mhs_inserted,
+                    'mhs_updated': mhs_updated,
+                    'att_inserted': att_inserted,
+                    'att_updated': att_updated
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error importing Excel backup: {e}", exc_info=True)
+            return {
+                'success': False,
+                'message': f"Gagal membaca file Excel: {str(e)}"
+            }
 

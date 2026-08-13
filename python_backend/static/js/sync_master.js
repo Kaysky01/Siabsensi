@@ -13,34 +13,41 @@ function showSyncMasterDataDialog() {
     Swal.fire({
         title: 'Sinkronisasi Master Data',
         html: `
-            <div style="text-align: left; margin-bottom: 20px;">
-                <p style="margin-bottom: 15px; color: #6b7280;">
+            <div style="text-align: left; margin-bottom: 15px;">
+                <p style="margin-bottom: 12px; color: #6b7280;">
                     Sinkronisasi data master dari Laravel ke database Python lokal:
                 </p>
-                <ul style="margin-left: 20px; color: #4b5563; line-height: 1.8;">
+                <ul style="margin-left: 20px; color: #4b5563; line-height: 1.7; font-size: 13px;">
                     <li>Data Mahasiswa & User Accounts</li>
                     <li>Jadwal PKKMB</li>
-                    <li>Data Kegiatan</li>
-                    <li>Toleransi Keterlambatan & Konfigurasi Sistem</li>
+                    <li>Data Kegiatan & System Config</li>
                     <li>Data Kehadiran / Check-In Hari Ini</li>
                 </ul>
-                <div style="margin-top: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">
-                        URL Server Laravel:
+                <div style="margin-top: 15px;">
+                    <label style="display: block; margin-bottom: 6px; font-weight: 600; color: #374151; font-size: 13px;">
+                        🌐 URL Server Laravel (Online Sync):
                     </label>
                     <input 
                         type="text" 
                         id="laravel-url-input" 
                         value="${LARAVEL_URL}"
                         placeholder="https://pkkmb.polinela.ac.id"
-                        style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;"
+                        style="width: 100%; padding: 9px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;"
                     />
+                </div>
+
+                <div style="margin-top: 18px; padding-top: 15px; border-top: 1px dashed #cbd5e1; text-align: center;">
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">-- ATAU JIKA SERVER ERRORED / OFFLINE --</div>
+                    <button type="button" onclick="Swal.close(); showImportExcelBackupModal();" style="width: 100%; padding: 10px; background: #0284c7; color: white; border: none; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">upload_file</span>
+                        <span>Import Excel Backup Laravel (Mode Offline)</span>
+                    </button>
                 </div>
             </div>
         `,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'Mulai Sinkronisasi',
+        confirmButtonText: '⚡ Mulai Sync Online',
         cancelButtonText: 'Batal',
         confirmButtonColor: '#10b981',
         cancelButtonColor: '#6b7280'
@@ -591,4 +598,83 @@ async function syncKegiatanOnly() {
             icon: 'success'
         });
     }
+}
+
+/**
+ * Show Import Excel Backup Dialog (For Offline Server Fallback)
+ */
+function showImportExcelBackupModal() {
+    Swal.fire({
+        title: 'Import Excel Backup (Mode Offline)',
+        html: `
+            <div style="text-align: left;">
+                <p style="color: #64748b; font-size: 13px; margin-bottom: 15px; line-height: 1.6;">
+                    Gunakan file Excel hasil export dari Laravel (misal <strong>AttendanceExport</strong> atau <strong>Data Mahasiswa</strong>) untuk memperbarui data master & absensi lokal tanpa koneksi ke server Laravel.
+                </p>
+                <div style="border: 2px dashed #0284c7; border-radius: 8px; padding: 20px; text-align: center; background: #f0f9ff; margin-bottom: 15px;">
+                    <input type="file" id="excel-backup-input" accept=".xlsx, .xls" style="display: none;" onchange="
+                        const f = this.files[0];
+                        if (f) {
+                            document.getElementById('file-chosen-name').innerText = '📄 ' + f.name;
+                        }
+                    " />
+                    <button type="button" onclick="document.getElementById('excel-backup-input').click()" style="padding: 10px 18px; background: #0284c7; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                        📁 Pilih File Excel (.xlsx)
+                    </button>
+                    <div id="file-chosen-name" style="margin-top: 10px; font-weight: 600; color: #0369a1; font-size: 13px;">Belum ada file dipilih</div>
+                </div>
+            </div>
+        `,
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: '🚀 Import Data Excel',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#0284c7',
+        showLoaderOnConfirm: true,
+        preConfirm: async () => {
+            const input = document.getElementById('excel-backup-input');
+            if (!input || !input.files || input.files.length === 0) {
+                Swal.showValidationMessage('Silakan pilih file Excel terlebih dahulu!');
+                return false;
+            }
+
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/python/sync/import-excel-backup', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Gagal memproses import file Excel');
+                }
+                return data;
+            } catch (err) {
+                Swal.showValidationMessage(`Import Gagal: ${err.message}`);
+            }
+        }
+    }).then((res) => {
+        if (res.isConfirmed && res.value) {
+            const stats = res.value.stats || {};
+            Swal.fire({
+                title: '✅ Import Excel Berhasil!',
+                html: `
+                    <div style="text-align: left; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 8px; font-size: 13px; color: #166534;">
+                        <p style="margin-bottom: 8px; font-weight: 600;">Ringkasan Data Terimport:</p>
+                        <ul style="margin-left: 20px; line-height: 1.8;">
+                            <li><strong>Mahasiswa Baru:</strong> +${stats.mhs_inserted || 0}</li>
+                            <li><strong>Mahasiswa Diupdate:</strong> ~${stats.mhs_updated || 0}</li>
+                            <li><strong>Absensi Baru:</strong> +${stats.att_inserted || 0}</li>
+                            <li><strong>Absensi Diupdate:</strong> ~${stats.att_updated || 0}</li>
+                        </ul>
+                    </div>
+                `,
+                icon: 'success',
+                confirmButtonColor: '#10b981'
+            });
+        }
+    });
 }
