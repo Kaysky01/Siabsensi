@@ -369,8 +369,8 @@ class AttendanceProcessor:
             fetch_one=True
         )
         
-        # If student already has a special status today (sakit, izin, alpha)
-        if row and row.get('status') in ['sakit', 'izin', 'alpha']:
+        # If student already has a special status today (sakit, izin)
+        if row and row.get('status') in ['sakit', 'izin']:
             status_val = row.get('status')
             logger.info(f"[{mahasiswa_id}] Mahasiswa has special status: {status_val}")
             return ('special_status', {

@@ -344,9 +344,10 @@ class DatabaseManager:
         logger.info("Database MySQL diinisialisasi.")
 
     def get_mahasiswa_by_qr(self, qr_code_id: str):
-        """Cari mahasiswa berdasarkan QR code (termasuk yang non-aktif)"""
-        query = "SELECT * FROM mahasiswa WHERE qr_code_id = %s"
-        return self._execute(query, (qr_code_id,), fetch_one=True)
+        """Cari mahasiswa berdasarkan QR code, ID/NPM, atau email (termasuk yang non-aktif)"""
+        clean_key = str(qr_code_id).strip()
+        query = "SELECT * FROM mahasiswa WHERE qr_code_id = %s OR id = %s OR email = %s"
+        return self._execute(query, (clean_key, clean_key, clean_key), fetch_one=True)
         
     def add_camera(self, camera_id: str, name: str, rtsp_url: str, location: str = ''):
         """Tambah atau update camera stream di database"""

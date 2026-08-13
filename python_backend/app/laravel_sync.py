@@ -916,7 +916,10 @@ class LaravelSyncService:
 
         try:
             from dateutil import parser as dateparser
-            dt = dateparser.parse(val_str, dayfirst=True)
+            if re.match(r'^\d{4}-\d{2}-\d{2}', val_str):
+                dt = dateparser.parse(val_str, yearfirst=True, dayfirst=False)
+            else:
+                dt = dateparser.parse(val_str, dayfirst=True)
             if dt.tzinfo is not None:
                 wib = timezone(timedelta(hours=7))
                 dt = dt.astimezone(wib)
@@ -935,9 +938,13 @@ class LaravelSyncService:
             try:
                 val_str = str(date_val).strip()
                 if val_str and val_str.lower() not in ('none', 'null', '', '-', 'manual', 'usb-scanner', 'web-scanner', 'n/a'):
+                    import re
                     from dateutil import parser as dateparser
                     from datetime import timezone, timedelta
-                    dt = dateparser.parse(val_str, dayfirst=True)
+                    if re.match(r'^\d{4}-\d{2}-\d{2}', val_str):
+                        dt = dateparser.parse(val_str, yearfirst=True, dayfirst=False)
+                    else:
+                        dt = dateparser.parse(val_str, dayfirst=True)
                     if dt.tzinfo is not None:
                         wib = timezone(timedelta(hours=7))
                         dt = dt.astimezone(wib)
@@ -994,14 +1001,16 @@ class LaravelSyncService:
             cursor.execute("SET FOREIGN_KEY_CHECKS=0")
             
             # 3. Ambil data existing ke memori Python 1x saja (mengatur N+1 query problem)
-            cursor.execute("SELECT id, mahasiswa_id, kegiatan_id, date, check_in, check_out FROM attendance")
+            cursor.execute("SELECT id, mahasiswa_id, kegiatan_id, date, check_in, check_out, status FROM attendance")
             existing_rows = cursor.fetchall() or []
             existing_map = {}
             for r in existing_rows:
-                k_keg = (str(r['mahasiswa_id']), r['kegiatan_id'], str(r['date']) if r['date'] else None)
-                k_day = (str(r['mahasiswa_id']), None, str(r['date']) if r['date'] else None)
-                existing_map[k_keg] = r
-                existing_map[k_day] = r
+                m_id = str(r['mahasiswa_id']).strip()
+                d_val = str(r['date']) if r['date'] else None
+                k_id = r['kegiatan_id']
+                existing_map[(m_id, k_id, d_val)] = r
+                if k_id is None:
+                    existing_map[(m_id, None, d_val)] = r
 
             for att in attendances:
                 try:
@@ -1024,7 +1033,7 @@ class LaravelSyncService:
                     if not check_in and not check_out and status_raw not in ['sakit', 'izin']:
                         continue
 
-                    key_kegiatan = (mhs_id, kegiatan_id, date_val if not kegiatan_id else None)
+                    key_kegiatan = (mhs_id, kegiatan_id, date_val)
                     key_daily = (mhs_id, None, date_val)
                     
                     existing = existing_map.get(key_kegiatan) or existing_map.get(key_daily)

@@ -144,11 +144,11 @@ class SyncController extends Controller
     /**
      * Get today's attendance records for Python sync
      */
-    public function attendance()
+    public function attendance(Request $request)
     {
         try {
-            $today = \Carbon\Carbon::today()->format('Y-m-d');
-            $attendances = \App\Models\Attendance::where('date', $today)
+            $today = $request->query('date', \Carbon\Carbon::today()->format('Y-m-d'));
+            $attendances = \App\Models\Attendance::whereDate('date', $today)
                 ->select([
                     'id',
                     'mahasiswa_id',
