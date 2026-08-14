@@ -1,3 +1,10 @@
 venv/
 __pycache__/
 *.pyc
+
+# Logs & Temporary Files (spesifik per laptop)
+logs/
+*.log
+*.json
+*.jsonl
+backups/

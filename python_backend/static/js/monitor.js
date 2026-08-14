@@ -324,7 +324,7 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr, customMessage 
         bgBadge = '#eff6ff';
         borderBadge = '#bfdbfe';
         subMsgHtml = '';
-    } else if (type === 'already_checked_in') {
+    } else if (type === 'already_checked_in' || type === 'cooldown') {
         gradientColor = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
         glowColor = 'rgba(16, 185, 129, 0.3)';
         iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">task_alt</span>`;
@@ -335,7 +335,7 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr, customMessage 
         subMsgHtml = `
             <div style="width:100%;margin-top:14px;padding:12px 16px;background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:12px;color:#065f46;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
                 <span class="material-symbols-outlined" style="font-size:20px;color:#059669;">check_circle</span>
-                Mahasiswa ini sudah terdaftar absen masuk hari ini.
+                ${customMessage || 'Mahasiswa ini sudah terdaftar absen masuk hari ini.'}
             </div>`;
     } else if (type === 'already_checked_out') {
         gradientColor = 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)';
@@ -363,18 +363,18 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr, customMessage 
                 <span class="material-symbols-outlined" style="font-size:20px;color:#d97706;">info</span>
                 Belum melakukan absensi masuk pagi ini!
             </div>`;
-    } else if (type === 'cooldown' || type === 'too_early') {
+    } else if (type === 'too_early') {
         gradientColor = 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)';
         glowColor = 'rgba(234, 179, 8, 0.3)';
         iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">timer</span>`;
-        labelText = 'BELUM WAKTUNYA CHECK-OUT';
+        labelText = 'ABSEN MASUK BELUM DIBUKA';
         labelColor = '#a16207';
         bgBadge = '#fefce8';
         borderBadge = '#fef08a';
         subMsgHtml = `
             <div style="width:100%;margin-top:14px;padding:12px 16px;background:#fef9c3;border:1.5px solid #fef08a;border-radius:12px;color:#854d0e;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
                 <span class="material-symbols-outlined" style="font-size:20px;color:#ca8a04;">hourglass_empty</span>
-                ${customMessage || 'Mahasiswa masih dalam jeda waktu tunggu sebelum boleh check-out.'}
+                ${customMessage || 'Waktu absensi masuk belum dibuka.'}
             </div>`;
     } else if (['sakit', 'izin', 'alpha', 'special_status'].includes(type)) {
         let stUpper = (type || 'SAKIT').toUpperCase();
@@ -389,6 +389,32 @@ function showAttendancePopup(type, mahasiswaName, kompi, timeStr, customMessage 
             <div style="width:100%;margin-top:14px;padding:12px 16px;background:#f3e8ff;border:1.5px solid #d8b4fe;border-radius:12px;color:#581c87;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
                 <span class="material-symbols-outlined" style="font-size:20px;color:#7c3aed;">info</span>
                 Mahasiswa ini sudah terdaftar status ${stUpper} hari ini.
+            </div>`;
+    } else if (type === 'no_schedule') {
+        gradientColor = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+        glowColor = 'rgba(245, 158, 11, 0.35)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">calendar_today</span>`;
+        labelText = 'TIDAK ADA JADWAL';
+        labelColor = '#b45309';
+        bgBadge = '#fffbeb';
+        borderBadge = '#fde68a';
+        subMsgHtml = `
+            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#fef3c7;border:1.5px solid #fde68a;border-radius:12px;color:#92400e;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <span class="material-symbols-outlined" style="font-size:20px;color:#d97706;">info</span>
+                ${customMessage || 'Tidak ada jadwal absensi untuk hari ini.'}
+            </div>`;
+    } else if (type === 'too_late') {
+        gradientColor = 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)';
+        glowColor = 'rgba(239, 68, 68, 0.35)';
+        iconHtml = `<span class="material-symbols-outlined" style="font-size:48px;color:white;">event_busy</span>`;
+        labelText = 'ABSENSI DITUTUP';
+        labelColor = '#b91c1c';
+        bgBadge = '#fef2f2';
+        borderBadge = '#fca5a5';
+        subMsgHtml = `
+            <div style="width:100%;margin-top:14px;padding:12px 16px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:12px;color:#991b1b;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
+                <span class="material-symbols-outlined" style="font-size:20px;color:#dc2626;">error</span>
+                ${customMessage || 'Waktu absensi hari ini sudah ditutup.'}
             </div>`;
     } else if (type === 'not_found' || type === 'error') {
         gradientColor = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
@@ -559,7 +585,9 @@ async function recordAttendance(mahasiswaId, confidence = 0.0, inputType = 'USB-
 
             if (data.reason === 'not_checked_in' || data.result?.status === 'not_checked_in' || (data.alert_title && data.alert_title.includes('Belum Absen'))) {
                 showAttendancePopup('pagi_belum_absen', mahasiswaName, kompi, timeStr, data.alert_text);
-            } else if (data.reason === 'too_early' || (data.alert_title && data.alert_title.includes('Sudah Absen Masuk'))) {
+            } else if (data.alert_title && (data.alert_title.includes('Sudah Absen Masuk') || data.alert_title.includes('Sudah Absen'))) {
+                showAttendancePopup('already_checked_in', mahasiswaName, kompi, timeStr, data.alert_text);
+            } else if (data.reason === 'too_early') {
                 showAttendancePopup('too_early', mahasiswaName, kompi, timeStr, data.alert_text);
             } else if (data.reason === 'no_schedule') {
                 showAttendancePopup('no_schedule', mahasiswaName, kompi, timeStr, 'Tidak ada jadwal absensi hari ini.');

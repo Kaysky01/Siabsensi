@@ -573,7 +573,7 @@ def record_attendance():
                     **alert_config
                 }), 403
 
-            # 2. Handle Cooldown
+            # 2. Handle Cooldown / Double Scan
             if action == 'cooldown':
                 remaining = validation.get('remaining_seconds', 0)
                 return jsonify({
@@ -587,8 +587,8 @@ def record_attendance():
                     },
                     'show_alert': True,
                     'alert_type': 'info',
-                    'alert_title': 'Belum Bisa Check-out',
-                    'alert_text': f'{mahasiswa["name"]} masih dalam masa tunggu.\n\nSilakan tunggu {remaining} detik lagi untuk check-out.'
+                    'alert_title': 'Sudah Absen Masuk',
+                    'alert_text': f'{mahasiswa["name"]} sudah terdaftar absen masuk hari ini.'
                 })
 
             # 3. Handle Already Completed Attendance
@@ -819,16 +819,6 @@ def record_attendance():
                 }), 403
             
             if action == 'cooldown':
-                # Get remaining cooldown time
-                key = 'default'
-                if key in local_attendance_state and actual_mahasiswa_id in local_attendance_state[key]:
-                    record = local_attendance_state[key][actual_mahasiswa_id]
-                    elapsed = (datetime.now() - record['check_in']).total_seconds()
-                    remaining = YOLO_SETTINGS.get('qr_cooldown', 30) - elapsed
-                    remaining_sec = max(0, int(remaining))
-                else:
-                    remaining_sec = 0
-                
                 return jsonify({
                     'success': True,
                     'message': f'Attendance ignored (cooldown)',
@@ -840,8 +830,8 @@ def record_attendance():
                     },
                     'show_alert': True,
                     'alert_type': 'info',
-                    'alert_title': 'Belum Bisa Check-out',
-                    'alert_text': f'{mahasiswa["name"]} masih dalam masa tunggu.\n\nSilakan tunggu {remaining_sec} detik lagi untuk check-out.'
+                    'alert_title': 'Sudah Absen Masuk',
+                    'alert_text': f'{mahasiswa["name"]} sudah terdaftar absen masuk hari ini.'
                 })
             
             if action == 'already_checked_out':
