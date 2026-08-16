@@ -407,9 +407,31 @@
         </div>
       </div>
 
-      {{-- Section 2: Choice of Jalur / Sheet --}}
+      {{-- Section 2: Format File Export (Split per Day or Combined) --}}
       <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-        <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: var(--text-muted);">2. Pilih Jalur / Kategori Sheet (Ceklis yang Diinginkan)</h4>
+        <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: var(--text-muted);">2. Format File (Opsi Rentang Tanggal)</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+          <label style="display:flex; align-items:flex-start; gap:10px; background:var(--bg-lighter); padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.2s;">
+            <input type="radio" name="split_mode" value="combined" checked style="margin-top:2px; accent-color:var(--primary);">
+            <div>
+              <div style="font-size:13px; font-weight:700; color:var(--text);"><i class="fas fa-file-excel" style="color:#16a34a; margin-right:4px;"></i> Jadi 1 File Excel</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Seluruh rentang tanggal digabung dalam 1 file Excel (.xlsx).</div>
+            </div>
+          </label>
+
+          <label style="display:flex; align-items:flex-start; gap:10px; background:var(--bg-lighter); padding:12px 14px; border:1.5px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.2s;">
+            <input type="radio" name="split_mode" value="per_day" style="margin-top:2px; accent-color:var(--primary);">
+            <div>
+              <div style="font-size:13px; font-weight:700; color:var(--text);"><i class="fas fa-file-archive" style="color:#2563eb; margin-right:4px;"></i> Dipisah Per Hari (ZIP / Multi Excel)</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Setiap hari dipisah jadi file Excel tersendiri (Misal: Tanggal 10-15 = 6 File Excel).</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {{-- Section 3: Choice of Jalur / Sheet --}}
+      <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+        <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: var(--text-muted);">3. Pilih Jalur / Kategori Sheet (Ceklis yang Diinginkan)</h4>
         <div style="display: flex; flex-wrap: wrap; gap: 16px; background: var(--bg-lighter); padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px;">
           <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight: 600; cursor:pointer; user-select:none; color: var(--text);">
             <input type="checkbox" name="sheets[]" value="mandiri" checked style="width:16px; height:16px; accent-color: var(--primary);">
@@ -426,10 +448,10 @@
         </div>
       </div>
 
-      {{-- Section 3: Field Selection --}}
+      {{-- Section 4: Field Selection --}}
       <div style="margin-bottom: 24px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <h4 style="margin:0; font-size:14px; font-weight:600; color:var(--text-muted);">3. Pilih Kolom Data yang Ditampilkan</h4>
+          <h4 style="margin:0; font-size:14px; font-weight:600; color:var(--text-muted);">4. Pilih Kolom Data yang Ditampilkan</h4>
           <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; user-select:none;">
             <input type="checkbox" id="export-check-all" checked onchange="toggleAllExportFields(this)">
             <span style="font-weight:600; color:var(--primary);">Pilih Semua Kolom</span>

@@ -2220,6 +2220,8 @@ class AdminController extends Controller
     {
         $start = $request->input('start', Carbon::today()->toDateString());
         $end = $request->input('end', Carbon::today()->toDateString());
+        $splitMode = $request->input('split_mode', 'combined');
+
         $statuses = (array) $request->input('statuses', []);
         if (empty($statuses)) {
             $singleStatus = $request->input('status', $request->input('filter', 'all'));
@@ -2236,6 +2238,208 @@ class AdminController extends Controller
         $search = $request->input('search', '');
         $exportFields = $request->input('export_fields', []);
 
+        $fieldLabelsMap = [
+            'id' => 'Nomor Pendaftaran',
+            'name' => 'Nama Mahasiswa',
+            'email' => 'Email',
+            'kompi' => 'Kompi',
+            'jurusan' => 'Jurusan',
+            'prodi' => 'Prodi',
+            'date' => 'Tanggal',
+            'check_in' => 'Jam Masuk',
+            'check_out' => 'Jam Keluar',
+            'status' => 'Status Absensi',
+            'camera_id' => 'Kamera / Device',
+        ];
+
+        $selectedFields = !empty($exportFields) ? array_intersect(array_keys($fieldLabelsMap), (array)$exportFields) : array_keys($fieldLabelsMap);
+
+        $requestedSheets = (array) $request->input('sheets', ['mandiri', 'reguler', 'non_mandiri', 'kompi_14']);
+        if (empty($requestedSheets)) {
+            $requestedSheets = ['mandiri', 'reguler', 'non_mandiri', 'kompi_14'];
+        }
+
+        $monthsIndo = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+
+        try {
+            $cStart = Carbon::parse($start)->startOfDay();
+            $cEnd = Carbon::parse($end)->startOfDay();
+        } catch (\Exception $e) {
+            $cStart = Carbon::today();
+            $cEnd = Carbon::today();
+        }
+
+        if ($cStart->gt($cEnd)) {
+            $temp = $cStart;
+            $cStart = $cEnd;
+            $cEnd = $temp;
+            $start = $cStart->toDateString();
+            $end = $cEnd->toDateString();
+        }
+
+        $isMultipleDays = $cStart->toDateString() !== $cEnd->toDateString();
+
+        // High priority: If split_mode is per_day and we have a multi-day range, export 1 Excel per day in a ZIP
+        if ($splitMode === 'per_day' && $isMultipleDays) {
+            return $this->exportAttendancePerDayZip(
+                $cStart,
+                $cEnd,
+                $statuses,
+                $kompi,
+                $jurusan,
+                $prodi,
+                $search,
+                $selectedFields,
+                $fieldLabelsMap,
+                $requestedSheets,
+                $monthsIndo
+            );
+        }
+
+        // Standard combined export into 1 Excel file
+        $records = $this->fetchAttendanceRecordsForPeriod($start, $end, $statuses, $kompi, $jurusan, $prodi, $search);
+
+        if ($records->isEmpty()) {
+            return redirect()->back()->with('error', 'Tidak ada data absensi yang ditemukan berdasarkan filter yang dipilih.');
+        }
+
+        $spreadsheet = $this->createAttendanceSpreadsheet($records, $selectedFields, $fieldLabelsMap, $requestedSheets, $start, $end);
+        $excelWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+
+        $startDay = $cStart->day;
+        $endDay = $cEnd->day;
+        $startMonthStr = $monthsIndo[$cStart->month] ?? $cStart->format('F');
+        $endMonthStr = $monthsIndo[$cEnd->month] ?? $cEnd->format('F');
+        $startYear = $cStart->year;
+        $endYear = $cEnd->year;
+
+        if ($cStart->toDateString() === $cEnd->toDateString()) {
+            $dateRangeStr = "{$startDay} {$startMonthStr}";
+            $excelFileName = "Recap PKKMB {$startYear} {$dateRangeStr}.xlsx";
+        } elseif ($startYear === $endYear && $cStart->month === $cEnd->month) {
+            $dateRangeStr = "{$startDay}-{$endDay} {$startMonthStr}";
+            $excelFileName = "Recap PKKMB {$startYear} {$dateRangeStr}.xlsx";
+        } elseif ($startYear === $endYear) {
+            $dateRangeStr = "{$startDay} {$startMonthStr} - {$endDay} {$endMonthStr}";
+            $excelFileName = "Recap PKKMB {$startYear} {$dateRangeStr}.xlsx";
+        } else {
+            $dateRangeStr = "{$startDay} {$startMonthStr} {$startYear} - {$endDay} {$endMonthStr} {$endYear}";
+            $excelFileName = "Recap PKKMB {$dateRangeStr}.xlsx";
+        }
+
+        return response()->stream(
+            function () use ($excelWriter) {
+                $excelWriter->save('php://output');
+            },
+            200,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment;filename="' . $excelFileName . '"',
+                'Cache-Control' => 'max-age=0',
+            ]
+        );
+    }
+
+    private function exportAttendancePerDayZip(
+        Carbon $cStart,
+        Carbon $cEnd,
+        array $statuses,
+        string $kompi,
+        string $jurusan,
+        string $prodi,
+        string $search,
+        array $selectedFields,
+        array $fieldLabelsMap,
+        array $requestedSheets,
+        array $monthsIndo
+    ) {
+        if (!class_exists('\ZipArchive')) {
+            return redirect()->back()->with('error', 'Ekstensi PHP ZipArchive tidak aktif pada server.');
+        }
+
+        $dates = [];
+        $curr = $cStart->copy();
+        while ($curr->lte($cEnd)) {
+            $dates[] = $curr->toDateString();
+            $curr->addDay();
+        }
+
+        $tempZipPath = tempnam(sys_get_temp_dir(), 'pkkmb_export_') . '.zip';
+        $zip = new \ZipArchive();
+
+        if ($zip->open($tempZipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            return redirect()->back()->with('error', 'Gagal membuat file ZIP untuk export.');
+        }
+
+        $addedFiles = 0;
+
+        foreach ($dates as $singleDate) {
+            $records = $this->fetchAttendanceRecordsForPeriod($singleDate, $singleDate, $statuses, $kompi, $jurusan, $prodi, $search);
+
+            if ($records->isEmpty()) {
+                continue;
+            }
+
+            $spreadsheet = $this->createAttendanceSpreadsheet($records, $selectedFields, $fieldLabelsMap, $requestedSheets, $singleDate, $singleDate);
+            $excelWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+
+            ob_start();
+            $excelWriter->save('php://output');
+            $excelData = ob_get_clean();
+
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet, $excelWriter);
+
+            $dt = Carbon::parse($singleDate);
+            $monthStr = $monthsIndo[$dt->month] ?? $dt->format('F');
+            $dailyFileName = "Recap PKKMB {$dt->year} {$dt->day} {$monthStr}.xlsx";
+
+            $zip->addFromString($dailyFileName, $excelData);
+            $addedFiles++;
+        }
+
+        $zip->close();
+
+        if ($addedFiles === 0) {
+            if (file_exists($tempZipPath)) {
+                @unlink($tempZipPath);
+            }
+            return redirect()->back()->with('error', 'Tidak ada data absensi yang ditemukan pada rentang tanggal tersebut.');
+        }
+
+        $startDay = $cStart->day;
+        $endDay = $cEnd->day;
+        $startMonthStr = $monthsIndo[$cStart->month] ?? $cStart->format('F');
+        $endMonthStr = $monthsIndo[$cEnd->month] ?? $cEnd->format('F');
+        $startYear = $cStart->year;
+        $endYear = $cEnd->year;
+
+        if ($startYear === $endYear && $cStart->month === $cEnd->month) {
+            $zipDownloadName = "Recap PKKMB {$startYear} {$startDay}-{$endDay} {$startMonthStr} (Per Hari).zip";
+        } elseif ($startYear === $endYear) {
+            $zipDownloadName = "Recap PKKMB {$startYear} {$startDay} {$startMonthStr} - {$endDay} {$endMonthStr} (Per Hari).zip";
+        } else {
+            $zipDownloadName = "Recap PKKMB {$startDay} {$startMonthStr} {$startYear} - {$endDay} {$endMonthStr} {$endYear} (Per Hari).zip";
+        }
+
+        return response()->download($tempZipPath, $zipDownloadName, [
+            'Content-Type' => 'application/zip',
+        ])->deleteFileAfterSend(true);
+    }
+
+    private function fetchAttendanceRecordsForPeriod(
+        string $start,
+        string $end,
+        array $statuses,
+        string $kompi,
+        string $jurusan,
+        string $prodi,
+        string $search
+    ): \Illuminate\Support\Collection {
         $table = (new Attendance)->getTable();
         $mhsTable = (new Mahasiswa)->getTable();
 
@@ -2337,45 +2541,24 @@ class AdminController extends Controller
             $recordsCollection = $recordsCollection->concat($queryAlpha->orderBy("$mhsTable.prodi", 'asc')->orderBy("$mhsTable.name", 'asc')->get());
         }
 
-        $records = $recordsCollection->sortBy([
+        return $recordsCollection->sortBy([
             ['prodi', 'asc'],
             ['name', 'asc'],
         ]);
+    }
 
-        if ($records->isEmpty()) {
-            return redirect()->back()->with('error', 'Tidak ada data absensi yang ditemukan berdasarkan filter yang dipilih.');
-        }
-
-        // Pisahkan data menjadi 3 kategori (3 Sheet):
-        // Sheet 1: Khusus Jalur Mandiri
-        // Sheet 2: Seluruh Jalur (Kecuali Mandiri)
-        // Sheet 3: Kompi 14 (Mahasiswa Ngulang)
+    private function createAttendanceSpreadsheet(
+        \Illuminate\Support\Collection $records,
+        array $selectedFields,
+        array $fieldLabelsMap,
+        array $requestedSheets,
+        string $start,
+        string $end
+    ): \PhpOffice\PhpSpreadsheet\Spreadsheet {
         $recordsMandiri = $records->filter(fn($item) => $this->isJalurMandiriRecord($item));
         $recordsExMandiri = $records->filter(fn($item) => !$this->isJalurMandiriRecord($item));
         $recordsKompi14 = $records->filter(fn($item) => $this->isKompi14Record($item));
 
-        $fieldLabelsMap = [
-            'id' => 'Nomor Pendaftaran',
-            'name' => 'Nama Mahasiswa',
-            'email' => 'Email',
-            'kompi' => 'Kompi',
-            'jurusan' => 'Jurusan',
-            'prodi' => 'Prodi',
-            'date' => 'Tanggal',
-            'check_in' => 'Jam Masuk',
-            'check_out' => 'Jam Keluar',
-            'status' => 'Status Absensi',
-            'camera_id' => 'Kamera / Device',
-        ];
-
-        $selectedFields = !empty($exportFields) ? array_intersect(array_keys($fieldLabelsMap), (array)$exportFields) : array_keys($fieldLabelsMap);
-
-        $requestedSheets = (array) $request->input('sheets', ['mandiri', 'reguler', 'non_mandiri', 'kompi_14']);
-        if (empty($requestedSheets)) {
-            $requestedSheets = ['mandiri', 'reguler', 'non_mandiri', 'kompi_14'];
-        }
-
-        // Generate Multi-Sheet Excel Workbook based on selected checkboxes
         $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         $spreadsheet->getDefaultStyle()->getFont()->setName('Calibri')->setSize(11);
 
@@ -2413,54 +2596,7 @@ class AdminController extends Controller
 
         $spreadsheet->setActiveSheetIndex(0);
 
-        $excelWriter = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
-
-        $monthsIndo = [
-            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
-            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
-        ];
-
-        try {
-            $cStart = Carbon::parse($start);
-            $cEnd = Carbon::parse($end);
-        } catch (\Exception $e) {
-            $cStart = Carbon::today();
-            $cEnd = Carbon::today();
-        }
-
-        $startDay = $cStart->day;
-        $endDay = $cEnd->day;
-        $startMonthStr = $monthsIndo[$cStart->month] ?? $cStart->format('F');
-        $endMonthStr = $monthsIndo[$cEnd->month] ?? $cEnd->format('F');
-        $startYear = $cStart->year;
-        $endYear = $cEnd->year;
-
-        if ($cStart->toDateString() === $cEnd->toDateString()) {
-            $dateRangeStr = "{$startDay} {$startMonthStr}";
-            $excelFileName = "Recap PKKMB {$startYear} {$dateRangeStr}.xlsx";
-        } elseif ($startYear === $endYear && $cStart->month === $cEnd->month) {
-            $dateRangeStr = "{$startDay}-{$endDay} {$startMonthStr}";
-            $excelFileName = "Recap PKKMB {$startYear} {$dateRangeStr}.xlsx";
-        } elseif ($startYear === $endYear) {
-            $dateRangeStr = "{$startDay} {$startMonthStr} - {$endDay} {$endMonthStr}";
-            $excelFileName = "Recap PKKMB {$startYear} {$dateRangeStr}.xlsx";
-        } else {
-            $dateRangeStr = "{$startDay} {$startMonthStr} {$startYear} - {$endDay} {$endMonthStr} {$endYear}";
-            $excelFileName = "Recap PKKMB {$dateRangeStr}.xlsx";
-        }
-
-        return response()->stream(
-            function () use ($excelWriter) {
-                $excelWriter->save('php://output');
-            },
-            200,
-            [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition' => 'attachment;filename="' . $excelFileName . '"',
-                'Cache-Control' => 'max-age=0',
-            ]
-        );
+        return $spreadsheet;
     }
 
     private function isJalurMandiriRecord($item): bool

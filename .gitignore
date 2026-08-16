@@ -1,4 +1,7 @@
 TODO-*.md
 todo.md
 AGENTS.md
-python_backend/logs/*.xlsx
+python_backend/logs/
+python_backend/backups/
+python_backend/*.jsonl
+python_backend/*.log
